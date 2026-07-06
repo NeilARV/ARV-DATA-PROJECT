@@ -1,8 +1,8 @@
 # Supplemental Tax Bill (SBT) — Design & Plan
 
-> Status: **Design / planning only. No code written yet.**
+> Status: **v1 built and merged to `main` (PR #81, 2026-07-02)** — schema, calculator, pipeline Step 12, backfill, API, UI all live. **§12 (v2 ownership-window display) is the active plan.**
 > Scope: **California properties only** for v1 (see §1 for why this is correct, not just a cut).
-> Owner decisions captured in §0; open items flagged in §9.
+> Owner decisions captured in §0 and §12.3; open items flagged in §9.
 
 ---
 
@@ -422,4 +422,133 @@ Matching how every other property child table is wired:
 5. Verify live: consumer run with small `MAX_PROPERTIES_PER_MSA` against the **four** CA MSAs; spot-check rows incl. the 11.1-K assessment-labeling check.
 6. `scripts/backfill-supplemental-tax.ts` + npm entry; run once; re-run to prove idempotency.
 7. Integration tests via `/test`; docs via agent-updater.
+
+---
+
+## 12. v2 — Ownership-window display (finalized plan, 2026-07-06)
+
+v1 stores and displays the **statutory** bill(s): what the county mails a buyer who holds through the fiscal year. The 2026-07-06 review surfaced three display problems, and one of them is a *correctness* problem for the flip-heavy dataset:
+
+1. **Whose bill?** The card shows both buyer and seller; the unlabeled number belongs to the buyer of the displayed transaction, but nothing says so.
+2. **Flips are overstated.** Companies routinely resell within 2–4 months. CA law (verified below) prorates successive owners to their **actual ownership window** — a 4-month flipper does not bear the full remaining-year supplemental. Showing the full-remainder amount overstates their cost.
+3. **Jan–May two-bill sums** display as one unlabeled number that can exceed a full year's supplemental.
+
+### 12.1 Law (verified 2026-07-06)
+
+Per the BOE supplemental-assessment guidance and county assessor pages (Alameda, Monterey, Kern): when a property **changes ownership again within the same fiscal year**, and the assessor learns of the resale before issuing the first supplemental bill, the first buyer's bill is **prorated to only the period they owned the property**; the new owner receives their own supplemental from their purchase to fiscal year end. If the bill was already issued, proration is settled privately in escrow — but economically the flipper still bears only their window. Both windows use the §75.41(b) presumed-date convention (1st of the month following the event), so successive windows tile exactly at month boundaries.
+
+**Consequence:** a same-calendar-month flip owes **$0** supplemental (both presumed dates coincide). This is statutorily correct, not an artifact.
+
+Sources: [BOE — Supplemental Assessment](https://www.boe.ca.gov/proptaxes/supplemental-assessment/), [R&T §75.41](https://california.public.law/codes/revenue_and_taxation_code_section_75.41), county assessor FAQs (Alameda/Monterey/Kern).
+
+### 12.2 Unified rule
+
+> **The displayed supplemental amount always describes the displayed party's actual ownership window**, at month granularity, derived from the stored statutory rows.
+
+- **Completed flip** (the card has spread context — seller's traced acquisition + the displayed resale): show the **seller's finalized hold-period amount** — the bills triggered by the seller's *own acquisition*, prorated from their acquisition's presumed month to the resale's presumed month. This is the flip cost that belongs next to the spread.
+- **Currently held** (buyer of the displayed transaction has no subsequent arm's-length transfer): show the **buyer's accrued-to-today amount** — "if they sold this month, this is what they'd owe." Accrual grows monthly until the billed window is exhausted, then becomes final.
+
+### 12.3 Owner decisions (locked 2026-07-06)
+
+| # | Decision | Choice |
+|---|----------|--------|
+| 1 | Current holder display | **Accrued-to-today only** (no projected full-bill secondary number) |
+| 2 | Completed-flip display | **Seller's hold-period bill only** (not the new buyer's accruing bill) |
+| 3 | Storage | **Unchanged** — `supplemental_tax_bills` stays the statutory artifact; all windowing is read-time |
+| 4 | Zero-amount lines | Suppressed — same-month flips and just-bought (0 accrued months) render no line |
+
+### 12.4 The accrual math (pure, month-granularity)
+
+For an ownership window over acquisition transaction *T*:
+
+- `windowStart` = 1st of the month **after** `T.saleDate` (presumed date, §75.41(b)).
+- `windowEnd` = 1st of the month after the resale date (flip) **or** 1st of the month after *today* (held — i.e., "sold this month").
+- Recompute *T*'s statutory slots via the existing `getSupplementalTaxSchedule(state, T.saleDate)`; match stored rows to slots by `fiscal_year`. Each slot's **billed window** is the slot's fiscal-year months covered by its `proration_factor` (a full-year slot = Jul–Jun; the first slot of an event = presumed month → Jun 30).
+- Per row: `ownedFraction = overlapMonths(window, slot billed window) / billedMonths(slot)`; `accrued = row.amount × ownedFraction` (scaling the stored amount keeps rounding consistent with what the pipeline persisted; equivalent to `net × rate × ownedMonths / 12`).
+- Result = **signed sum** across rows (bill = −, refund = +, matching today's convention), rounded to cents. Refund rows scale symmetrically.
+- Status = `'final'` when the window end is fixed (resold) or every slot's billed window is fully consumed/elapsed; else `'accruing'`.
+- Returns `null` (no display line) when the signed sum is $0 — covers same-month flips and current-month purchases.
+
+New pure function in `server/utils/supplementalTax.ts`:
+
+```ts
+export interface SupplementalWindowResult {
+    /** Signed like the v1 display value: bill = negative, refund = positive. */
+    amount: number;
+    monthsOwned: number;
+    status: 'accruing' | 'final';
+}
+
+export function accrueSupplementalOverWindow(input: {
+    rows: Array<{ fiscalYear: number; billType: SupplementalBillType; amount: number }>;
+    /** Sale date of the acquisition transaction the rows belong to. */
+    acquisitionDate: string;
+    /** Resale date when the window is closed (flip); null while still held. */
+    resaleDate: string | null;
+    /** Evaluation date — "today" from the caller (services are read-time; no Date restrictions). */
+    asOf: string;
+    state: string | null;
+}): SupplementalWindowResult | null;
 ```
+
+### 12.5 Service changes (read-time only — no schema, pipeline, or backfill changes)
+
+- **`getSupplementalTaxTotalsByTxId` → `getSupplementalTaxRowsByTxId`** — return per-row `{ fiscalYear, billType, amount }` keyed by transaction ID instead of a pre-summed signed total (the sum loses the per-FY structure the accrual needs).
+- **Which transaction's rows to fetch:** the display party's *acquisition* transaction —
+  - flip: the seller's traced acquisition tx (`calculateSpread` / `traceSellerAcquisition` already resolve it; expose its **transaction ID** alongside the existing `sellerPurchasePrice`/`sellerPurchaseDate`),
+  - held: the `displayTx` itself (list) / `latest` (detail).
+- **Window end for the held case:** the next arm's-length transfer after the acquisition in the property's sorted transactions (already loaded per property), else `null` (→ accrue to `asOf = today`).
+- **API field:** replace `supplementalTaxBill: number | null` with
+  ```ts
+  supplementalTax: {
+      amount: number;               // signed: bill −, refund +
+      party: 'buyer' | 'seller';    // whose window this is
+      status: 'accruing' | 'final';
+      monthsOwned: number;
+  } | null
+  ```
+  in `properties.services.ts` (list), `property.services.ts` (detail), and the client mirror in `client/src/types/property.ts`. **Admin/owner gating unchanged.** This is a breaking rename on purpose — a lingering `supplementalTaxBill` consumer should fail the type check, not silently show the old semantics.
+
+### 12.6 UI (`PropertyContent.tsx`)
+
+One labeled line replacing the current one, same placement and admin/owner gate, colors as today (negative red / positive green):
+
+```
+Supplemental Tax (Seller · held 4 mo):  −$3,660     ← flip, final
+Supplemental Tax (Buyer · 3 mo to date): −$2,745    ← held, accruing
+```
+
+No line when the service returns `null` (non-CA, no bills, $0 window, or non-admin/owner).
+
+### 12.7 Files to touch
+
+- `server/utils/supplementalTax.ts` — add `accrueSupplementalOverWindow` (+ helpers for slot billed-windows).
+- `server/services/properties/properties.services.ts` — rows fetch, party selection, window resolution, new field.
+- `server/services/properties/property.services.ts` — same for the detail endpoint.
+- `server/utils/orderTransactions.ts` — expose the seller-acquisition transaction ID from `calculateSpread` (or return the traced tx, not just its price/date).
+- `client/src/types/property.ts`, `client/src/components/data/property/PropertyContent.tsx` — new field shape + label.
+- Docs (agent-updater): `api.md` (field shape), `apps.md` if it names the field.
+
+**Not touched:** `database/*`, `insert-supplemental-tax.ts`, `consumer.ts`, `scripts/backfill-supplemental-tax.ts` — stored rows remain the statutory source the accrual scales from.
+
+### 12.8 Tests (spec for the `/test` pass)
+
+Unit — `accrueSupplementalOverWindow`:
+- Oct purchase, still held, asOf Dec → 2/8 of the 0.67 bill, `accruing`.
+- Oct purchase, resold Feb → 4 months, `final`; resold same calendar month → `null`.
+- Purchase in current month (0 accrued) → `null`.
+- Jan–May event (two rows): window spanning into the second FY prorates both rows; resale before Jul 1 leaves the second-FY row at partial/zero share correctly.
+- June event (single next-FY row): accrual starts Jul 1.
+- Resale (or asOf) after the last billed month → full statutory sum, `final` — matches the v1 display value exactly.
+- Refund rows: signs mirror; mixed bill+refund rows sum signed.
+- Non-CA / no rows / unparseable dates → `null`.
+
+Integration — update `supplemental-tax-visibility.integration.test.ts` for the new field shape; add a flip fixture asserting the seller-window amount and a held fixture asserting month-scaled accrual against a fixed `asOf`.
+
+### 12.9 Build order
+
+1. Pure function + unit tests green.
+2. `orderTransactions.ts` seller-acquisition tx exposure.
+3. Services (list + detail) + type rename ripple → `npm run check`.
+4. UI line + label.
+5. Integration tests via `/test`; docs via agent-updater.
