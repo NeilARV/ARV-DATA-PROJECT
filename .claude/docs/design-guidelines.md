@@ -456,7 +456,7 @@ Hardcoded in `DealCard2.tsx` — not tokenized. These are intentionally brand-sp
 
 ## Transaction Type Colors
 
-Hardcoded in `PropertyTransactions.tsx` (`TYPE_COLORS`) — not tokenized, by the same rationale as Deal Type Colors: these are intentionally brand-specific categorical badge colors with no semantic token equivalent. Each badge renders as a translucent tinted background (`/15`), a saturated border (`/30`), and a darker same-hue text shade. Any unmapped type falls back to the `bg-muted text-muted-foreground border-border` tokens.
+Hardcoded in `client/src/utils/transactionTypeBadge.ts` (`TYPE_COLORS`, applied via `transactionTypeBadgeClass` in `PropertyTransactions.tsx` and `TransactionHistory.tsx`) — not tokenized, by the same rationale as Deal Type Colors: these are intentionally brand-specific categorical badge colors with no semantic token equivalent. Each badge renders as a translucent tinted background (`/15`), a saturated border (`/30`), and a darker same-hue text shade. Any unmapped type falls back to the `bg-muted text-muted-foreground border-border` tokens.
 
 | Transaction Type | Hue (base) | Background / Border | Text |
 |---|---|---|---|

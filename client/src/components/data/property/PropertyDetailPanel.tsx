@@ -9,6 +9,7 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';
 import { useDeleteProperty } from '@/hooks/properties/useDeleteProperty';
 import { PropertyContent } from './PropertyContent';
+import { AdminTransactionHistorySection } from './AdminTransactionHistorySection';
 
 export default function PropertyDetailPanel() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -52,6 +53,8 @@ export default function PropertyDetailPanel() {
                     deleteIsPending={deletePropertyMutation.isPending}
                     onCompanyClick={(name, id, isBuyer) => handleCompanyClick(name, id, isBuyer)}
                 />
+
+                <AdminTransactionHistorySection transactions={property.transactions} />
             </div>
 
             {/* Edit Dialog */}

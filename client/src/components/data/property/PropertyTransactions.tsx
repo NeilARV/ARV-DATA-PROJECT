@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
+import { transactionTypeBadgeClass } from '@/utils/transactionTypeBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,21 +47,6 @@ const TRANSACTION_TYPES = [
     'New Construction',
     'Acquisition',
 ] as const;
-
-const TYPE_COLORS: Record<string, string> = {
-    'arms length': 'bg-[#22C55E]/15 text-[#16A34A] border-[#22C55E]/30',
-    'non-arms length': 'bg-[#F59E0B]/15 text-[#D97706] border-[#F59E0B]/30',
-    assignment: 'bg-[#9333EA]/15 text-[#7E22CE] border-[#9333EA]/30',
-    refinance: 'bg-[#3B82F6]/15 text-[#1D4ED8] border-[#3B82F6]/30',
-    heloc: 'bg-[#06B6D4]/15 text-[#0E7490] border-[#06B6D4]/30',
-    'new construction': 'bg-[#EF4444]/15 text-[#DC2626] border-[#EF4444]/30',
-    acquisition: 'bg-[#69C9E1]/15 text-[#0891B2] border-[#69C9E1]/30',
-};
-
-function typeBadgeClass(type: string | null): string {
-    const key = (type ?? '').trim().toLowerCase();
-    return TYPE_COLORS[key] ?? 'bg-muted text-muted-foreground border-border';
-}
 
 function formatPrice(price: string | null): string {
     if (!price) return '—';
@@ -319,7 +305,7 @@ function DisplayRow({
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
                     <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${typeBadgeClass(tx.transactionType)}`}
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${transactionTypeBadgeClass(tx.transactionType)}`}
                     >
                         {tx.transactionType ?? 'Unknown'}
                     </span>

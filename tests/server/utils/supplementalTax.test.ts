@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     getSupplementalTaxSchedule,
     calculateSupplementalBill,
+    accrueSupplementalOverWindow,
     isSupplementalTaxState,
     SUPPLEMENTAL_TAX_STATES,
     CA_SUPPLEMENTAL_TAX_RATE,
@@ -193,6 +194,174 @@ describe('calculateSupplementalBill', () => {
             expect(bill?.taxRate).toBe(0.011);
             // 878,000 × 0.011 at factor 1.00
             expect(bill?.amount).toBe(9_658);
+        });
+    });
+});
+
+describe('accrueSupplementalOverWindow', () => {
+    // Oct 2026 event → factor 0.67, one FY-2026 slot billed Nov 1 2026 – Jun 30 2027 (8 months).
+    const octoberBill = { fiscalYear: 2026, billType: 'bill' as const, amount: 800 };
+    const octoberBase = {
+        rows: [octoberBill],
+        acquisitionDate: '2026-10-05',
+        resaleDate: null,
+        asOf: '2026-12-15',
+        state: 'CA',
+    };
+
+    describe('returns null — nothing to display', () => {
+        it('accrueSupplementalOverWindow — no rows — null', () => {
+            expect(accrueSupplementalOverWindow({ ...octoberBase, rows: [] })).toBeNull();
+        });
+
+        it.each([['WA'], ['FL'], [null], [undefined]])(
+            'accrueSupplementalOverWindow — state %j — null',
+            (state) => {
+                expect(accrueSupplementalOverWindow({ ...octoberBase, state })).toBeNull();
+            },
+        );
+
+        it('accrueSupplementalOverWindow — unparseable acquisition date — null', () => {
+            expect(
+                accrueSupplementalOverWindow({ ...octoberBase, acquisitionDate: 'not-a-date' }),
+            ).toBeNull();
+        });
+
+        it('accrueSupplementalOverWindow — unparseable resale date — null', () => {
+            expect(
+                accrueSupplementalOverWindow({ ...octoberBase, resaleDate: '10/25/2026' }),
+            ).toBeNull();
+        });
+
+        it('accrueSupplementalOverWindow — same-calendar-month flip — null ($0 owed)', () => {
+            // Both presumed dates are Nov 1 — the windows tile with zero overlap.
+            expect(
+                accrueSupplementalOverWindow({ ...octoberBase, resaleDate: '2026-10-25' }),
+            ).toBeNull();
+        });
+
+        it('accrueSupplementalOverWindow — purchase in the current month (0 accrued) — null', () => {
+            expect(
+                accrueSupplementalOverWindow({
+                    ...octoberBase,
+                    acquisitionDate: '2026-07-06',
+                    asOf: '2026-07-20',
+                }),
+            ).toBeNull();
+        });
+
+        it('accrueSupplementalOverWindow — rows matching no schedule slot — null', () => {
+            expect(
+                accrueSupplementalOverWindow({
+                    ...octoberBase,
+                    rows: [{ ...octoberBill, fiscalYear: 2020 }],
+                }),
+            ).toBeNull();
+        });
+    });
+
+    describe('held (accruing to asOf)', () => {
+        it('accrueSupplementalOverWindow — Oct purchase, asOf Dec — 2/8 of the bill, accruing', () => {
+            // Owned Nov 1 → Jan 1 = 2 of the slot's 8 billed months: −800 × 2/8.
+            expect(accrueSupplementalOverWindow(octoberBase)).toEqual({
+                amount: -200,
+                monthsOwned: 2,
+                status: 'accruing',
+            });
+        });
+
+        it('accrueSupplementalOverWindow — June event — accrual starts Jul 1 of the next FY', () => {
+            // June → single next-FY slot at 1.00 (12 billed months, Jul–Jun).
+            const result = accrueSupplementalOverWindow({
+                rows: [{ fiscalYear: 2026, billType: 'bill', amount: 1_200 }],
+                acquisitionDate: '2026-06-15',
+                resaleDate: null,
+                asOf: '2026-09-10',
+                state: 'CA',
+            });
+            // Owned Jul 1 → Oct 1 = 3 of 12 months: −1,200 × 3/12.
+            expect(result).toEqual({ amount: -300, monthsOwned: 3, status: 'accruing' });
+        });
+
+        it('accrueSupplementalOverWindow — asOf past the last billed month — full statutory sum, final', () => {
+            const result = accrueSupplementalOverWindow({ ...octoberBase, asOf: '2027-08-10' });
+            expect(result).toEqual({ amount: -800, monthsOwned: 10, status: 'final' });
+        });
+    });
+
+    describe('completed flip (resale closes the window)', () => {
+        it('accrueSupplementalOverWindow — Oct purchase resold Feb — 4/8 of the bill, final', () => {
+            const result = accrueSupplementalOverWindow({
+                ...octoberBase,
+                resaleDate: '2027-02-10',
+            });
+            expect(result).toEqual({ amount: -400, monthsOwned: 4, status: 'final' });
+        });
+
+        it('accrueSupplementalOverWindow — Jan–May event resold in the second FY — both rows prorate', () => {
+            // Feb 2026 event: slot 1 = FY 2025 billed Mar–Jun (4 months), slot 2 = FY 2026 full year.
+            const result = accrueSupplementalOverWindow({
+                rows: [
+                    { fiscalYear: 2025, billType: 'bill', amount: 400 },
+                    { fiscalYear: 2026, billType: 'bill', amount: 1_200 },
+                ],
+                acquisitionDate: '2026-02-10',
+                resaleDate: '2026-09-15',
+                asOf: '2026-12-01',
+                state: 'CA',
+            });
+            // Slot 1 fully owned (−400) + Jul→Oct = 3/12 of slot 2 (−300).
+            expect(result).toEqual({ amount: -700, monthsOwned: 7, status: 'final' });
+        });
+
+        it('accrueSupplementalOverWindow — Jan–May event resold before Jul 1 — second-FY row at zero share', () => {
+            const result = accrueSupplementalOverWindow({
+                rows: [
+                    { fiscalYear: 2025, billType: 'bill', amount: 400 },
+                    { fiscalYear: 2026, billType: 'bill', amount: 1_200 },
+                ],
+                acquisitionDate: '2026-02-10',
+                resaleDate: '2026-05-10',
+                asOf: '2026-12-01',
+                state: 'CA',
+            });
+            // Owned Mar 1 → Jun 1 = 3 of slot 1's 4 billed months; slot 2 never starts.
+            expect(result).toEqual({ amount: -300, monthsOwned: 3, status: 'final' });
+        });
+
+        it('accrueSupplementalOverWindow — resale after every billed month — full statutory sum, final (matches v1)', () => {
+            const result = accrueSupplementalOverWindow({
+                ...octoberBase,
+                resaleDate: '2028-03-01',
+            });
+            expect(result?.amount).toBe(-800);
+            expect(result?.status).toBe('final');
+        });
+    });
+
+    describe('signs (bill = −, refund = +, matching the v1 display convention)', () => {
+        it('accrueSupplementalOverWindow — refund rows — positive, scaled symmetrically', () => {
+            const result = accrueSupplementalOverWindow({
+                ...octoberBase,
+                rows: [{ ...octoberBill, billType: 'refund' }],
+            });
+            expect(result).toEqual({ amount: 200, monthsOwned: 2, status: 'accruing' });
+        });
+
+        it('accrueSupplementalOverWindow — mixed bill + refund rows — signed sum, rounded to cents', () => {
+            // Apr 2026 event: FY-2025 bill fully owned (−100) + 2/12 of the FY-2026
+            // refund (+25 × 2/12 = +4.1667) → −95.83.
+            const result = accrueSupplementalOverWindow({
+                rows: [
+                    { fiscalYear: 2025, billType: 'bill', amount: 100 },
+                    { fiscalYear: 2026, billType: 'refund', amount: 25 },
+                ],
+                acquisitionDate: '2026-04-20',
+                resaleDate: '2026-08-15',
+                asOf: '2026-12-01',
+                state: 'CA',
+            });
+            expect(result).toEqual({ amount: -95.83, monthsOwned: 4, status: 'final' });
         });
     });
 });

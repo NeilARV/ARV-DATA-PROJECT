@@ -1,3 +1,5 @@
+import type { PropertyDetailTransaction } from '@shared/types/properties';
+
 export type Property = {
     id: string;
     sfrPropertyId: number | null;
@@ -27,9 +29,9 @@ export type Property = {
     sellerPurchasePrice: number | null;
     sellerPurchaseDate: string | null;
     spread: number | null;
-    // Supplemental tax total for the displayed sale (CA Prop 13), signed: negative = bill
-    // owed, positive = refund. null when none exists or the requester isn't admin/owner.
-    supplementalTaxBill: number | null;
+    // Transaction history (detail endpoint only; absent on list rows). Supplemental-tax
+    // fields inside are admin/owner-only — the API omits them for everyone else.
+    transactions?: PropertyDetailTransaction[];
     // Buyer company info
     buyerId: string | null;
     buyerCompanyName: string | null;
