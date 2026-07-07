@@ -99,20 +99,6 @@ export async function listAdminOwnerUserIds(): Promise<string[]> {
     return Array.from(new Set(rows.map((r) => r.userId)));
 }
 
-// Lists public channels. Archived channels are excluded unless includeArchived is set
-// (the controller only honors that flag for admin/owner callers).
-export async function listChannels({
-    includeArchived = false,
-}: {
-    includeArchived?: boolean;
-}): Promise<Channel[]> {
-    const where = includeArchived
-        ? eq(channels.type, 'public')
-        : and(eq(channels.type, 'public'), eq(channels.isArchived, false));
-
-    return db.select().from(channels).where(where).orderBy(CHANNEL_DISPLAY_ORDER, asc(channels.name));
-}
-
 // Returns channels enriched with per-user unread counts and mention flags.
 // Unread counts only accrue once the user has visited a channel (NULL last_read_at → 0).
 export async function listChannelsWithUnread({
@@ -167,16 +153,14 @@ export async function listChannelsWithUnread({
                     AND m_c.channel_id = ${channels.id}
                     AND m_c.is_deleted = false
                     AND m_c.created_at > ${channelMembers.lastReadAt}
+                    AND m_c.sender_id <> ${userId}
                 )
             END`,
         })
         .from(channels)
         .leftJoin(
             channelMembers,
-            and(
-                eq(channelMembers.channelId, channels.id),
-                eq(channelMembers.userId, userId),
-            ),
+            and(eq(channelMembers.channelId, channels.id), eq(channelMembers.userId, userId)),
         )
         .where(where)
         .orderBy(CHANNEL_DISPLAY_ORDER, asc(channels.name));
@@ -195,7 +179,11 @@ export async function markChannelRead({
     // admin-only channel; a non-member must not on a DM. Treat either as not-found so existence is
     // never disclosed.
     const [channel] = await db
-        .select({ type: channels.type, isArchived: channels.isArchived, isAdminOnly: channels.isAdminOnly })
+        .select({
+            type: channels.type,
+            isArchived: channels.isArchived,
+            isAdminOnly: channels.isAdminOnly,
+        })
         .from(channels)
         .where(eq(channels.id, channelId))
         .limit(1);
@@ -366,9 +354,9 @@ export async function listEligibleUserIds(): Promise<string[]> {
 // Phase 1: every Mastermind-eligible user is a candidate for @mentions in any public channel.
 // For an admin-only channel the pool narrows to admins/owners, so you can't @mention a user who
 // can't see the channel. In Phase 2+, private/DM channels can narrow this to actual members.
-export async function listChannelMentionCandidates(
-    { adminOnly = false }: { adminOnly?: boolean } = {},
-): Promise<MentionCandidate[]> {
+export async function listChannelMentionCandidates({
+    adminOnly = false,
+}: { adminOnly?: boolean } = {}): Promise<MentionCandidate[]> {
     const eligibleIds = adminOnly ? await listAdminOwnerUserIds() : await listEligibleUserIds();
     if (eligibleIds.length === 0) return [];
 

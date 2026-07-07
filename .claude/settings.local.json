@@ -81,7 +81,10 @@
       "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign status --short)",
       "Bash(echo \"exit:$?\")",
       "Bash(echo \"overlap-check-exit:$? \\(1 = no overlap\\)\")",
-      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign merge --ff-only main)"
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign merge --ff-only main)",
+      "Bash(awk '/^## Mastermind/,/^## [^M]/' .claude/docs/apps.md)",
+      "Bash(git rm *)",
+      "Bash(git add *)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",
