@@ -10,7 +10,7 @@ You are hunting for **real bugs and issues** in the given code: logic errors, ru
 
 A bug is only half the job. Because most real bugs live at a boundary (a service its callers depend on, a route the frontend consumes), you must also resolve the **blast radius** — who depends on the target — so every finding names the sites it breaks and every fix is scoped to match. A fix that silences the target but breaks its callers or their tests is a failure, not a success.
 
-Follow the steps **in order**. The single most important rule: **finding nothing is a success, not a failure. Never pad the report to reach 5.** A confabulated bug is worse than a missed one because it wastes the reader's trust. Cite category IDs verbatim from the catalog in Step 3.
+Follow the steps **in order**. Two honesty rules, one per output stream. For **bugs**: **finding nothing is a success, not a failure — never pad the report to reach 5.** A confabulated bug is worse than a missed one because it wastes the reader's trust. For **standards & design**: report only *real* drift you can tie to a named rule — never invent a violation to fill the section, and "no standards drift in scope" is a perfectly good result. Cite bug category IDs verbatim from the catalog in Step 3, and standards IDs verbatim from the standards docs.
 
 Raw arguments: `$ARGUMENTS`
 
@@ -30,6 +30,8 @@ Resolve scope as **three rings, in two directions.** Downstream tells you what t
 - **Folder** → every `.ts`/`.tsx` file directly under it. **Recurse into subfolders only if the target folder holds ≤ 10 files total; otherwise stay one level deep and say so** in the scope line.
 Ring 0 is **fully hunted.**
 
+**Classify each target's layer** — it gates which standards apply in the Step-3 standards pass. A **backend** file (`.ts` under `server/` or `database/`) is checked against `typescript.md` + `express.md`; a **frontend** file (`.tsx`, or anything under `client/`) against `typescript.md` + `react.md` + `design-guidelines.md`. Design-guidelines and `RX.*` don't apply to backend targets — skip them there rather than reporting them clean. A mixed folder is classified per file.
+
 **Ring 1 — Downstream deps (imports, one level).** For each target file, read the **project-local** modules it imports and actually uses (helpers, utils, services, shared/database types). **Stop at `node_modules`, framework code, and one level of depth.** Read for contract accuracy; flag a Ring-1 file **only** if its bug changes behavior in the target.
 
 **Ring 2 — Upstream callers + wire consumers + tests.** Find what depends on the target, using `Grep` for the target's module path and its exported symbol names. Trace it **role-aware**:
@@ -41,7 +43,7 @@ Ring 2 is **read for context and hunted only along the surface the target change
 
 **Proportionality.** A purely *local* finding (empty catch, dead code, a guard used nowhere else, formatting-adjacent slips) needs no Ring-2 work — narrow is correct there. Ring 2 matters for **logic, contract, signature, and behavior** changes, which ripple. Don't inflate the blast radius for trivia.
 
-State the resolved scope in one line before hunting: `path` · file-or-folder · `N` target files · `R1` deps read · `R2` callers/consumers/tests read (name the key ones). If the path doesn't exist, stop and say so — don't guess.
+State the resolved scope in one line before hunting: `path` · file-or-folder · **layer** (backend / frontend / mixed) · `N` target files · `R1` deps read · `R2` callers/consumers/tests read (name the key ones). If the path doesn't exist, stop and say so — don't guess.
 
 ---
 
@@ -50,6 +52,7 @@ State the resolved scope in one line before hunting: `path` · file-or-folder ·
 - **No category given → Tiers 1–3** (Correctness, Data & Contract, Robustness). This is the default: security/perf/config are covered by `/security-review` and other tools.
 - **Category keyword(s) given →** only those tiers/categories.
 - **`all` →** every tier.
+- **Standards & Design pass → always on.** Independent of the bug tiers and their category selection, every run also performs the Standards & Design compliance pass (Step 3's final section) over the in-scope targets. No category keyword toggles it and none switches it off; it only narrows by **layer** (backend vs frontend, per Ring 0). Before running it, Read only the standards docs the resolved layer needs — always `typescript.md`; backend adds `express.md`; frontend adds `react.md` + `design-guidelines.md` — so a backend-only hunt never loads the design guide.
 
 Category keywords → tiers:
 
@@ -122,6 +125,18 @@ These are the "broad" ones. They rarely stand alone; they sharpen the tiers abov
 
 **How to cite X.* IDs.** In **Findings**, an X.* ID never stands alone — it is appended to the concrete tier ID it sharpens, e.g. `` `CORR.NULL-DEREF` + `X.ASSUMPTION` ``. An X.* ID may appear **alone only under "Worth a look,"** where the point is precisely that you couldn't pin it to a concrete tier bug.
 
+### Standards & Design compliance  (always-on pass — cite canonical IDs, do not invent)
+
+Separate from the bug tiers above and reported in its **own Step-5 section** — it never competes for the 5 bug slots. It flags where the in-scope code **drifts from the canonical standards docs**, scoped by each target's layer (Ring 0). **Cite the rule's real ID verbatim from the owning doc**; never coin an ID here, and **defer to the docs** — name the rule, don't re-teach it. Read only the docs the layer needs first (Step 2).
+
+**Which docs apply, by layer:**
+- **Any `.ts`/`.tsx`** → `.claude/docs/standards/typescript.md` (`TS.*`) — e.g. `TS.NO-ANY`, `TS.NO-AS-ANY`, `TS.NO-NON-NULL`, `TS.NULLISH`, `TS.DERIVE-TYPES`, `TS.RETURN-TYPE`, `TS.FN-DECLARATION`, `TS.JSDOC-EXPORT`, `TS.JSDOC-BUDGET`, `TS.COMMENT-WHY`.
+- **Backend target** (`server/`, `database/`) → `.claude/docs/standards/express.md` (`EX.*`, `DB.*`) — e.g. `EX.LAYER-SEPARATION`, `EX.NO-DB-IN-CONTROLLER`, `EX.NO-HTTP-IN-SERVICE`, `EX.CONTROLLER-TRY-CATCH`, `EX.ZOD-SAFEPARSE`, `EX.NO-LEAK-INTERNALS`, `EX.SERVICE-NULL-NOT-UNDEFINED`, `DB.LIMIT1-DESTRUCTURE`, `DB.NO-NPLUS1`.
+- **Frontend target** (`.tsx`, `client/`) → `.claude/docs/standards/react.md` (`RX.*`) **and** `.claude/docs/design-guidelines.md`. **Design-guidelines only matters when the target actually touches frontend UI** — on a backend-only hunt it does not apply, so skip it (don't report it clean). In a component/page/style file, do check the design system: tokens over hardcoded colors/hex, the documented type scale, spacing/radius, and the sanctioned component patterns. Where a React rule owns the concern (`RX.DESIGN-TOKENS`) cite the `RX.*` ID; otherwise cite the guideline by section name (e.g. `design-guidelines → Color System` for a hardcoded gray instead of `text-muted-foreground`), since that doc uses sections, not short IDs.
+- **Both layers** (project-specific, from CLAUDE.md) → `ARV.RAW-COMPANY-NAME` (name rendered/returned without `formatCompanyName`) and `ARV.SECRET-ACCESS` (reads a secret/`.env`).
+
+**Do NOT flag** anything Prettier/ESLint already enforce — quote/semicolon/indentation formatting, import order (`TS.IMPORT-ORDER`), self-closing tags, unused vars. The `PostToolUse` Prettier hook guarantees these; "formatting is correct" is already solved. This pass checks **semantic** standards, not whitespace.
+
 ---
 
 ## Step 4 — Hunt rules (the part that keeps this honest)
@@ -146,9 +161,11 @@ Hard constraints:
 
 - **Cap at 5 findings** total (BLOCKER overflow excepted, per above).
 - **Zero is a valid, common, good result.** If the code is correct, say "No correctness issues found in scope." Do **not** invent a nit to avoid an empty report.
-- **No style/design nits** (that's `/smell`), **no security unless Tier 4 is active** (that's `/security-review`).
+- **No style/design nits in the numbered bug Findings** (that's `/smell`) — genuine standards/design *drift* isn't dropped, though; it goes in the separate **Standards & Design Compliance** section instead. **No security unless Tier 4 is active** (that's `/security-review`).
 - A Ring-1 helper may be flagged **only** when its bug changes behavior in the target scope; a Ring-2 consumer may be flagged **only** along the surface the target changes.
 - If the free-text focus was given, rank findings that touch that flow first **within their severity band** (severity still wins overall).
+
+**Standards & Design is a separate stream.** The evidence gate, the 5-slot cap, and severity ordering above govern **bug findings only**. Standards/design drift does **not** consume bug slots and is **not** capped at 5 — report it in its own Step-5 section. Still hold it to a bar: each item needs a `path:line`, the exact canonical rule ID it violates, and a one-line why; skip anything Prettier owns and anything you can't tie to a specific documented rule. Cap the standards section at a sane **8**, worst-first (a BLOCKER/HIGH drift like `EX.NO-DB-IN-CONTROLLER` or `DB.NO-NPLUS1` outranks a LOW/NIT one like a missing JSDoc summary); if more exist, say so and point to a scoped `/audit` for the full sweep.
 
 You may list up to **2** genuinely uncertain items under a separate **"Worth a look"** heading — clearly marked unverified, never counted toward the 5, never dressed up as confirmed.
 
@@ -166,10 +183,11 @@ Output is **GitHub-flavored markdown** and must render cleanly in the terminal. 
 | | |
 |---|---|
 | **Scope** | `<path>` — <file \| folder>, N target files |
+| **Layer** | <backend \| frontend \| mixed> |
 | **Blast radius** | R1 deps · R2 callers/consumers/tests read (e.g. `x.controller`, `x.routes`, `client/api/x.api.ts`, `x.test.ts`) |
-| **Categories** | <tiers/keywords scanned, e.g. Tiers 1–3 (default)> |
+| **Categories** | <tiers/keywords scanned, e.g. Tiers 1–3 (default)> · Standards & Design (always on) |
 | **Focus** | <free-text focus, or —> |
-| **Result** | **A** blocker · **B** high · **C** medium · **D** low |
+| **Result** | Bugs: **A** blocker · **B** high · **C** medium · **D** low · Standards: **E** issues |
 
 > **Top risk:** <one sentence>   ← or, if clean: **No correctness issues found in scope.**
 
@@ -213,13 +231,35 @@ const rows = data.results;           // ← client reads `results` — always un
 
 ---
 
+## Standards & Design Compliance
+
+> Drift from the canonical standards/design docs — separate from the bug findings above, **not** counted toward the 5. Omit this whole section when the in-scope code is clean of drift (and say so in Synthesis). Cite the canonical rule ID; for a design rule with no short ID, the guideline section name.
+
+### `EX.NO-DB-IN-CONTROLLER` — `server/controllers/example/example.controllers.ts:34`
+
+```ts
+const [row] = await db.select().from(deals)...   // ← DB access belongs in a service, not the controller
+```
+
+**Drift.** <one sentence: the rule, what the code does instead, why it violates the doc.>  **Fix.** <one-line concrete change.>
+
+### design-guidelines → Color System — `client/src/components/example/Example.tsx:22`
+
+```tsx
+<span className="text-gray-400">…</span>          // ← hardcoded gray; use text-muted-foreground
+```
+
+**Drift.** <…>  **Fix.** <…>
+
+---
+
 ## 🔍 Worth a look — unverified, not counted toward the 5
 
 - **`X.ASSUMPTION`** `path:LN` — <one line: the assumption and why it might not hold>.
 
 ## Synthesis
 
-<One paragraph: the dominant risk in this scope, the top 1–3 things to fix first, and — if any finding is impact-bearing — a one-line reminder of the total blast radius (how many caller/test sites a fix touches). If clean, say what you checked across all rings and why you're confident it holds.>
+<One paragraph: the dominant risk in this scope, the top 1–3 things to fix first, and — if any finding is impact-bearing — a one-line reminder of the total blast radius (how many caller/test sites a fix touches). Close with one clause on the standards/design posture (clean, or the dominant drift theme). If fully clean, say what you checked across all rings and why you're confident it holds.>
 ````
 
 **Formatting rules (do not deviate):**
@@ -230,7 +270,8 @@ const rows = data.results;           // ← client reads `results` — always un
 - **Why it's a bug.**, **Impact.** (impact-bearing only), and **Fix.** are bold-labeled prose paragraphs. Keep each to 1–3 sentences of real substance. **Impact.** lists Ring-2 sites as `path:line`; omit it for local findings.
 - Separate findings with a `---` rule.
 - Severity meaning: **BLOCKER** (crash/data-loss/wrong result users hit), **HIGH** (clearly wrong on a real path), **MEDIUM** (wrong on an edge case), **LOW** (minor, real, in-passing).
+- The **Standards & Design Compliance** section is separate from the numbered bug findings: each item is a level-3 heading naming the canonical rule ID (or, for design, the guideline section name) with a `path:line`, a fenced excerpt with a `// ←` marker, and bold **Drift.** / **Fix.** lines. Sort worst-first, cap at 8, and never count it toward the bug total.
 
-If there are **no findings**, still emit the header table (with `**No correctness issues found in scope.**` as the Top risk), skip the empty Findings section, omit "Worth a look" when it's empty, and always write the Synthesis paragraph (what you checked across all rings and why it's clean).
+If there are **no bug findings**, still emit the header table (with `**No correctness issues found in scope.**` as the Top risk), skip the empty Findings section, and always write the Synthesis paragraph (what you checked across all rings and why it's clean). Independently: omit the **Standards & Design Compliance** section when there's no drift (note "standards/design clean" in Synthesis), and omit "Worth a look" when it's empty. The two streams are reported independently — a hunt can find zero bugs but real standards drift, or vice versa.
 
 Begin with Step 1.
