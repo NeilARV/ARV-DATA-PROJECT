@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { normalizeEmail } from 'server/utils/normalizeEmail';
 
 // Lightweight in-memory limiter for the public forgot-password endpoint. Guards against
 // email bombing and repeat-lockout. Single-instance only (state is per-process and resets
@@ -49,7 +50,7 @@ export function forgotPasswordRateLimit(req: Request, res: Response, next: NextF
     recentHits.push(now);
     ipHits.set(ip, recentHits);
 
-    const email = typeof req.body?.email === 'string' ? req.body.email.toLowerCase().trim() : null;
+    const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : null;
     if (email) {
         const last = emailLastRequest.get(email);
         if (last && now - last < EMAIL_COOLDOWN_MS) {

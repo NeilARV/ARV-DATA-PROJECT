@@ -17,6 +17,11 @@ import type { SQL } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { formatContactName } from '@shared/utils/formatContactName';
 
+// One request may not pull more than this many rows — the per-property enrichment
+// (transactions, statuses, contacts) makes oversized pages expensive.
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 10;
+
 interface GetPropertiesFilters {
     zipcode?: string;
     city?: string;
@@ -46,31 +51,6 @@ interface GetPropertiesResult {
     hasMore: boolean;
     page: number;
     limit: number;
-}
-
-// Txs are already ordered by COALESCE(sort_order, 999999) ASC (most recent first).
-function detectAssignorFromSortedTxs(
-    txs: Array<{
-        transactionType: string | null;
-        buyerId: string | null;
-        sellerName: string | null;
-        sellerId: string | null;
-    }>,
-): { assignorId: string | null; assignorCompanyName: string | null } {
-    const latestAL = txs.find(
-        (tx) => (tx.transactionType ?? '').trim().toLowerCase() === 'arms length',
-    );
-    if (!latestAL?.buyerId) return { assignorId: null, assignorCompanyName: null };
-
-    const assignmentTx = txs.find(
-        (tx) =>
-            (tx.transactionType ?? '').trim().toLowerCase() === 'assignment' &&
-            tx.buyerId === latestAL.buyerId,
-    );
-    return {
-        assignorId: assignmentTx?.sellerId ?? null,
-        assignorCompanyName: assignmentTx?.sellerName ?? null,
-    };
 }
 
 /**
@@ -107,6 +87,12 @@ function findDisplayTx<
     return companyTx ?? latestAL;
 }
 
+/**
+ * Paginated, filterable property list for the feeds/table/grid views.
+ * @param filters raw query-string filters; page/limit are sanitized — malformed values
+ *   fall back to defaults and limit is capped at MAX_PAGE_SIZE
+ * @returns one page of enriched property rows plus pagination metadata
+ */
 export async function getProperties(filters: GetPropertiesFilters): Promise<GetPropertiesResult> {
     const {
         zipcode,
@@ -131,8 +117,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         companyRole,
     } = filters;
 
-    const pageNum = page ? Math.max(1, parseInt(page.toString(), 10)) : 1;
-    const limitNum = limit ? Math.max(1, parseInt(limit.toString(), 10)) : 10;
+    // Malformed values parse to NaN (Math.max(1, NaN) is NaN) and must not reach
+    // LIMIT/OFFSET; fall back to defaults instead.
+    const parsedPage = parseInt(String(page ?? ''), 10);
+    const pageNum = Number.isNaN(parsedPage) ? 1 : Math.max(1, parsedPage);
+    const parsedLimit = parseInt(String(limit ?? ''), 10);
+    const limitNum = Number.isNaN(parsedLimit)
+        ? DEFAULT_PAGE_SIZE
+        : Math.min(MAX_PAGE_SIZE, Math.max(1, parsedLimit));
     const offset = (pageNum - 1) * limitNum;
 
     // Pre-aggregate the most recent Arms Length tx per property once.
@@ -164,8 +156,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const conditions: SQL[] = [];
 
-    // Full-text search across address, city, state, zip
-    if (search && search.trim().length > 0) {
+    // Full-text search across address, city, state, zip.
+    // typeof guard: repeated ?search= params reach here as an array (same as companyId below).
+    if (typeof search === 'string' && search.trim().length > 0) {
         const searchTerm = `%${search.trim().toLowerCase()}%`;
         const searchClause = or(
             sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
@@ -186,25 +179,28 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         conditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
     }
 
-    // Status filter and optional name-based company filter.
+    // Name-based company filter — the client's fallback when a company has no resolved id.
+    // Applies independently of the status filter.
+    if (!hasCompanyFilter) {
+        const ownerFilter = company || propertyOwner;
+        if (ownerFilter) {
+            const searchTerm = trimCompanyName(ownerFilter.toString())?.toLowerCase();
+            if (searchTerm) {
+                conditions.push(
+                    sql`EXISTS (
+                        SELECT 1 FROM property_transactions pt
+                        WHERE pt.property_id = ${properties.id}
+                        AND (LOWER(TRIM(pt.buyer_name)) = ${searchTerm} OR LOWER(TRIM(pt.seller_name)) = ${searchTerm})
+                    )`,
+                );
+            }
+        }
+    }
+
+    // Status filter
     const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
     if (statusesToUse.length > 0) {
         const normalizedStatuses = statusesToUse.map((s) => s.toString().trim().toLowerCase());
-        if (!hasCompanyFilter) {
-            const ownerFilter = company || propertyOwner;
-            if (ownerFilter) {
-                const searchTerm = trimCompanyName(ownerFilter.toString())?.toLowerCase();
-                if (searchTerm) {
-                    conditions.push(
-                        sql`EXISTS (
-                            SELECT 1 FROM property_transactions pt
-                            WHERE pt.property_id = ${properties.id}
-                            AND (LOWER(TRIM(pt.buyer_name)) = ${searchTerm} OR LOWER(TRIM(pt.seller_name)) = ${searchTerm})
-                        )`,
-                    );
-                }
-            }
-        }
         conditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_statuses ps

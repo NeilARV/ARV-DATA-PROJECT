@@ -66,11 +66,22 @@
       "Bash(echo \"exit: $?\")",
       "Skill(tests)",
       "Skill(tests:*)",
-      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/package.json'\\)\\); print\\(json.dumps\\(d.get\\('devDependencies',{}\\), indent=1\\)\\)\")"
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/package.json'\\)\\); print\\(json.dumps\\(d.get\\('devDependencies',{}\\), indent=1\\)\\)\")",
+      "Bash(sed -n 390*,420p /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/auth/user.services.ts 2>/dev/null; sed -n '390,420p' /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/auth/user.services.ts)",
+      "Skill(worktree)",
+      "Skill(worktree:*)",
+      "Bash(echo \"port 4001 listening: $?\")",
+      "Bash(echo \"recorded: $?\")",
+      "Bash(printf '4001\\\\n' > /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign/.worktree-port; ls -la /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign/ | head -20)",
+      "Bash(grep -rn 'users.$inferSelect' /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/database /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server)",
+      "Bash(grep -n \"| \\\\`page\\\\` | number |\\\\|| \\\\`limit\\\\` | number |\" .claude/docs/api.md)",
+      "Bash(git diff *)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",
-      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/properties"
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/properties",
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/auth",
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign"
     ]
   }
 }

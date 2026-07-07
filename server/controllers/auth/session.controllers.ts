@@ -6,7 +6,7 @@ import {
     completeResetSchema,
 } from '@database/validation/users.validation';
 import { updateUserProfileSchema, updateNotificationPreferencesSchema } from '@database/updates';
-import { SessionServices, UserServices } from 'server/services/auth';
+import { EmailVerificationServices, SessionServices, UserServices } from 'server/services/auth';
 import { generateTempPassword } from 'server/utils/generateTempPassword';
 import { sendTempPasswordEmail } from 'server/services/postmark/passwordReset.services';
 
@@ -136,28 +136,40 @@ export async function updateProfile(
         }
 
         // Update user profile (only allow updating own profile)
-        const updatedUser = await UserServices.updateUser(req.session.userId, updateData);
+        const result = await UserServices.updateUser(req.session.userId, updateData);
 
-        if (!updatedUser) {
+        if (!result) {
             res.status(404).json({ message: 'User not found' });
             return;
         }
+
+        const { user: updatedUser, hasEmailChanged } = result;
 
         const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
             UserServices.getUserMsaSubscriptionNames(updatedUser.id),
             UserServices.getRelationshipManagerForUser(updatedUser.id),
             UserServices.getUserNotificationPreferences(updatedUser.id),
         ]);
-        const { passwordHash: _, ...userWithoutPassword } = updatedUser;
         res.json({
             success: true,
             user: {
-                ...userWithoutPassword,
+                ...updatedUser,
                 msaSubscriptions,
                 relationshipManager,
                 notificationPreferences,
             },
         });
+
+        // A changed email is unproven, so a fresh verification link goes out after the
+        // response. Best-effort: a failed send must not fail the profile update.
+        if (hasEmailChanged) {
+            void EmailVerificationServices.issueVerificationEmail(
+                updatedUser.id,
+                updatedUser.email,
+            ).catch((emailError) =>
+                console.error('[updateProfile] verification email failed:', emailError),
+            );
+        }
     } catch (error) {
         console.error('Error updating profile:', error);
         res.status(500).json({ message: 'Error updating profile' });

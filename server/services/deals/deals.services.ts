@@ -16,6 +16,7 @@ import {
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { resolveCountyFromZip } from 'server/utils/resolveCounty';
 import { resolveMsaId } from 'server/utils/resolveMsa';
+import { getAppBaseUrl } from 'server/utils/appBaseUrl';
 import { normalizePropertyType } from 'server/utils/normalization';
 import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 import {
@@ -713,10 +714,7 @@ export async function sendDealNotification(
             // Resolve absolute street view URL (email clients cannot follow relative paths)
             let streetViewUrl: string | null = null;
             if (deal.address && deal.city && deal.state) {
-                const APP_BASE_URL = (() => {
-                    const u = process.env.APP_URL || 'https://data.arvfinance.com';
-                    return /^https?:\/\//i.test(u) ? u : `http://${u}`;
-                })();
+                const APP_BASE_URL = getAppBaseUrl();
                 const params = new URLSearchParams({
                     address: deal.address,
                     city: deal.city,
@@ -757,10 +755,7 @@ export async function sendDealNotification(
             );
             // ─────────────────────────────────────────────────────────────────────
 
-            const APP_BASE_URL_DEALS = (() => {
-                const u = process.env.APP_URL || 'https://data.arvfinance.com';
-                return /^https?:\/\//i.test(u) ? u : `http://${u}`;
-            })();
+            const APP_BASE_URL_DEALS = getAppBaseUrl();
             const dealUrlParams = new URLSearchParams({ dealId: String(deal.id) });
             if (deal.county && deal.state) {
                 dealUrlParams.set('filterType', 'county');
@@ -1135,10 +1130,7 @@ export async function requestDealInfo(
 
     const requesterName = [displayFirstName, displayLastName].filter(Boolean).join(' ');
 
-    const APP_BASE_URL = (() => {
-        const u = process.env.APP_URL || 'https://data.arvfinance.com';
-        return /^https?:\/\//i.test(u) ? u : `http://${u}`;
-    })();
+    const APP_BASE_URL = getAppBaseUrl();
     const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
     if (dealRow.county && dealRow.state) {
         dealUrlParams.set('filterType', 'county');
@@ -1416,10 +1408,7 @@ export async function sendDealOfferNotification(
     const ccList = Array.from(new Set(ccCandidates));
     const cc = ccList.length > 0 ? ccList.join(', ') : undefined;
 
-    const APP_BASE_URL = (() => {
-        const u = process.env.APP_URL || 'https://data.arvfinance.com';
-        return /^https?:\/\//i.test(u) ? u : `http://${u}`;
-    })();
+    const APP_BASE_URL = getAppBaseUrl();
     const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
     if (dealRow.county && dealRow.state) {
         dealUrlParams.set('filterType', 'county');

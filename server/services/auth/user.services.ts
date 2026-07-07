@@ -10,11 +10,14 @@ import {
 } from '@database/schemas/users.schema';
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { db } from 'server/storage';
-import { eq, ne, sql, inArray, and, ilike, isNull } from 'drizzle-orm';
+import { eq, ne, sql, inArray, and, isNull } from 'drizzle-orm';
 import type { UpdateNotificationPreferences } from '@database/updates';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { getSupabase, userStorageBucket, storagePathFromUrl } from 'server/lib/supabase.js';
+import { normalizeEmail } from 'server/utils/normalizeEmail.js';
+
+type UserRow = typeof users.$inferSelect;
 
 interface SignupData {
     firstName: string;
@@ -52,6 +55,13 @@ export async function createUser(data: SignupData) {
     return userWithoutPassword;
 }
 
+/**
+ * Updates a user's profile fields and (optionally) replaces their MSA subscriptions.
+ * If the email is changing, clears emailVerifiedAt — the stamp attests to the address
+ * it was earned on, so a new address must be re-verified.
+ * @returns the updated user (without password hash) and whether the email changed,
+ * or null if no user matched.
+ */
 export async function updateUser(
     userId: string,
     updateData: {
@@ -64,23 +74,48 @@ export async function updateUser(
         county?: string | null;
         state?: string | null;
     },
-) {
+): Promise<{ user: Omit<UserRow, 'passwordHash'>; hasEmailChanged: boolean } | null> {
     const { msaSubscriptions, ...dbUpdateData } = updateData;
+
+    // Compare normalized (matching getUserByEmail) so a case-only rewrite of the
+    // same mailbox keeps its verification stamp. This pre-read only decides whether
+    // the caller sends a verification email; the stamp itself is cleared atomically
+    // in the UPDATE below.
+    let hasEmailChanged = false;
+    if (dbUpdateData.email !== undefined) {
+        const [current] = await db
+            .select({ email: users.email })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+        hasEmailChanged =
+            current != null && normalizeEmail(current.email) !== normalizeEmail(dbUpdateData.email);
+    }
 
     const [updatedUser] = await db
         .update(users)
         .set({
             ...dbUpdateData,
+            // The CASE compares against the row's pre-update email inside the UPDATE
+            // itself, so a concurrent email change can't leave a stale verification stamp.
+            ...(dbUpdateData.email !== undefined
+                ? {
+                      emailVerifiedAt: sql`CASE WHEN lower(trim(${users.email})) IS DISTINCT FROM ${normalizeEmail(dbUpdateData.email)} THEN NULL ELSE ${users.emailVerifiedAt} END`,
+                  }
+                : {}),
             updatedAt: sql`now()`, // Update the timestamp on every update
         })
         .where(eq(users.id, userId))
         .returning();
 
-    if (updatedUser && msaSubscriptions !== undefined) {
+    if (!updatedUser) return null;
+
+    if (msaSubscriptions !== undefined) {
         await syncUserMsaSubscriptions(userId, msaSubscriptions);
     }
 
-    return updatedUser;
+    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    return { user: userWithoutPassword, hasEmailChanged };
 }
 
 /**
@@ -168,7 +203,7 @@ export async function removeUserRelationshipManager(
 export async function resetUserPassword(email: string, newPassword: string) {
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = normalizeEmail(email);
     const [updatedUser] = await db
         .update(users)
         .set({ passwordHash, mustResetPassword: true, updatedAt: sql`now()` })
@@ -257,7 +292,7 @@ export async function markEmailVerified(userId: string) {
 }
 
 export async function getUserByEmail(email: string) {
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = normalizeEmail(email);
     const user = await db
         .select()
         .from(users)
@@ -353,7 +388,7 @@ export async function getUserNotificationPreferences(userId: string) {
 export async function checkEmailSubscriptionList(
     email: string,
 ): Promise<typeof emailSubscriptionList.$inferSelect | null> {
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = normalizeEmail(email);
     const [row] = await db
         .select()
         .from(emailSubscriptionList)
@@ -380,6 +415,22 @@ export async function getSubscriptionIdByName(name: string): Promise<number | nu
         .where(eq(subscriptions.name, name))
         .limit(1);
     return row?.id ?? null;
+}
+
+/**
+ * Resolves the subscription id granted to a subscription-list signup (the basic
+ * tier), by name rather than assuming the seed order of the subscriptions table.
+ * @returns the basic tier's id, or null when the tier row is missing — logged, so
+ * signup proceeds without a subscription rather than failing.
+ */
+export async function resolveSignupSubscriptionId(): Promise<number | null> {
+    const subscriptionId = await getSubscriptionIdByName('basic');
+    if (subscriptionId == null) {
+        console.error(
+            '[signup] subscription tier "basic" not found; creating user without a subscription',
+        );
+    }
+    return subscriptionId;
 }
 
 /**
@@ -419,11 +470,6 @@ export async function uploadUserAvatar(
 
     if (!existing) throw Object.assign(new Error('User not found'), { statusCode: 404 });
 
-    if (existing.profileImageUrl) {
-        const oldPath = storagePathFromUrl(existing.profileImageUrl, userStorageBucket);
-        if (oldPath) await getSupabase().storage.from(userStorageBucket).remove([oldPath]);
-    }
-
     const ext = mimetype === 'image/png' ? 'png' : 'jpg';
     const storagePath = `avatars/${userId}/${crypto.randomUUID()}.${ext}`;
 
@@ -444,6 +490,11 @@ export async function uploadUserAvatar(
         .set({ profileImageUrl: urlWithBust, updatedAt: sql`now()` })
         .where(eq(users.id, userId));
 
+    // Remove the old file only after the new upload and DB pointer succeed — a failed
+    // upload must never cost the user their current avatar. Best-effort: an orphaned
+    // file is harmless, so a removal failure is logged, not thrown.
+    await removeAvatarFromStorage(existing.profileImageUrl);
+
     return urlWithBust;
 }
 
@@ -456,13 +507,35 @@ export async function removeUserAvatar(userId: string): Promise<void> {
 
     if (!existing) throw Object.assign(new Error('User not found'), { statusCode: 404 });
 
-    if (existing.profileImageUrl) {
-        const oldPath = storagePathFromUrl(existing.profileImageUrl, userStorageBucket);
-        if (oldPath) await getSupabase().storage.from(userStorageBucket).remove([oldPath]);
-    }
-
     await db
         .update(users)
         .set({ profileImageUrl: null, updatedAt: sql`now()` })
         .where(eq(users.id, userId));
+
+    // Storage cleanup last: if it fails, the DB no longer points at the file, so the
+    // user sees the avatar gone either way (an orphaned file beats a broken pointer).
+    await removeAvatarFromStorage(existing.profileImageUrl);
+}
+
+/**
+ * Best-effort removal of an avatar file from Supabase Storage by its public URL.
+ * Failures are logged, never thrown — callers run this after their primary write
+ * has already succeeded.
+ */
+async function removeAvatarFromStorage(profileImageUrl: string | null): Promise<void> {
+    if (!profileImageUrl) return;
+
+    const oldPath = storagePathFromUrl(profileImageUrl, userStorageBucket);
+    if (!oldPath) return;
+
+    // try/catch enforces the never-throws contract: the Supabase client returns API
+    // errors in the result object but can still reject on a network-level failure.
+    try {
+        const { error } = await getSupabase().storage.from(userStorageBucket).remove([oldPath]);
+        if (error) {
+            console.error('[avatar] Failed to remove old avatar file:', error.message);
+        }
+    } catch (error) {
+        console.error('[avatar] Failed to remove old avatar file:', error);
+    }
 }

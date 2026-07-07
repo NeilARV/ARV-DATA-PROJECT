@@ -649,20 +649,20 @@ List properties with filtering, pagination, and sorting. Accepts many query para
 **Key query params**
 | Param | Type | Description |
 |---|---|---|
-| `msaId` | number | Filter by MSA |
 | `county` | string | Filter by county name |
-| `status` | string | Filter by property status |
+| `status` | string | Filter by property status (repeatable) |
 | `minPrice` / `maxPrice` | number | Price range |
-| `company` | string | Filter by company name |
-| `page` | number | Page number |
-| `limit` | number | Results per page |
+| `company` | string | Filter by company name (fallback when no `companyId` is resolved) |
+| `companyId` / `companyRole` | string | Filter by company id, optionally pinned to `buyer`/`seller` |
+| `page` | number | Page number (default `1`; malformed values fall back to the default) |
+| `limit` | number | Results per page (default `10`, max `100`; malformed values fall back to the default) |
+| `skipCount` | string | `"true"` on page > 1 skips the COUNT query; the client reuses page 1's total |
 
-**Response `200`** `{ properties: [...], total: number, page: number }`
+**Response `200`** `{ properties: [...], total: number | null, hasMore: boolean, page: number, limit: number }` — `total` is `null` when the COUNT is skipped (`skipCount=true` on page > 1).
 
-Each property row includes `supplementalTaxBill` — the signed CA supplemental-tax total for the
-displayed sale (negative = bill owed, positive = refund). **Admin/owner only**: the controller
-resolves the caller's role from the session (never from query params); all other callers receive
-`null`. See `access-control.md` §5.2.
+List rows carry no supplemental-tax data (the v1 `supplementalTaxBill` field was removed in v2).
+Per-transaction supplemental-tax fields live on `GET /api/properties/:id`, visible to admin/owner
+only. See `access-control.md` §5.2.
 
 ---
 

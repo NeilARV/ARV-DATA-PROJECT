@@ -5,15 +5,11 @@ import {
 } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { htmlToPlainText } from 'server/utils/sanitizeHtml';
+import { getAppBaseUrl } from 'server/utils/appBaseUrl';
 import type { CreatedNotification } from 'server/services/notifications/notifications.services';
 
 const MESSAGE_TEXT_MAX_LENGTH = 500;
 const EMAIL_COMPANY_NAME = 'ARV Finance Inc.';
-
-function normalizeBaseUrl(raw: string | undefined): string {
-    const url = raw || 'https://data.arvfinance.com';
-    return /^https?:\/\//i.test(url) ? url : `http://${url}`;
-}
 
 function toMessageText(html: string): string {
     const text = htmlToPlainText(html);
@@ -48,7 +44,7 @@ export async function sendMastermindMentionEmails({
     const context = emailable[0];
     const senderName =
         `${context.actorFirstName ?? ''} ${context.actorLastName ?? ''}`.trim() || 'A member';
-    const baseUrl = normalizeBaseUrl(process.env.APP_URL);
+    const baseUrl = getAppBaseUrl();
     const messageUrl =
         context.channelName && context.messageId
             ? `${baseUrl}/mastermind/${encodeURIComponent(context.channelName)}?m=${context.messageId}`

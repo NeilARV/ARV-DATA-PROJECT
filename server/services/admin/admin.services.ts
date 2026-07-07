@@ -9,6 +9,7 @@ import {
 import { msas } from '@database/schemas';
 import { eq, and, inArray } from 'drizzle-orm';
 import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
+import { normalizeEmail } from 'server/utils/normalizeEmail';
 
 interface AdminStatusResult {
     authenticated: boolean;
@@ -140,7 +141,7 @@ export async function addWhitelistEntry(
     params: AddWhitelistParams,
 ): Promise<'ok' | 'invalid-msa' | 'duplicate'> {
     const { email, msaName, relationshipManagerId } = params;
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = normalizeEmail(email);
 
     const [msaRow] = await db
         .select({ id: msas.id })

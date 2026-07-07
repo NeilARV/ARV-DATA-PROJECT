@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { insertUserSchema } from '@database/inserts';
 import { UserServices, EmailVerificationServices } from 'server/services/auth';
 import { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
+import { normalizeEmail } from 'server/utils/normalizeEmail';
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -29,7 +30,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         const subscriptionListEntry = await UserServices.checkEmailSubscriptionList(email);
         console.log(
             '[signup] email lookup:',
-            email.toLowerCase().trim(),
+            normalizeEmail(email),
             '→ found:',
             !!subscriptionListEntry,
             subscriptionListEntry
@@ -37,7 +38,10 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
                 : '',
         );
 
-        const subscriptionId: number | null = subscriptionListEntry ? 1 : null;
+        // Subscription-list signups are granted the basic tier (resolved in the service)
+        const subscriptionId = subscriptionListEntry
+            ? await UserServices.resolveSignupSubscriptionId()
+            : null;
 
         const newUser = await UserServices.createUser({
             firstName,

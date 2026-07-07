@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { normalizeEmail } from 'server/utils/normalizeEmail';
 
 // Reusable in-memory limiter factory, generalized from forgotPasswordRateLimit.ts. Guards
 // against email bombing and repeat-lockout. Single-instance only (state is per-process and
@@ -49,7 +50,9 @@ export function createRateLimiter({ windowMs, maxPerIp, cooldownMs }: RateLimite
 
         const recentHits = (ipHits.get(ip) ?? []).filter((t) => now - t < windowMs);
         if (recentHits.length >= maxPerIp) {
-            res.status(429).json({ message: 'Too many requests. Please try again in a few minutes.' });
+            res.status(429).json({
+                message: 'Too many requests. Please try again in a few minutes.',
+            });
             return;
         }
         recentHits.push(now);
@@ -57,7 +60,7 @@ export function createRateLimiter({ windowMs, maxPerIp, cooldownMs }: RateLimite
 
         if (cooldownMs) {
             const email =
-                typeof req.body?.email === 'string' ? req.body.email.toLowerCase().trim() : null;
+                typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : null;
             if (email) {
                 const last = emailLastRequest.get(email);
                 if (last && now - last < cooldownMs) {

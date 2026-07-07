@@ -6,6 +6,7 @@ import { properties, addresses, structures } from '@database/schemas/properties.
 import { sentPropertyIds as sentPropertyIdsTable } from '@database/schemas/sync.schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { StreetviewServices } from 'server/services/properties';
+import { getAppBaseUrl } from 'server/utils/appBaseUrl';
 import {
     sendTemplateToUsers,
     getWhitelistRecipientsForMsa,
@@ -23,11 +24,7 @@ const CANDIDATE_POOL_SIZE = 30;
 const EXCLUDED_ZIP_CODES = ['92101'];
 
 const STREETVIEW_SIZE = '600x400';
-function normalizeBaseUrl(raw: string | undefined): string {
-    const url = raw || 'https://data.arvfinance.com';
-    return /^https?:\/\//i.test(url) ? url : `http://${url}`;
-}
-const APP_BASE_URL = normalizeBaseUrl(process.env.APP_URL);
+const APP_BASE_URL = getAppBaseUrl();
 
 // Status tag styles — match PropertyCard.tsx (and PropertyMap map ping colors)
 const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {

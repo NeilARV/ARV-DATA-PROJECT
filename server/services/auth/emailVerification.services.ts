@@ -1,9 +1,10 @@
 import { createToken, consumeToken, invalidateActiveTokens } from './tokens.services.js';
 import { markEmailVerified } from './user.services.js';
 import { sendLinkEmail } from '../postmark/linkEmail.services.js';
+import { getAppBaseUrl } from 'server/utils/appBaseUrl.js';
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
-const VERIFY_EMAIL_URL = 'https://data.arvfinance.com/verify-email';
+const VERIFY_EMAIL_URL = `${getAppBaseUrl()}/verify-email`;
 
 // Invalidates any prior live verification token, mints a fresh one, and emails the link.
 // Called on signup and on resend.
@@ -28,7 +29,8 @@ export async function issueVerificationEmail(userId: string, email: string): Pro
         ],
         ctaLabel: 'Verify Email',
         url,
-        footerNote: "If you didn't create an ARV Finance account, you can safely ignore this email.",
+        footerNote:
+            "If you didn't create an ARV Finance account, you can safely ignore this email.",
     });
 }
 

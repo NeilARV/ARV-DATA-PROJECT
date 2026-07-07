@@ -48,6 +48,7 @@ The following environment variables are required or used by the application. **N
 | `MICROLINK_API_KEY` | Microlink link-preview API key (optional — the free public endpoint works without it; a key raises rate/concurrency limits) |
 | `SUPABASE_URL` | Supabase project URL — required for all Storage uploads (posts, vendors, users, Mastermind) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key — server-side Storage auth (required for uploads) |
+| `APP_URL` | Public base URL for absolute links in outgoing emails (verification, deals, Mastermind), resolved via `getAppBaseUrl()` in `server/utils/appBaseUrl.ts` (optional — falls back to `https://data.arvfinance.com`) |
 
 > **Postmark template aliases are not env vars.** They are non-secret, environment-independent constants defined in `server/services/postmark/templates.ts` (`POSTMARK_TEMPLATES`) — the same alias is used in dev and prod. Only the Postmark secrets above (`POSTMARK_SERVER_API_KEY`, `POSTMARK_ACCOUNT_TOKEN`) live in env.
 >
