@@ -1,5 +1,5 @@
 ---
-description: Hunt a file or folder (plus its local helpers) for real bugs and issues — logic, runtime, data-flow, and robustness (plus security/perf/config on request). Reports up to 5 real findings, tier-ordered, or none.
+description: Hunt a file or folder (plus its local helpers) for real bugs and issues — logic, runtime, data-flow, and robustness (plus security/perf/config on request). Reports up to 5 real findings, severity-ordered, or none.
 argument-hint: "<file-or-folder> [categories] [focus]"
 allowed-tools: Read, Grep, Glob, Bash(ls:*), Bash(find:*)
 ---
@@ -25,7 +25,7 @@ Then:
 
 1. Decide **file vs folder** (`ls`/`find`/`Glob` if unsure).
    - **File** → the target set is that one file.
-   - **Folder** → the target set is every `.ts`/`.tsx` file directly under it (recurse subfolders only if the folder is small; otherwise stay one level and say so).
+   - **Folder** → the target set is every `.ts`/`.tsx` file directly under it. **Recurse into subfolders only if the target folder holds ≤ 10 files in total; otherwise stay one level deep and say so** in the scope line.
 2. **Resolve local helpers, one level deep.** For each target file, read the **project-local** modules it imports and actually uses (helpers, utils, services, shared/database types). **Stop at `node_modules`, framework code, and one level of depth.** You read helpers so a finding in the target is *accurate* (you know the helper's real contract) — and you may flag a helper itself if its bug affects the target.
 3. State the resolved scope in one line before hunting: path, file-or-folder, `N` target files, `M` helper files read.
 
@@ -57,7 +57,7 @@ A bare catalog ID (e.g. `CORR.NULL-DEREF`) scopes to just that check.
 
 ## Step 3 — Catalog (cite IDs verbatim; do not invent)
 
-Scan tiers **top-down**: fully exhaust Tier 1 before considering Tier 2, and so on. A Tier-1 bug always outranks a Tier-3 one for the 5 slots.
+**Scan** tiers **top-down**: fully exhaust Tier 1 before considering Tier 2, and so on. Scanning order is about *finding* bugs efficiently — it is **not** how the 5 report slots are allocated. Slot allocation is by **severity** (see Step 4), because the catalog's worst bug (`DATA.DB-WHERE`, a whole-table mutation) lives in Tier 2, not Tier 1.
 
 ### Tier 1 — Correctness / Runtime  (`CORR.*`)
 - **CORR.LOGIC** — wrong operator, inverted condition, wrong business rule. *e.g. `count || 10` drops a legitimate `0`; `>` where `>=` was meant.*
@@ -68,8 +68,8 @@ Scan tiers **top-down**: fully exhaust Tier 1 before considering Tier 2, and so 
 - **CORR.BOUNDARY** — off-by-one / fencepost / bad slice / pagination math. *e.g. `page * size` where `(page - 1) * size` was meant.*
 
 ### Tier 2 — Data & Contract  (`DATA.*`)
-- **DATA.CONTRACT** — client/server shape mismatch across the wire: field name, nesting, type, or status code differ between producer and consumer. *e.g. server sends `{ items }`, client reads `data.results`.*
-- **DATA.DB-WHERE** — Drizzle `update`/`delete` missing `.where(...)` → whole-table mutation. **(BLOCKER)**
+- **DATA.CONTRACT** — client/server shape mismatch across the wire: field name, nesting, type, or status code differ between producer and consumer. *e.g. server sends `{ items }`, client reads `data.results`.* **(cross-file — cite both sites)**
+- **DATA.DB-WHERE** — Drizzle `update`/`delete` missing `.where(...)` → whole-table mutation. **(always BLOCKER)**
 - **DATA.DB-NPLUS1** — a query inside a `.map`/loop instead of one query or a join.
 - **DATA.DB-LIMIT1** — single-row query not `.limit(1)` and/or not destructured `[row]`; an array used where one row is expected.
 - **DATA.DB-DRIFT** — query/insert references a column, enum, or table that doesn't match the schema.
@@ -101,9 +101,12 @@ Scan tiers **top-down**: fully exhaust Tier 1 before considering Tier 2, and so 
 
 ### Cross-cutting lens  (`X.*`) — apply *within* every active tier
 These are the "broad" ones. They rarely stand alone; they sharpen the tiers above.
+
 - **X.ASSUMPTION** — code relies on a guarantee that isn't proven: array non-empty, field present, results ordered, exactly-one row, uniqueness. **Name the unproven assumption.**
 - **X.INTENT** — code does something different from what its name, JSDoc, or surrounding intent says (miscommunication between what was meant and what was written).
-- **X.REGRESSION** — the code plausibly breaks an existing consumer or behavior elsewhere. **Name the caller/site at risk.**
+- **X.REGRESSION** — the code plausibly breaks an existing consumer or behavior elsewhere. **Name the caller/site at risk.** **(cross-file — cite both sites)**
+
+**How to cite X.* IDs.** In **Findings**, an X.* ID never stands alone — it is appended to the concrete tier ID it sharpens, e.g. `` `CORR.NULL-DEREF` + `X.ASSUMPTION` ``. An X.* ID may appear **alone only under "Worth a look,"** where the point is precisely that you couldn't pin it to a concrete tier bug.
 
 ---
 
@@ -113,16 +116,21 @@ For every candidate finding, it is only a **finding** if it clears the **evidenc
 
 1. **Quote the exact code** (smallest meaningful excerpt) with a `path:line`.
 2. **Write the concrete failure:** a real input or state → the wrong output, crash, or corrupted data. If you cannot write the triggering input, it is **not a finding** — drop it.
-3. **Confidence must be Confident or Likely.** Anything you'd label *Speculative* does not go in Findings.
+3. **Confidence must be Confident or Likely.** Anything you'd label *Speculative* does not go in Findings. Note: this gate is a *static* argument — you are asserting the failure path by reading, not executing it. Hold yourself to "I can trace this input to that line" before writing Confident.
+
+**Slot allocation — severity first (this is the ordering that matters):**
+
+- Assign each surviving finding a severity: **BLOCKER** (crash / data-loss / wrong result users hit), **HIGH** (clearly wrong on a real path), **MEDIUM** (wrong on an edge case), **LOW** (minor, real, in-passing).
+- **Fill the 5 slots by severity, highest first.** Within the same severity band, break ties by tier (lower tier number wins), then by path. A HIGH Tier-3 finding outranks a MEDIUM Tier-1 finding — severity beats tier for the slots, even though scanning ran top-down.
+- **BLOCKERs are never evicted by the cap.** If more than 5 real findings exist and any are BLOCKERs, every BLOCKER is reported even if that pushes the total past 5; the cap only trims MEDIUM/LOW. (This is why `DATA.DB-WHERE`, a Tier-2 BLOCKER, can never be crowded out by lesser Tier-1 nits.)
 
 Hard constraints:
 
-- **Tier order.** Exhaust higher tiers first; fill the 5 slots from the top down.
-- **Cap at 5 findings**, total, across all tiers.
+- **Cap at 5 findings** total (BLOCKER overflow excepted, per above).
 - **Zero is a valid, common, good result.** If the code is correct, say "No correctness issues found in scope." Do **not** invent a nit to avoid an empty report.
 - **No style/design nits** (that's `/smell`), **no security unless Tier 4 is active** (that's `/security-review`).
 - A helper file may be flagged **only** when its bug changes behavior in the target scope.
-- If the free-text focus was given, rank findings that touch that flow first (still within tier order).
+- If the free-text focus was given, rank findings that touch that flow first **within their severity band** (severity still wins overall).
 
 You may list up to **2** genuinely uncertain items under a separate **"Worth a look"** heading — clearly marked unverified, never counted toward the 5, never dressed up as confirmed.
 
@@ -130,7 +138,9 @@ You may list up to **2** genuinely uncertain items under a separate **"Worth a l
 
 ## Step 5 — Report
 
-Output is **GitHub-flavored markdown** and must render cleanly in the terminal. Follow this structure **exactly** — same headings, same order, same labels — so every run looks identical. Findings are numbered `1..N` in priority order (severity, then tier, then path).
+Output is **GitHub-flavored markdown** and must render cleanly in the terminal. Follow this structure **exactly** — same headings, same order, same labels — so every run looks identical. Findings are numbered `1..N` in priority order: **severity, then tier, then path** (the same order used to allocate slots in Step 4).
+
+> The paths in the template below are **illustrative placeholders** to show the shape of a finding — they are not real targets. Replace them with the actual `path:line` you found.
 
 ````markdown
 # 🎯 Hunt Report
@@ -150,7 +160,7 @@ Output is **GitHub-flavored markdown** and must render cleanly in the terminal. 
 
 ### 1. <Plain-English title of the bug>
 
-`server/services/emailUpdates.ts:473-514` · **BLOCKER** · `CORR.NULL-DEREF`
+`server/services/example.ts:473-514` · **BLOCKER** · `CORR.NULL-DEREF`
 
 ```ts
 if (sentPropertyIdSet.size > 0) {
@@ -166,12 +176,15 @@ const { sent, failed } = await sendTemplateToUsers({...});  // ← actual send h
 
 ---
 
-### 2. <next title>
+### 2. <next title — a cross-file example>
 
-`client/src/api/deals.api.ts:20-27` · **HIGH** · `DATA.CONTRACT`
+Producer `server/routes/example.ts:20-27` · Consumer `client/src/api/example.api.ts:14-19` · **HIGH** · `DATA.CONTRACT`
 
 ```ts
-<excerpt with a // ← marker on the offending line>
+// producer
+res.json({ items });                 // ← server sends `items`
+// consumer
+const rows = data.results;           // ← client reads `results` — always undefined
 ```
 
 **Why it's a bug.** <…>
@@ -192,8 +205,8 @@ const { sent, failed } = await sendTemplateToUsers({...});  // ← actual send h
 **Formatting rules (do not deviate):**
 
 - Every finding is a numbered `### N.` heading with a **plain-English title** — not the bare ID.
-- The metadata line under the title is always `` `path:line-range` · **SEVERITY** · `CATEGORY.ID` `` in that order.
-- Always include a fenced code block with a language tag (` ```ts ` / ` ```tsx `), showing the **smallest meaningful excerpt** and a `// ←` inline marker pointing at the offending line(s).
+- The metadata line under the title is `` `path:line-range` · **SEVERITY** · `CATEGORY.ID` `` in that order. For **cross-file categories** (`DATA.CONTRACT`, `X.REGRESSION`) cite **both** sites on the metadata line, labeled — e.g. `` Producer `a.ts:20-27` · Consumer `b.ts:14-19` · **HIGH** · `DATA.CONTRACT` ``. When an X.* lens sharpens a tier finding, append it: `` **SEVERITY** · `CORR.NULL-DEREF` + `X.ASSUMPTION` ``.
+- Always include a fenced code block with a language tag (` ```ts ` / ` ```tsx `), showing the **smallest meaningful excerpt** and a `// ←` inline marker pointing at the offending line(s). For cross-file findings, show both excerpts with a `// producer` / `// consumer` comment.
 - **Why it's a bug.** and **Fix.** are always bold-labeled prose paragraphs — the two things the reader actually reads. Keep each to 1–3 sentences of real substance.
 - Separate findings with a `---` rule.
 - Severity meaning: **BLOCKER** (crash/data-loss/wrong result users hit), **HIGH** (clearly wrong on a real path), **MEDIUM** (wrong on an edge case), **LOW** (minor, real, in-passing).
