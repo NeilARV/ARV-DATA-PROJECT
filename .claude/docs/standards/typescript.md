@@ -165,16 +165,29 @@ Scope: **TypeScript language only** — types, interfaces, generics, naming, mod
 
 ## Comments & docs
 
-- **TS.JSDOC-EXPORT** — Exported functions get a short JSDoc describing **what** they do and return, and any non-obvious parameter or constraint. This is encouraged for reviewability and doubles as editor tooltips.
+Canonical policy: CLAUDE.md → **Comments policy** (two tiers: JSDoc = the caller's contract, `//` = the maintainer's why). The rules below are its citable TS-side enforcement.
+
+- **TS.JSDOC-EXPORT** — Every exported function gets a JSDoc whose default form is a **single summary sentence**: what it does. That sentence is the whole comment for most exports — the editor tooltip pairs it with the typed signature, so types never need restating.
 ```ts
-    /**
-     * Look up a user by id.
-     * @params id
-     * @returns the user, or null if no row matches.
-     */
-    export async function getUserById(id: string): Promise<User | null> { ... }
+    /** Trims and lowercases an email for comparisons and lookups. */
+    export function normalizeEmail(email: string): string { ... }
 ```
-- **TS.COMMENT-WHY** — Inline `//` comments explain **why** (a non-obvious constraint, a workaround, a subtle invariant), not what the code plainly does. A comment that restates the code is noise; a comment that prevents a future mistake earns its place.
+- **TS.JSDOC-BUDGET** — Escalate past the summary only for a contract the signature can't express, one line per item, in this order: `@param` (only when semantics aren't evident from name + type), `@returns` (only when it adds semantics the type doesn't carry — null cases, format guarantees, units), `Side effect:` (email, storage write, WS event), one named cross-file invariant. Ceiling (whichever fails first): summary + one line per item, and never longer than the function body. **Banned:** caller enumerations, design rationale/correctness justification, restating the type or summary, re-explaining a canonical doc.
+```ts
+    // Bad — over budget: rationale narrative + @returns restating the summary and type
+    /**
+     * Canonicalizes an email address for comparison and lookups: trimmed and lowercased.
+     * Mirrors the SQL normalization `lower(trim(email))` used by getUserByEmail, so
+     * TS-side and DB-side comparisons can't drift.
+     * @returns the normalized address.
+     */
+    // Good — summary + the one real cross-file invariant
+    /**
+     * Trims and lowercases an email for comparisons and lookups.
+     * Must match the SQL `lower(trim(email))` in getUserByEmail.
+     */
+```
+- **TS.COMMENT-WHY** — Inline `//` comments live inside function bodies (and above module-level constants) and explain **why** — a non-obvious constraint, workaround, or subtle invariant — at the exact line it applies to. One sentence; a second sentence belongs in the PR description. No JSDoc tags in `//` comments. A why lives in exactly one place, closest to the code it constrains — never duplicated into the JSDoc header. A comment that restates the code is noise; a comment that prevents a future mistake earns its place.
 ```ts
     // SFR API rejects batch sizes > 50; split before calling
     const batches = chunk(propertyIds, 50);

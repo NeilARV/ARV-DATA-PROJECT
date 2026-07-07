@@ -114,6 +114,7 @@ For each layer, check the rules grep can't confirm:
 - **Services** (`EX.SERVICE-RAW-DATA`, `EX.SERVICE-NULL-NOT-UNDEFINED`, `DB.NO-NPLUS1`): raw data not `{success,data}`; `T | null` not `undefined`; no `await db` inside a loop.
 - **React** (`RX.SERVER-STATE-QUERY`, `RX.NO-DERIVED-STATE`, `RX.PROVIDER-GUARD`, `RX.EFFECT-CLEANUP`, `RX.NO-NESTED-COMPONENTS`): server data in TanStack Query not `useState`; no prop→state mirroring; context hooks throw outside Provider; subscriptions/timers cleaned up; no components declared inside components.
 - **Types** (`TS.RETURN-TYPE`, `TS.DERIVE-TYPES`): exported fns annotate return type; row/insert types derived via `$inferSelect`/`z.infer`, not hand-written.
+- **Comments** (`TS.JSDOC-EXPORT`, `TS.JSDOC-BUDGET`, `TS.COMMENT-WHY`): every export has a summary-sentence JSDoc; headers stay within the budget (no caller lists, no rationale narrative, no `@param`/`@returns` restating the type or summary); inline `//` is a one-sentence why, not a restatement of the code.
 
 > Optional secondary lens (off by default): if the user passes `--clean-code` or `--gof` in `$ARGUMENTS`, also apply the Clean Code / Gang-of-Four reminders from `/smell`. Skipped otherwise to keep repo-scale signal high.
 

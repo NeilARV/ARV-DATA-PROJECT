@@ -164,7 +164,9 @@ Scope: **React only** — component structure, hooks, props, JSX, client state, 
 
 ## Comments
 
-- **RX.JSDOC-EXPORT** — Exported components and custom hooks get a short JSDoc describing what they render/return and any non-obvious prop. Inline `//` comments explain *why*, not *what*.
+Canonical policy: CLAUDE.md → **Comments policy**; budget + banned list: `typescript.md` TS.JSDOC-BUDGET.
+
+- **RX.JSDOC-EXPORT** — Exported components and custom hooks get a JSDoc whose default is a **single sentence**: what it renders/returns and any non-obvious prop. This example is the model — escalate past one line only per TS.JSDOC-BUDGET. Inline `//` comments explain *why*, not *what* (TS.COMMENT-WHY).
 ```tsx
     /** Card for a single deal; expands inline to show offers (owner only). */
     export function DealCard({ deal }: DealCardProps) { ... }

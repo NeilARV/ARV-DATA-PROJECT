@@ -75,7 +75,13 @@
       "Bash(printf '4001\\\\n' > /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign/.worktree-port; ls -la /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign/ | head -20)",
       "Bash(grep -rn 'users.$inferSelect' /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/database /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server)",
       "Bash(grep -n \"| \\\\`page\\\\` | number |\\\\|| \\\\`limit\\\\` | number |\" .claude/docs/api.md)",
-      "Bash(git diff *)"
+      "Bash(git diff *)",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign status --short)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(echo \"overlap-check-exit:$? \\(1 = no overlap\\)\")",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign merge --ff-only main)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",

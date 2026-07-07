@@ -146,9 +146,13 @@ When scanning a diff, prioritize rules that are *detectable from changed lines*:
 type safety (TS.NO-ANY, TS.NO-AS-ANY, TS.NO-NON-NULL), layering
 (EX.NO-DB-IN-CONTROLLER, EX.NO-HTTP-IN-SERVICE), data-access
 (DB.LIMIT1-DESTRUCTURE, DB.NO-NPLUS1), effects/keys
-(RX.EFFECT-DEPS, RX.EFFECT-CLEANUP, RX.STABLE-KEY), and validation/error
-(EX.ZOD-SAFEPARSE, EX.NO-LEAK-INTERNALS). Don't flag what Prettier/ESLint
-already enforce (import order, self-closing tags, boolean props).
+(RX.EFFECT-DEPS, RX.EFFECT-CLEANUP, RX.STABLE-KEY), validation/error
+(EX.ZOD-SAFEPARSE, EX.NO-LEAK-INTERNALS), and comments
+(TS.JSDOC-EXPORT — export missing its summary-sentence JSDoc; TS.JSDOC-BUDGET —
+header over budget: caller lists, rationale narrative, or `@param`/`@returns`
+restating the type or summary; TS.COMMENT-WHY — inline `//` restating the code).
+Don't flag what Prettier/ESLint already enforce (import order, self-closing
+tags, boolean props).
 
 **Missing-test smells (`TST.*`) — diff-detectable, but verify before flagging.**
 `/smell` sees only the diff, and the test may already live outside it — so **Grep for an existing

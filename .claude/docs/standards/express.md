@@ -183,12 +183,18 @@ Scope: **server architecture and data access only.** TypeScript language rules l
 
 ## Comments
 
-- **EX.JSDOC-EXPORT** — Exported controllers and service functions get a short JSDoc with `@param`/`@returns` describing what they do, what they return, and any non-obvious side effect (e.g. "sends an email"). Inline `//` explains *why*.
+Canonical policy: CLAUDE.md → **Comments policy**; budget + banned list: `typescript.md` TS.JSDOC-BUDGET.
+
+- **EX.JSDOC-EXPORT** — Exported controllers and service functions get a JSDoc whose default is a **single summary sentence**. Escalate per TS.JSDOC-BUDGET only for contracts the signature can't express — in services that's usually a `Side effect:` line or non-obvious `@param` semantics. Inline `//` explains *why* (TS.COMMENT-WHY).
 ```ts
+  // Default — one sentence is the whole comment
+  /** Marks a deal sold; null when no deal matches. */
+  export async function markDealSold(dealId: string): Promise<Deal | null> { ... }
+
+  // Full-dress (rare) — every extra line is a contract the signature can't express
   /**
-   * Create a deal and notify MSA subscribers.
-   * @param input validated deal fields (userId must match the session user)
-   * @returns the created deal row
+   * Creates a deal and notifies MSA subscribers.
+   * @param input userId must match the session user
    * Side effect: fires deal-alert emails after the response (best-effort).
    */
   export async function createDeal(input: InsertDeal): Promise<Deal> { ... }

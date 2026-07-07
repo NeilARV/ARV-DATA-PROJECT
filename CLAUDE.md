@@ -115,10 +115,30 @@ Read the domain file directly for the layer you're in. The cross-cutting rules b
 - **No speculative abstraction.** Three similar lines beats a premature helper.
 - **Fail loudly.** Explicit errors and early returns over silent fallbacks.
 
-### Comments policy (Option A — encouraged)
-- Exported functions/components/hooks get a JSDoc describing *what* they do/return (`@param`/`@returns` where useful).
-- Inline `//` comments explain *why*, not what — a constraint, workaround, or invariant.
-- Delete dead/obsolete comments; a stale comment that contradicts code is worse than none.
+### Comments policy (two tiers, one job each)
+
+This is the canonical comment policy. The citable per-layer rules (`TS.JSDOC-EXPORT`, `TS.JSDOC-BUDGET`, `TS.COMMENT-WHY` in `typescript.md`; `EX.JSDOC-EXPORT` in `express.md`; `RX.JSDOC-EXPORT` in `react.md`) enforce it and defer to this section.
+
+**JSDoc headers (`/** … */`) — the caller's contract.** Every exported function/component/hook gets one. The default is a **single sentence** stating what it does — and for most exports that sentence is the entire comment. The editor tooltip pairs the JSDoc with the typed signature, so types never need restating. Escalate only for a contract the signature can't express — one line per item:
+
+| Line | Add only when |
+|---|---|
+| `@param` | a param's semantics aren't evident from its name + type |
+| `@returns` | it adds semantics the type doesn't carry (null cases, format guarantees, units) |
+| `Side effect:` | the function sends email, writes storage, fires a WS event, etc. |
+| constraint | one cross-file invariant, named by file/function (e.g. "Must match the SQL in `getUserByEmail`") |
+
+**Ceiling** (cite whichever fails first): summary + at most one line per ladder item, and never longer than the function body.
+
+**Banned from JSDoc:**
+- caller enumerations ("used by X, Y, Z") — that's find-references, and it goes stale
+- design rationale / justification of correctness — PR-description material; a live invariant is one `//` at the line where it bites
+- restating the summary or the type in `@param`/`@returns`
+- re-explaining anything a canonical doc owns (env vars → the table above, auth → `access-control.md`) — name it, don't re-explain it
+
+**Inline `//` — the maintainer's why.** Inside function bodies (and above module-level constants), for a non-obvious *why* — a constraint, workaround, or invariant — at the exact line it applies to. One sentence; a second sentence belongs in the PR description. No JSDoc tags in `//` comments. A why lives in exactly one place, closest to the code it constrains — never duplicated into the header.
+
+**Hygiene:** delete dead/obsolete comments; a stale comment that contradicts code is worse than none.
 
 ### Formatting
 Prettier owns all formatting and runs automatically via the `PostToolUse` hook. Don't fight it or restate its rules. Semantic choices it can't make (quote intent, `T[]` vs `Array<T>`, import order) live in `typescript.md`.
