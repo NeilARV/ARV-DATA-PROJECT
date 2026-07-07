@@ -30,6 +30,11 @@ export function EditCategoryDialog({ open, onClose, category }: EditCategoryDial
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['categories'] });
+            // Vendor and post payloads embed category chips — refresh them so the renamed category updates everywhere
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor'] });
+            queryClient.invalidateQueries({ queryKey: ['vendors-for-post'] });
+            queryClient.invalidateQueries({ queryKey: ['posts'] });
             toast({ title: 'Category updated', description: 'Changes have been saved.' });
             onClose();
         },

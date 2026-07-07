@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { CategoriesServices } from 'server/services/categories';
 import { PostsServices } from 'server/services/posts';
+import { VendorsServices } from 'server/services/vendors';
 import { categoryInputSchema } from '@database/validation/vendors.validation';
 import { getErrorStatusCode, isUniqueViolation } from 'server/utils/dbErrors';
 
@@ -21,7 +22,8 @@ export async function getVendorsByCategoryHandler(req: Request, res: Response): 
             res.status(400).json({ message: 'Invalid category id' });
             return;
         }
-        const result = await CategoriesServices.getVendorsByCategory(categoryId);
+        // Delegate to the vendors service so the response matches GET /api/vendors, per api.md
+        const result = await VendorsServices.getAll([categoryId]);
         res.status(200).json(result);
     } catch (error) {
         console.error('Error fetching vendors by category:', error);

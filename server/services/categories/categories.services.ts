@@ -1,6 +1,6 @@
 import { db } from 'server/storage';
-import { categories, vendors, vendorCategories } from '@database/schemas/vendors.schema';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { categories, vendorCategories } from '@database/schemas/vendors.schema';
+import { eq, sql } from 'drizzle-orm';
 import type { CategoryInput } from '@database/validation/vendors.validation';
 
 export async function getAll() {
@@ -55,14 +55,6 @@ export async function create(input: CategoryInput) {
 }
 
 export async function update(id: number, input: CategoryInput) {
-    const [existing] = await db
-        .select({ id: categories.id })
-        .from(categories)
-        .where(eq(categories.id, id))
-        .limit(1);
-
-    if (!existing) throw Object.assign(new Error('Category not found'), { statusCode: 404 });
-
     const slug = input.name
         .toLowerCase()
         .trim()
@@ -88,71 +80,21 @@ export async function update(id: number, input: CategoryInput) {
         .where(eq(categories.id, id))
         .returning();
 
+    // Empty returning() means no row matched — avoids a select pre-check that races concurrent deletes
+    if (!updated) throw Object.assign(new Error('Category not found'), { statusCode: 404 });
+
     console.log(`[categoriesService.update] Category updated: id=${id}`);
     return updated;
 }
 
 export async function remove(id: number) {
-    const [existing] = await db
-        .select({ id: categories.id })
-        .from(categories)
+    const [deleted] = await db
+        .delete(categories)
         .where(eq(categories.id, id))
-        .limit(1);
+        .returning({ id: categories.id });
 
-    if (!existing) throw Object.assign(new Error('Category not found'), { statusCode: 404 });
+    if (!deleted) throw Object.assign(new Error('Category not found'), { statusCode: 404 });
 
-    await db.delete(categories).where(eq(categories.id, id));
     console.log(`[categoriesService.remove] Category deleted: id=${id}`);
-    return { id };
-}
-
-export async function getVendorsByCategory(categoryId: number) {
-    const rows = await db
-        .select({
-            id: vendors.id,
-            name: vendors.name,
-            description: vendors.description,
-            address: vendors.address,
-            city: vendors.city,
-            state: vendors.state,
-            zipCode: vendors.zipCode,
-            phone: vendors.phone,
-            website: vendors.website,
-        })
-        .from(vendors)
-        .innerJoin(vendorCategories, eq(vendorCategories.vendorId, vendors.id))
-        .where(eq(vendorCategories.categoryId, categoryId))
-        .orderBy(vendors.name);
-
-    if (rows.length === 0) return [];
-
-    const vendorIds = rows.map((v) => v.id);
-    const categoryRows = await db
-        .select({
-            vendorId: vendorCategories.vendorId,
-            categoryId: categories.id,
-            name: categories.name,
-            slug: categories.slug,
-            iconName: categories.iconName,
-        })
-        .from(vendorCategories)
-        .innerJoin(categories, eq(categories.id, vendorCategories.categoryId))
-        .where(inArray(vendorCategories.vendorId, vendorIds));
-
-    const categoryMap = new Map<string, typeof categoryRows>();
-    for (const row of categoryRows) {
-        const list = categoryMap.get(row.vendorId) ?? [];
-        list.push(row);
-        categoryMap.set(row.vendorId, list);
-    }
-
-    return rows.map((vendor) => ({
-        ...vendor,
-        categories: (categoryMap.get(vendor.id) ?? []).map((c) => ({
-            id: c.categoryId,
-            name: c.name,
-            slug: c.slug,
-            iconName: c.iconName,
-        })),
-    }));
+    return deleted;
 }

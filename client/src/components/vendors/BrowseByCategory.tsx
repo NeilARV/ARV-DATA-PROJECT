@@ -52,6 +52,11 @@ export function BrowseByCategory({
         mutationFn: (id: number) => deleteCategory(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['categories'] });
+            // Vendor and post payloads embed category chips — refresh them so the deleted category disappears everywhere
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor'] });
+            queryClient.invalidateQueries({ queryKey: ['vendors-for-post'] });
+            queryClient.invalidateQueries({ queryKey: ['posts'] });
             toast({ title: 'Category deleted' });
             setDeletingCategory(null);
         },
