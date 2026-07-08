@@ -84,13 +84,16 @@
       "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign merge --ff-only main)",
       "Bash(awk '/^## Mastermind/,/^## [^M]/' .claude/docs/apps.md)",
       "Bash(git rm *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(node -e \"const p=require\\('/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/node_modules/papaparse/package.json'\\);console.log\\(p.version\\)\")",
+      "Bash(grep -n -A4 \"session.userId\" server/controllers/deals/deals.controllers.ts | head -12; echo \"---return-idiom---\"; sed -n '/export async function getDealByIdController/,/^}/p' server/controllers/deals/deals.controllers.ts | head -30)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/properties",
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/auth",
-      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign"
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign",
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/controllers/deals"
     ]
   }
 }

@@ -16,6 +16,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { AdminUser, AccountTypeOption } from '@/types/admin';
 import type { RelationshipManager } from '@shared/types/users';
+import type { UserMembership } from '@shared/types/claims';
 
 interface CompanyOption {
     id: string;
@@ -57,9 +58,7 @@ export default function EditUserContent({
     const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const initializedRef = useRef(false);
 
-    const { data: membershipsResponse } = useQuery<{
-        data: Array<{ companyId: string; companyName: string }>;
-    }>({
+    const { data: membershipsResponse } = useQuery<{ data: UserMembership[] }>({
         queryKey: [`/api/users/${user.id}/company-memberships`],
     });
 

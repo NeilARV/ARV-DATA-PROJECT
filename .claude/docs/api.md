@@ -939,40 +939,37 @@ Fetch and apply company data from OpenCorporates.
 ---
 
 ### `POST /api/companies/:id/claim`
-Submit a claim for a company. Creates a `pending` claim in the admin review queue.
+Submit a claim for a company. Creates a `pending` claim in the admin review queue and emails the claimant's RM (or the default contact).
 
 **Auth**: `requireAuth`
 
-**Body**: none
+**Body**
+```json
+{ "userMessage": "I'm the acquisitions lead at this company." }
+```
+
+`userMessage` is optional (max 1000 chars).
 
 **Response `201`** `{ "message": "Claim submitted", "claimId": "uuid" }`
 
-**Errors** `404` company not found · `409` user already has a pending or approved claim for this company
+**Errors** `400` invalid company ID or invalid body · `404` company not found · `409` user already has a pending or approved claim for this company
 
 ---
 
 ### `GET /api/companies/:id/members`
-Get the approved members (claimed users) for a company.
+Get the member user ids for a company.
 
 **Auth**: `requireAuth`
 
 **Response `200`**
 ```json
 {
-  "data": [
-    {
-      "userId": "uuid",
-      "firstName": "Jane",
-      "lastName": "Doe",
-      "email": "jane@example.com",
-      "role": "owner",
-      "isPrimary": true,
-      "joinedAt": "2026-06-03T00:00:00Z"
-    }
-  ],
+  "data": [{ "userId": "uuid" }],
   "count": 1
 }
 ```
+
+**Errors** `400` invalid company ID
 
 ---
 
@@ -983,7 +980,7 @@ List company claims for admin review.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
 
-**Query params**: `status` — `pending` | `approved` | `rejected` (default: all)
+**Query params**: `status` — `pending` | `approved` | `rejected` (default: all; an unrecognized value is a `400`)
 
 **Response `200`**
 ```json
@@ -992,7 +989,9 @@ List company claims for admin review.
     {
       "id": "uuid",
       "status": "pending",
+      "userMessage": null,
       "adminNotes": null,
+      "adminMessage": null,
       "reviewedAt": null,
       "createdAt": "2026-06-03T00:00:00Z",
       "userId": "uuid",
@@ -1009,6 +1008,8 @@ List company claims for admin review.
 }
 ```
 
+**Errors** `400` invalid status filter
+
 ---
 
 ### `PATCH /api/claims/:id`
@@ -1018,14 +1019,14 @@ Approve or reject a company claim.
 
 **Body**
 ```json
-{ "action": "approve", "adminNotes": "Verified via LinkedIn" }
+{ "action": "approve", "adminNotes": "Verified via LinkedIn", "adminMessage": "Welcome aboard!" }
 ```
 
-`action` is required: `"approve"` or `"reject"`. `adminNotes` is optional (max 1000 chars).
+`action` is required: `"approve"` or `"reject"`. `adminNotes` (internal) and `adminMessage` (sent to the user in the outcome email) are optional (max 1000 chars each).
 
 **Response `200`** `{ "message": "Claim approved", "claim": { ...claim } }`
 
-**Errors** `400` invalid body · `404` claim not found · `409` claim already reviewed
+**Errors** `400` invalid claim ID or invalid body · `404` claim not found · `409` claim already reviewed (including a concurrent review that won the race)
 
 On approve: inserts a row into `company_members` linking the user to the company.
 
@@ -1051,6 +1052,33 @@ Get all approved company memberships for the currently authenticated user.
   "count": 1
 }
 ```
+
+`role` is `"owner"`, `"member"`, or `null`. Rows are wire-shaped `UserMembership` (`shared/types/claims.ts`).
+
+---
+
+### `GET /api/users/:userId/company-memberships`
+Get any user's company memberships (admin view). Same response shape as `GET /api/users/me/company-memberships`.
+
+**Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
+
+**Errors** `400` invalid user ID
+
+---
+
+### `PUT /api/users/:userId/company-memberships`
+Replace a user's company memberships with exactly the given set (adds missing, removes absent).
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body**
+```json
+{ "companyIds": ["uuid", "uuid"] }
+```
+
+**Response `200`** `{ "message": "Company memberships updated" }`
+
+**Errors** `400` invalid user ID, invalid body, or unknown company ids
 
 ---
 

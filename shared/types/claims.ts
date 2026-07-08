@@ -1,3 +1,12 @@
+// A company membership as returned by the /company-memberships endpoints (wire shape — dates are ISO strings).
+export type UserMembership = {
+    companyId: string;
+    companyName: string;
+    role: 'owner' | 'member' | null;
+    isPrimary: boolean;
+    joinedAt: string;
+};
+
 // A company-claim row as returned for admin review (wire shape — dates are ISO strings).
 export type ClaimRow = {
     id: string;

@@ -4,14 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-
-interface UserMembership {
-    companyId: string;
-    companyName: string;
-    role: 'owner' | 'member';
-    isPrimary: boolean;
-    joinedAt: string;
-}
+import type { UserMembership } from '@shared/types/claims';
 
 export default function MyCompaniesTab() {
     const { data, isLoading } = useQuery<{ data: UserMembership[]; count: number }>({
