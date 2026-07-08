@@ -2,56 +2,59 @@
 
 > **Status:** Plan / design phase. No code written yet.
 >
-> **Decisions locked (2026-07-06, with Neil):**
-> 1. **Data model:** parent = a row in a new `company_groups` table (NOT an `is_parent` flag /
->    synthetic row in `companies` — considered and rejected, see §12). Companies table untouched.
-> 2. **Admin UX:** ALL merge management lives in one dedicated **Admin Panel tab** ("Company
->    Merging"). No admin controls embedded in the directory/`/data` UI — we are deliberately
->    starting to centralize admin controls rather than adding more role-conditional UI to shared
->    surfaces. (Existing scattered admin controls are NOT being migrated as part of this project.)
-> 3. **Visibility:** family associations are **public** — the "Part of Vertigo Rev (3 companies)"
->    chip shows to everyone in the directory, like all other company data.
-> 4. **`/data` v1 behavior:** selecting a grouped company stays **per-LLC** (properties/stats
->    exactly as today) + the public family chip with click-through to siblings. Family-wide
->    property filtering is deferred (§6.4).
-> 5. **Suggestions engine:** pulled forward into **Phase 2** (not late-phase). Manual-only merging
->    across thousands of companies risks the feature never being used. Start with signals that
->    need no enrichment (name patterns, near-duplicate names, intra-family transactions).
-> 6. **Member deliverable:** the **full dashboard page** (family rollup + per-LLC breakdown) is in
->    scope for this project (Phase 2/3), not just an enhanced profile tab.
-> 7. **True duplicates are a confirmed, first-class problem** — NOT casing/punctuation (source
->    data is uniformly uppercase) but **clerical typo variants** on deed paperwork, e.g.
->    `LYKOS HOLDING LLC` vs `LYKOS HOLDINGS LLC`. These require a real **hard merge** (one row
->    absorbs the other + alias so the pipeline never re-splits them). Hard merge is a peer
->    capability to grouping, not a someday-tool (§9).
+> **Finalized 2026-07-08 (Option A locked, with Justin):**
+> 1. **The group is the account.** A `company_groups` row is a client/organization. The companies
+>    (LLCs) inside it are attribution/data entities that belong to that account; the people are
+>    members of the account. There is **no parent company** — the `is_parent` flag and the
+>    `primary_company_id` pointer are both dead (see §12). Whatever brand/parent name matters lives
+>    in the group's `name`.
+> 2. **Membership lives at the group level ONLY.** The existing `company_members` table is retired
+>    and replaced by a single `group_members` table. **You cannot add a member to a company** — you
+>    add *companies* to a group and *members* to a group. This one table is also the single unit for
+>    email and analytics targeting: everything addresses a group.
+> 3. **Admin UX:** ALL management lives in one dedicated **Admin Panel tab** ("Company Merging"),
+>    ADMIN/OWNER only. No merge controls embedded in the directory/`/data` UI. Create, name, edit,
+>    delete groups; add/remove companies; add/remove members.
+> 4. **The claim feature is removed.** Self-service company claims are dropped entirely — table,
+>    routes, services, and UI (it was effectively unused and, when used, misused). Membership is
+>    created **only by admin assignment** (the Company Merging tab today; onboarding later). See §5.4.
+> 5. **Create-a-company (manual, non-SFR) is deferred.** v1 groups only over companies the SFR
+>    pipeline already knows. This keeps the shared-normalization change and the `company_aliases`
+>    machinery out of v1 (they return with the manual-create / hard-merge work — §9).
+> 6. **Visibility:** group association is **public** — the "Part of Vertigo Rev (3 companies)" chip
+>    shows to everyone in the directory, like all other company data.
+> 7. **`/data` v1 behavior:** selecting a grouped company stays **per-LLC** (properties/stats exactly
+>    as today) + the public family chip with click-through to siblings. Family-wide property
+>    filtering is deferred (§6.4).
+> 8. **Deletion:** deleting a group disbands it — its companies become standalone (and, since
+>    membership was the group's, memberless); company rows are never touched.
+> 9. **True typo-duplicates remain a first-class, separate problem** — `LYKOS HOLDING LLC` vs
+>    `LYKOS HOLDINGS LLC` — solved by a **hard merge** (one company row absorbs the other + alias so
+>    the pipeline never re-splits them). This is a peer capability to grouping, not part of it (§9).
 >
-> **The one framing decision this document rests on:** the feature is **two distinct operations
-> sharing one admin surface**:
-> - **Group** (the common case): N real LLCs belong to one organization → link them under a
->   `company_groups` row. Transactions stay attributed to the exact LLC that recorded the deed.
-> - **Hard merge** (the duplicate case): two rows are the *same* LLC (typo variant) → absorb one
->   into the other, keep the bad spelling as an alias. Destructive on the row, lossless on data.
->
-> An admin reviewing "LYKOS HOLDING LLC ↔ LYKOS HOLDINGS LLC" picks *merge*; reviewing
-> "SD REV ↔ CO REV" picks *group*. Same queue, two resolutions.
+> **The one framing decision this document rests on:** grouping and hard-merge are **two distinct
+> operations sharing one admin surface**:
+> - **Group** (the common case): N real LLCs belong to one client → link them under a
+>   `company_groups` account. Transactions stay attributed to the exact LLC that recorded the deed.
+> - **Hard merge** (the duplicate case): two rows are the *same* LLC (typo variant) → absorb one into
+>   the other, keep the bad spelling as an alias. Destructive on the row, lossless on data.
 
 ---
 
 ## 1. The idea in one paragraph
 
-Real-estate operators run one brand through many LLCs — "Vertigo Rev" buys as SD REV in San Diego,
-CO REV in Colorado, MIAMI REV in Florida — and our pipeline creates one unrelated `companies` row
-per raw deed name. We add a `company_groups` table (the family, e.g. "Vertigo Rev") and a
-one-group-per-company membership table linking existing company rows into it. The group is the
-parent — **whether or not a parent company row exists in our DB** (Scenario 1: it does, we mark it
-`primary_company_id`; Scenario 2: it doesn't, the group's `name` carries the brand and no fake
-company row is ever created). Users keep being members of the *specific* LLC they claimed
-(`company_members` is untouched); their reach to sibling LLCs is **derived at query time** through
-the group — so one membership row per user, no fan-out, and grouping/ungrouping companies never
-requires touching user rows. On top of that: rollup stats (per-LLC + family-wide, intra-family
-transfers excluded), a member dashboard page, a suggestion engine that proposes families and
-duplicates so admins approve instead of hunting through thousands of rows, and a hard-merge tool
-(+ alias table) for typo-duplicate rows.
+Real-estate operators run one organization through many LLCs — "Vertigo Rev" buys as SD REV in San
+Diego, CO REV in Colorado, MIAMI REV in Florida — and our pipeline creates one unrelated `companies`
+row per raw deed name. We introduce the **account**: a `company_groups` row (e.g. "Vertigo Rev") that
+owns a set of companies (`company_group_companies`) and a set of members (`group_members`). Access,
+emails, and analytics are all addressed to the account, never to an individual company. A client with
+a single known LLC is simply an account with one company; as they pick up more LLCs, you add those
+companies to the same account and every member's reach grows with zero per-user work. Because the
+company no longer holds members, all the two-level bookkeeping disappears — there is nothing to
+migrate when you group, nothing to reconcile when you ungroup. On top of the core: rollup stats
+(per-LLC + account-wide, intra-account transfers excluded), a member dashboard, a suggestion engine
+that proposes accounts and duplicates so admins approve instead of hunting through thousands of rows,
+and a hard-merge tool (+ alias table) for typo-duplicate rows.
 
 ---
 
@@ -70,11 +73,12 @@ Verified by direct code review — file references are load-bearing for the buil
 - Dedup guarantee is only the DB unique constraint on `companies.company`
   (`database/schemas/companies.schema.ts:29`) + `onConflictDoNothing`
   (`server/jobs/data_v2/processes/insert-companies.ts:143-147`).
-- **The duplicate class that actually occurs** (confirmed by Neil): clerical typo variants on deed
-  paperwork — `LYKOS HOLDING LLC` vs `LYKOS HOLDINGS LLC`. No normalization can fix a missing `S`;
-  the data simply arrives wrong sometimes. Exact-string identity then splits one LLC across two
-  rows, fragmenting its stats. Companies are also **insert-only** — no cleanup, archival, or merge
-  logic exists anywhere.
+- **The duplicate class that actually occurs** (confirmed): clerical typo variants on deed paperwork
+  — `LYKOS HOLDING LLC` vs `LYKOS HOLDINGS LLC`. No normalization can fix a missing `S`; the data
+  simply arrives wrong sometimes. Exact-string identity then splits one LLC across two rows,
+  fragmenting its stats. Companies are also **insert-only** — no cleanup, archival, admin-create, or
+  merge logic exists anywhere. (Admin-create is what a future onboarding "add a brand-new LLC" step
+  would introduce; deferred out of v1 per decision #5.)
 
 ### 2.2 How everything hangs off a company
 
@@ -87,16 +91,20 @@ Verified by direct code review — file references are load-bearing for the buil
   single company UUID. Directory sorts (`getContacts`, 124–455) aggregate per-company over
   `property_transactions`. **Exception:** `getLeaderboard` (525–617) tallies raw
   `buyerName`/`sellerName` **strings**, not FKs.
-- **Membership** is exactly one table, `company_members` (`companies.schema.ts:185-203`), PK
+- **Membership today** is exactly one table, `company_members` (`companies.schema.ts:185-203`), PK
   `(user_id, company_id)`. Users have **no** company column. Rows are created by claim approval
   (`server/services/claims/claims.services.ts:249-326`) or admin PUT
   (`setUserCompanyMemberships`, 373–399). `role` and `is_primary` exist in the schema but **no write
-  path ever sets them** — effectively unused today.
-- **Claims**: `company_claims` + partial unique index (one non-rejected claim per user per company),
-  reviewed in the Admin Panel Claims tab (`client/src/components/admin/CompanyClaimsTab.tsx`).
+  path ever sets them** — effectively unused today. **Both write paths go away**: claims are removed
+  (§5.4) and admin assignment moves to accounts. **This table is retired by this project (§5).**
+- **Claims (being removed)**: `company_claims` + partial unique index, reviewed in the Admin Panel
+  Claims tab (`client/src/components/admin/CompanyClaimsTab.tsx`). Confirmed unused/misused — this
+  project deletes the whole feature (§5.4).
 - **Membership grants nothing in the UI today**: `use-auth.ts`'s `AuthUser` has no company field;
   the only member surface is the read-only Profile → My Companies list
-  (`client/src/components/profile/MyCompaniesTab.tsx`). There is no company dashboard of any kind.
+  (`client/src/components/profile/MyCompaniesTab.tsx`). There is no dashboard of any kind. **This is
+  what makes retiring `company_members` cheap now — there is almost no live membership behavior to
+  preserve, and it only gets more expensive to change later.**
 - **Enrichment**: OpenCorporates fills `company_details`, which **already stores** relationship-ish
   registry metadata we never use: `agent_name`, `agent_address`, `alternative_names`,
   `previous_names`, `corporate_groupings`, `controlling_entity`, `ultimate_controlling_company`,
@@ -106,482 +114,483 @@ Verified by direct code review — file references are load-bearing for the buil
 ### 2.3 What this means for the feature
 
 Because every aggregation except the leaderboard already keys on `buyer_id`/`seller_id`/`assignor_id`
-UUIDs, **group rollups are cheap**: the same queries with `inArray(companyIds)` instead of
+UUIDs, **account rollups are cheap**: the same queries with `inArray(companyIds)` instead of
 `eq(companyId)`. Nothing about transaction attribution needs to change for grouping. The gaps are:
-(1) no entity that says "these companies belong together," (2) no derived member reach, (3) no
-rollup endpoints/UI, (4) no way to notice new siblings/duplicates arriving via the nightly sync,
-(5) no way to heal a typo-split row.
+(1) no entity that says "these companies belong to one account," (2) no account-level membership,
+(3) no rollup endpoints/UI, (4) no way to notice new siblings/duplicates arriving via the nightly
+sync, (5) no way to heal a typo-split row.
 
 ---
 
-## 3. The two scenarios, solved by one shape
+## 3. The model: the group **is** the account
 
-| | Scenario 1 — parent exists in DB | Scenario 2 — parent never transacts |
+There is one shape, and it removes the two-scenario branching the earlier draft carried:
+
+| | What it is | Holds |
 |---|---|---|
-| Example | VERTIGO REV bought a property once; SD REV / CO REV are its LLCs | Only SD REV / CO REV / MIAMI REV ever appear on deeds |
-| Group row | `company_groups { name: "Vertigo Rev", primary_company_id: <VERTIGO REV's uuid> }` | `company_groups { name: "Vertigo Rev", primary_company_id: NULL }` |
-| Members | VERTIGO REV, SD REV, CO REV all linked as group companies | SD REV, CO REV, MIAMI REV linked |
-| If the parent shows up later | — | Pipeline creates the VERTIGO REV company row; admin links it into the group and (optionally) sets it primary |
+| `company_groups` | The **account** — a client/organization (e.g. "Vertigo Rev") | a display-ready `name`, `notes` |
+| `company_group_companies` | Which LLCs belong to the account (one group per company) | provenance of each link |
+| `group_members` | Which users are on the account's team | the **only** membership relation |
 
-**Decision (locked): never create a synthetic `companies` row for a missing parent.** The
-`is_parent`-flag alternative was considered seriously (it gives one mental model — parent is
-clickable/claimable/enrichable like any company) and rejected: a synthetic row would (a) appear in
-the public directory with zero transactions unless every count-sort filters the flag, (b) occupy
-the unique `company` name so a *real* future deed under a near-identical spelling still creates a
-duplicate anyway, (c) require the pipeline's exact-name matching to special-case the flag. The
-group **is** the parent entity; its `name` column is the brand. `primary_company_id` is a nullable
-pointer for when a real parent row exists — display anchor, nothing more. In the UI we can still
-*label* the group "Parent Company" — the schema choice doesn't dictate the vocabulary.
+A company (LLC) is a pure attribution entity: it records which deeds it's on, and it may belong to at
+most one account. It **never** holds members. To give a person access to an LLC, you put that LLC in
+an account and add the person to the account. A single-LLC client is an account with one company —
+not a special case, just a small account.
 
-This also answers "existing company vs. create a parent": you never choose. You always create a
-*group*; you sometimes additionally mark one member as primary.
+**Why no parent / no `primary_company_id`:** the "parent company" only ever mattered as a display
+anchor or as "which company a member attaches to." The account's `name` covers the first, and under
+Option A members attach to the *account*, not a company — so the second evaporates. A synthetic
+parent `companies` row was also rejected for polluting the directory and the pipeline's unique-name
+space (§12). The account is the parent entity; its `name` is the brand.
 
 ---
 
 ## 4. Data model
 
-Three new tables in Phase 1–2, one more (aliases) with the hard-merge tool. All in
-`database/schemas/companies.schema.ts` with inserts/updates/validation in `database/`.
+`database/schemas/companies.schema.ts` (with inserts/updates/validation in `database/`).
 
-### 4.1 `company_groups` — the family / parent entity
+### 4.1 `company_groups` — the account
 
 | Column | Type | Constraints |
 |---|---|---|
 | `id` | `uuid` | PK, `defaultRandom()` |
-| `name` | `text` | NOT NULL, **UNIQUE** — display-ready brand name, admin-typed (e.g. `Vertigo Rev`) |
-| `primary_company_id` | `uuid` | nullable, FK → `companies.id` (**`set null`**) — the parent, when it exists as a company row |
+| `name` | `text` | NOT NULL, **UNIQUE** — display-ready account name, admin-typed (e.g. `Vertigo Rev`) |
 | `notes` | `text` | nullable — admin context ("confirmed via OC filing 2026-05", "same registered agent") |
 | `created_by` | `uuid` | nullable, FK → `users.id` (`set null`) |
 | `created_at` / `updated_at` | `timestamp` | standard |
 
-### 4.2 `company_group_companies` — which companies are in which family
+> No `primary_company_id`. No parent concept.
+
+### 4.2 `company_group_companies` — which LLCs belong to which account
 
 | Column | Type | Constraints |
 |---|---|---|
-| `company_id` | `uuid` | **PK**, FK → `companies.id` (**cascade**) — PK = one group per company, enforced by the database |
+| `company_id` | `uuid` | **PK**, FK → `companies.id` (**cascade**) — PK = one account per company, enforced by the DB |
 | `group_id` | `uuid` | NOT NULL, FK → `company_groups.id` (**cascade**) |
-| `source` | `group_source` enum: `'manual' \| 'suggestion'` | NOT NULL, default `'manual'` — how this link was established |
+| `source` | `group_source` enum: `'manual' \| 'suggestion'` | NOT NULL, default `'manual'` |
 | `added_by` | `uuid` | nullable, FK → `users.id` (`set null`) |
 | `created_at` | `timestamp` | NOT NULL, defaultNow |
 
-**Index:** `idx_company_group_companies_group_id` on `(group_id)` (the "all companies in family X"
-lookup that every rollup query starts with).
+**Index:** `idx_company_group_companies_group_id` on `(group_id)` — the "all companies in account X"
+lookup every rollup and reach query starts with.
 
-**Why a join table instead of a `group_id` column on `companies`?** Same one-group invariant
-(company_id is the PK), but: (a) `companies` — the pipeline's hottest table — stays untouched, so
-zero risk to `insert-companies.ts`'s full-table map build; (b) provenance columns (`source`,
-`added_by`, `created_at`) live where they belong; (c) unlinking is a row delete, not a nullable
-column write racing the sync's upserts.
+**Why a join table, not a `group_id` column on `companies`?** (a) `companies` — the pipeline's
+hottest table — stays untouched, zero risk to `insert-companies.ts`'s full-table map build;
+(b) provenance columns live where they belong; (c) unlinking is a row delete, not a nullable-column
+write racing the sync's upserts.
 
-**Why one group per company (PK on `company_id`), not many-to-many?** An LLC has one owner family.
-The conceivable exception — a joint venture LLC owned by two families — is rare enough that `notes`
-covers it in v1; relaxing PK → composite later is an additive migration. Many-to-many from day one
-would force every rollup, dashboard, and access question to answer "which group context?" for no
-real-world payoff.
+**Why one account per company (PK on `company_id`)?** An LLC has one owner organization. The rare JV
+exception is covered by `notes` in v1; relaxing PK → composite later is additive.
 
-### 4.3 `company_merge_suggestions` — the review queue (Phase 2)
+### 4.3 `group_members` — the single membership relation (NEW, replaces `company_members`)
 
-One queue for **both** resolutions (family vs duplicate); the admin decides which applies.
+| Column | Type | Constraints |
+|---|---|---|
+| `user_id` | `uuid` | FK → `users.id` (**cascade**) |
+| `group_id` | `uuid` | FK → `company_groups.id` (**cascade**) |
+| `role` | `member_role` enum (`'owner' \| 'member'`, reuse existing) | nullable — unused in v1, reserved for a future "account admin" |
+| `created_at` | `timestamp` | NOT NULL, defaultNow |
+| **PK** | `(user_id, group_id)` | one row per user per account |
+
+**Indexes:** `idx_group_members_user_id` on `(user_id)` (the "what accounts is this user on?" lookup
+that drives the dashboard) and `idx_group_members_group_id` on `(group_id)` (the account roster +
+email recipient lookup).
+
+A user's visible company set = for each of their `group_members` accounts, all
+`company_group_companies` under it. One indexed join. Adding/removing a company from an account
+changes every member's reach with **zero** member-row writes; removing a member is one row delete.
+
+### 4.4 `company_merge_suggestions` — the review queue (Phase 2)
+
+One queue for **both** resolutions (account vs duplicate); the admin decides which applies.
 
 | Column | Type | Constraints |
 |---|---|---|
 | `id` | `uuid` | PK |
 | `company_id` | `uuid` | NOT NULL, FK → `companies.id` (cascade) — the candidate |
-| `target_group_id` | `uuid` | nullable, FK → `company_groups.id` (cascade) — "belongs in this existing family" |
+| `target_group_id` | `uuid` | nullable, FK → `company_groups.id` (cascade) — "belongs in this existing account" |
 | `target_company_id` | `uuid` | nullable, FK → `companies.id` (cascade) — "related to this ungrouped company" (pairwise; also the duplicate case) |
-| `signal` | `text` | NOT NULL — machine-readable reason (`name-pattern`, `near-duplicate`, `intra-transfer`, `shared-agent`, `oc-grouping`, `shared-contact`) |
-| `detail` | `text` | nullable — human-readable evidence ("differs by 1 character from LYKOS HOLDINGS LLC", "registered agent 'JANE DOE' shared with CO REV") |
+| `signal` | `text` | NOT NULL — `name-pattern`, `near-duplicate`, `intra-transfer`, `shared-agent`, `oc-grouping`, `shared-contact` |
+| `detail` | `text` | nullable — human-readable evidence |
 | `status` | enum `'pending' \| 'accepted' \| 'dismissed'` | NOT NULL, default `pending` |
-| `resolution` | enum `'grouped' \| 'merged'` | nullable — set on accept: which action the admin took |
+| `resolution` | enum `'grouped' \| 'merged'` | nullable — set on accept |
 | `reviewed_by` / `reviewed_at` | uuid / timestamp | nullable |
 | `created_at` | `timestamp` | NOT NULL |
 
 Partial unique index on `(company_id, coalesce(target_group_id, target_company_id), signal)` WHERE
-`status = 'pending'` so detector re-runs don't spam duplicates. **Dismissed rows are kept** — they
-are the suppression list that stops a dismissed pair from being re-suggested every night.
+`status = 'pending'`. **Dismissed rows are kept** as the suppression list.
 
-### 4.4 `company_aliases` — hard-merge support (with the merge tool, Phase 2)
+### 4.5 `company_aliases` — hard-merge support (Phase 2)
 
 | Column | Type | Constraints |
 |---|---|---|
 | `alias_name` | `text` | **PK** — the raw variant string (`LYKOS HOLDING LLC`) |
-| `company_id` | `uuid` | NOT NULL, FK → `companies.id` (cascade) — the canonical row (`LYKOS HOLDINGS LLC`) |
+| `company_id` | `uuid` | NOT NULL, FK → `companies.id` (cascade) — the canonical row |
 | `created_by` / `created_at` | | standard |
 
-### 4.5 What deliberately does NOT change
+### 4.6 What changes and what does not
 
 - `companies` — no new columns.
-- `company_members` — untouched. Users remain members of the **specific LLC** (§5).
-- `company_claims` — untouched; claims stay per-company.
+- `company_members` — **retired.** Migrate its (nascent) rows into accounts, repoint the claim and
+  admin write paths to `group_members`, then drop the table (§5.5, §11 Phase 1).
+- `company_claims` — **removed** with the rest of the claim feature (§5.4): the table (and
+  `claimStatusEnum` / `claimTypeEnum`), its routes/controllers/services/validation, and the Claims
+  admin tab all go.
 - `property_transactions` — untouched by grouping; hard merge repoints FKs but the schema is unchanged.
 
 ---
 
-## 5. Membership: one row per user, group reach derived (the key decision)
+## 5. Membership: the account owns it (the key decision)
 
-Neil's instinct in the brief is right, and the design adopts it: **do not fan out
-`company_members` rows across the family.** A user is a member of the LLC they actually
-claimed/were assigned (real-world truth, audit-friendly), and *"which companies can this user
-see?"* is answered at read time:
+**Rule (locked):** membership exists only as `group_members`. A company never has members. To grant
+access you (1) ensure the LLC is in an account, (2) add the user to the account.
+
+### 5.1 What this deletes
+
+Choosing Option A removes every hard problem the earlier drafts wrestled with:
+
+- **No "add-to-company redirects to group"** — you can't add to a company at all; the only member
+  action targets an account.
+- **No "migrate members up when you group a company"** — members were never on the company.
+- **No ungroup/dissolve provenance question** — there are no per-company member rows to restore.
+  Removing a company from an account: it becomes standalone and, having no members of its own, is
+  memberless; the account keeps its members and its other companies. Dissolving an account:
+  `group_members` and `company_group_companies` cascade; the companies become standalone.
+- **No dedupe-across-two-tables** — one membership table. (Recipient resolution still `SELECT
+  DISTINCT user` because a user can be on two different accounts — §5.3.)
+
+### 5.2 Reach (what a user can see)
 
 ```
-user → company_members → their company rows
-     → company_group_companies (for each company, its group, if any)
-     → all sibling companies of those groups
+user → group_members → their accounts
+     → company_group_companies (for each account, its companies)
+     → the union of those companies
 ```
 
-One indexed join beyond what `getUserMemberships` (`claims.services.ts:354-369`) already does.
-A shared service helper (new `server/services/groups/groups.services.ts`) exposes it once:
+A shared helper (new `server/services/groups/groups.services.ts`):
 
 ```ts
-/** Companies the user can act for: direct memberships expanded through their groups. */
-getUserCompanyReach(userId): Promise<{
-  memberships: { companyId, companyName, groupId | null }[];
-  groups: { groupId, groupName, primaryCompanyId | null,
-            companies: { companyId, companyName, isDirect: boolean }[] }[];
+/** Accounts the user is on, each expanded to its companies. Powers the dashboard and access checks. */
+getUserAccounts(userId): Promise<{
+  accounts: { groupId, groupName,
+              companies: { companyId, companyName }[] }[];
 }>
 ```
 
-**Why derived beats materialized (the 10-rows problem, solved by not creating them):**
+### 5.3 Email & analytics targeting (the benefit Justin named)
 
-- *Add SD REV to the Vertigo group* → every SD REV member instantly "reaches" CO REV, MIAMI REV.
-  Zero member-row writes.
-- *Remove SD REV from the group* (mis-grouped, LLC sold off) → reach contracts instantly. This is
-  the "demerge" case from the brief — with materialized rows we'd need a script to find and delete
-  the fanned-out rows *without* deleting genuinely direct memberships; derived, it's a no-op.
-- *New team member joins the family* → admin adds them to **one** company (any group company —
-  reach is identical). One row, not ten.
-- *No reconciliation script class exists at all.* The brief's worry — "when we merge, we might have
-  to run something to check are there users associated with these companies" — dissolves: grouping
-  never mutates membership; it only changes what the derived query returns.
+Everything addresses an account. A notification/digest resolves recipients as the account's
+`group_members`, deduped by user across accounts. There is exactly one recipient path and no way to
+double-send, because there is one membership table and a user appears once per account.
 
-(Hard merge is the one exception: absorbing a duplicate row does move its `company_members` rows to
-the canonical row — §9 step 1 — but that's the same LLC, not a family operation.)
+Known consumer to update when member-facing features land:
+- `code-violations.services.ts:351-374` `getRecipientsByCompany` — becomes "recipients by the
+  company's account" (a violation on an SD REV property notifies the whole Vertigo team). Resolve
+  through the account; dedupe by user.
+- `users.services.ts:115-117` `hasCompany` filter — re-express against account membership.
+- The Claims tab (`CompanyClaimsTab`) is **deleted**, not updated (§5.4).
 
-**Costs, acknowledged:** every access check that today asks "is user a member of company X?" must
-become "is company X within the user's reach?" (one extra join); and "who can act for SD REV?"
-returns family members who never explicitly joined SD REV — which is exactly the desired behavior,
-but consumers must be audited. Known consumers to update when member-facing features land:
-- `code-violations.services.ts:351-374` `getRecipientsByCompany` — should notify the whole family's
-  members (a violation on an SD REV property matters to the Vertigo team). Decision: expand through
-  reach.
-- `users.services.ts:115-117` `hasCompany` filter — direct membership is still the right meaning
-  here; leave as-is.
-- Claim review (`CompanyClaimsTab`) — show group context (§7.3) but claims stay per-company.
+### 5.4 Membership is admin-assigned; the claim feature is removed
+
+Membership rows are created **only by admins** — in the Company Merging tab (add members to an
+account) and, later, the onboarding flow. There is no self-service path.
+
+**The claim feature is deleted, not repurposed.** It was effectively unused (a single user filed ~60
+claims misunderstanding what they meant — essentially the only claims we ever received), so it costs
+more than it returns. Removal surface (all in Phase 1):
+- Schema: `company_claims` table + `claimStatusEnum` + `claimTypeEnum` (`companies.schema.ts`).
+- Backend: `claims.routes.ts` / `claims.controllers.ts` / `claims.services.ts`, claim validation
+  schemas, and the claim mount in `server/routes/index.ts`.
+- Frontend: `CompanyClaimsTab.tsx`, its Admin tab entry, any "claim this company" CTA on the
+  directory / company card, and claim rows in `MyCompaniesTab.tsx`.
+- Any claim-related emails/notifications and their Postmark templates.
+- api.md / access-control.md claim entries; claim tests.
+
+Existing data: approved claims already produced `company_members` rows, which the §5.5 migration
+carries into accounts; pending/rejected `company_claims` rows are dropped with the table.
+
+### 5.5 Migrating existing `company_members`
+
+Nascent and grants nothing today, so low-stakes. One-time: for each existing `company_members` row,
+ensure an account exists for its company (create a one-company account named after the company if
+none), insert a `group_members` row, then drop `company_members`. Documented as a Phase 1 migration
+step; exact script written at build time.
 
 ---
 
 ## 6. Stats & rollups
 
-### 6.1 The three levels the brief asks for
+### 6.1 The three levels
 
 1. **Per-LLC** ("stats for that specific region/LLC") — exists today: `getCompanyById`. Unchanged.
-2. **Per-family rollup** ("how everything's doing as a whole") — new `getGroupById(groupId)`:
-   the same aggregations as `getCompanyById` but with `inArray(tx.buyerId, groupCompanyIds)` /
+2. **Per-account rollup** ("how everything's doing as a whole") — new `getGroupById(groupId)`: the
+   same aggregations as `getCompanyById` but with `inArray(tx.buyerId, accountCompanyIds)` /
    `inArray(tx.sellerId, ...)` / `inArray(tx.assignorId, ...)`. Existing indexes
    (`idx_pt_buyer_date`, `idx_pt_seller_date`, `idx_pt_buyer_sort1`, `idx_pt_assignor`) serve
-   `inArray` fine at family sizes (2–20 companies).
-3. **Per-LLC breakdown inside the family** ("the individual companies… and all the properties they
-   own") — `getGroupById` returns a `companies[]` array where each entry carries its own counts
-   (one grouped-by-`buyer_id` query, not N calls).
+   `inArray` fine at account sizes (2–20 companies).
+3. **Per-LLC breakdown inside the account** — `getGroupById` returns a `companies[]` array where each
+   entry carries its own counts (one grouped-by-`buyer_id` query, not N calls).
 
-### 6.2 ⚠️ Intra-family transfers — the rollup correctness trap
+### 6.2 ⚠️ Intra-account transfers — the rollup correctness trap
 
-LLC families move title between their own entities (SD REV → VERTIGO REV holding transfers, quit
-claims, restructures). Naively rolling up would count these as acquisitions AND sales, double-
-counting activity that is economically internal. Rules for all group-level aggregates:
+Accounts move title between their own LLCs (holding transfers, quit claims, restructures). Naively
+rolling up double-counts these as both an acquisition and a sale. Rules for all account-level
+aggregates:
 
 - **Excluded from rollup counts**: any transaction where **both** `buyer_id` and `seller_id` are in
-  the group's company set.
-- **Surfaced separately**: `internalTransferCount` on the group detail — genuinely useful signal
-  ("this family restructured in March") and makes the exclusion auditable rather than silent.
-- **Distinct-property counting**: "properties owned" at the family level = distinct `property_id`
-  where any group company is the buyer on the `sort_order = 1` transaction — naturally dedupes a
-  property that passed through two family LLCs.
+  the account's company set.
+- **Surfaced separately**: `internalTransferCount` on the account detail — a useful signal and makes
+  the exclusion auditable.
+- **Distinct-property counting**: "properties owned" at the account level = distinct `property_id`
+  where any account company is the buyer on the `sort_order = 1` transaction.
 - Per-LLC numbers inside the breakdown stay unfiltered (they answer "what did this LLC record?").
 
-### 6.3 Group `purchaseToArvRatio`
+### 6.3 Account `purchaseToArvRatio`
 
-Compute over the union of the family's Arms Length sales (same method as
-`purchaseArvRatio.services.ts`, same `MAX_REASONABLE_RATIO = 10` outlier cap), excluding intra-
-family sales per §6.2 — *not* a naive average of per-company ratios (that would weight a 1-sale LLC
-equal to a 100-sale LLC). Computed on read in `getGroupById` for v1; denormalize onto
-`company_groups` later only if the dashboard needs it hot.
+Compute over the union of the account's Arms Length sales (same method as
+`purchaseArvRatio.services.ts`, same `MAX_REASONABLE_RATIO = 10` outlier cap), excluding intra-account
+sales per §6.2 — *not* a naive average of per-company ratios. Computed on read in `getGroupById` for
+v1; denormalize onto `company_groups` later only if the dashboard needs it hot.
 
 ### 6.4 Directory & leaderboard (deferred product decisions)
 
 - **`/data` behavior is locked for v1**: selecting a grouped company shows that LLC's properties
-  exactly as today + the public family chip (click a sibling → existing `handleCompanyClick`).
-  A family-wide `?companyGroup=` property/map filter is a candidate later enhancement.
-- **Directory sorts** stay per-LLC. A family with volume split across 10 LLCs ranks low on every
-  card — a "group by family" rollup toggle is designed but deferred; it touches `getContacts`'s
-  in-memory sort path significantly. (Open question §13.)
-- **`getLeaderboard`** aggregates raw name strings, not FKs — it cannot see groups (or even today's
-  FK links) without a rework to id-based tallies. Flagged as tech debt this feature makes visible;
-  not in scope. (Hard merges DO fix the leaderboard's split counts for typo duplicates, since the
-  alias consolidates future rows and the merge consolidates history — one more reason §9 matters.)
+  exactly as today + the public account chip (click a sibling → existing `handleCompanyClick`). A
+  account-wide `?companyGroup=` property/map filter is a candidate later enhancement.
+- **Directory sorts** stay per-LLC. A "group by account" rollup toggle is designed but deferred
+  (§13).
+- **`getLeaderboard`** aggregates raw name strings, not FKs — it cannot see accounts (or even today's
+  FK links) without a rework to id-based tallies. Out of scope; documented as debt. (Hard merges DO
+  fix the leaderboard's split counts for typo duplicates.)
 
 ---
 
 ## 7. API & UI surface
 
-Access control per `.claude/docs/access-control.md` conventions: writes = `requireRole(ADMIN_ROLES)`;
-group *association* on public company payloads is **public (locked)**; member dashboard =
-`requireAuth` + reach check in the service. New routes follow the full `/new-route` ceremony
-(routes + controllers + services + validation schemas in `database/validation/` + api.md +
+Access control per `.claude/docs/access-control.md`: writes = `requireRole(ADMIN_ROLES)` (admin +
+owner); account *association* on public company payloads is **public**; member dashboard =
+`requireAuth` + account-membership check in the service. New routes follow the full `/new-route`
+ceremony (routes + controllers + services + validation in `database/validation/` + api.md +
 access-control.md + baseline integration tests).
 
 ### 7.1 New routes — `/api/company-groups` (new domain: routes/controllers/services trio)
 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| POST | `/api/company-groups` | ADMIN_ROLES | Create group `{ name, companyIds[], primaryCompanyId? }` — validates companies exist & are ungrouped; primary must be in `companyIds` |
-| GET | `/api/company-groups` | ADMIN_ROLES | Paginated list w/ search, member counts (admin management surface) |
-| GET | `/api/company-groups/:id` | Public | Group + members + rollup stats + per-LLC breakdown (§6) |
-| PATCH | `/api/company-groups/:id` | ADMIN_ROLES | `{ name?, primaryCompanyId?, notes? }` |
-| DELETE | `/api/company-groups/:id` | ADMIN_ROLES | Dissolve the family (membership rows cascade; company rows untouched — every child becomes standalone) |
-| POST | `/api/company-groups/:id/companies` | ADMIN_ROLES | Add companies `{ companyIds[] }` — `already-grouped` conflict result if any belongs to another group (explicit move required, no silent steal) |
-| DELETE | `/api/company-groups/:id/companies/:companyId` | ADMIN_ROLES | Remove one company (it becomes standalone; its transactions/stats untouched); if it was `primary_company_id`, null the pointer; groups may drop to 1 member (kept — admin dissolves explicitly) |
+| POST | `/api/company-groups` | ADMIN_ROLES | Create account `{ name, companyIds[], memberUserIds[]? }` — validates companies exist & are ungrouped |
+| GET | `/api/company-groups` | ADMIN_ROLES | Paginated list w/ search, company + member counts (admin management surface) |
+| GET | `/api/company-groups/:id` | Public | Account + companies + member roster + rollup stats (§6) (roster may be admin-only; see note) |
+| PATCH | `/api/company-groups/:id` | ADMIN_ROLES | `{ name?, notes? }` |
+| DELETE | `/api/company-groups/:id` | ADMIN_ROLES | Dissolve the account (company links + members cascade; company rows untouched) |
+| POST | `/api/company-groups/:id/companies` | ADMIN_ROLES | Add companies `{ companyIds[] }` — `already-grouped` conflict if any belongs to another account (explicit move, no silent steal) |
+| DELETE | `/api/company-groups/:id/companies/:companyId` | ADMIN_ROLES | Remove one company (becomes standalone; transactions/stats untouched) |
+| POST | `/api/company-groups/:id/members` | ADMIN_ROLES | Add members `{ userIds[] }` → `group_members` rows |
+| DELETE | `/api/company-groups/:id/members/:userId` | ADMIN_ROLES | Remove a member |
+
+> **Note:** the public `GET /:id` returns the account + its companies + rollups for the family chip.
+> Whether the **member roster** is public or admin-only is a small open call (§13); default admin-only.
 
 Phase 2 adds:
 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| GET | `/api/company-merge-suggestions` | PRIVILEGED_ROLES | Queue list (status filter, like claims) |
-| PATCH | `/api/company-merge-suggestions/:id` | ADMIN_ROLES | `{ action: 'group' \| 'merge' \| 'dismiss', ... }` — group → create/extend family; merge → run §9; dismiss → suppress |
-| POST | `/api/companies/:id/merge-duplicate` | ADMIN_ROLES | Direct hard merge `{ duplicateCompanyId }` (also invokable outside the queue) |
+| GET | `/api/company-merge-suggestions` | PRIVILEGED_ROLES | Queue list (status filter) |
+| PATCH | `/api/company-merge-suggestions/:id` | ADMIN_ROLES | `{ action: 'group' \| 'merge' \| 'dismiss', ... }` |
+| POST | `/api/companies/:id/merge-duplicate` | ADMIN_ROLES | Direct hard merge `{ duplicateCompanyId }` |
 
 ### 7.2 Changes to existing endpoints
 
-- `GET /api/companies/:id` — response gains
-  `group: { id, name, primaryCompanyId, companies: [{ id, companyName }] } | null`. One join +
-  one indexed lookup; drives the public family chip.
-- `GET /api/users/me/company-memberships` — each row gains the same `group` object (drives the
-  My Companies view and dashboard entry point).
-- All rendered company/group names pass through `formatCompanyName` per **ARV.RAW-COMPANY-NAME**
-  (group `name` is stored display-ready since it's admin-typed, not SFR-sourced).
+- `GET /api/companies/:id` — response gains `group: { id, name, companies: [{ id, companyName }] } |
+  null`. One join + one indexed lookup; drives the public account chip.
+- Claim endpoints — **deleted** (the claim feature is removed, §5.4).
+- Admin membership editor (`setUserCompanyMemberships`) — becomes an account-membership editor
+  (assign users to accounts, not companies).
+- `GET /api/users/me/...` membership surface — returns the user's accounts + their companies.
+- All rendered company names pass through `formatCompanyName` per **ARV.RAW-COMPANY-NAME**; account
+  `name` is stored display-ready (admin-typed).
 
 ### 7.3 UI
 
-**Admin — one centralized tab (locked decision).** New **"Company Merging"** tab in `Admin.tsx`
-(ADMIN_ROLES; PRIVILEGED_ROLES can view suggestions read-only, mirroring the claims split). No
-merge controls anywhere else — the directory card gets **no** new admin actions. Two sections:
+**Admin — one centralized "Company Merging" tab** in `Admin.tsx` (ADMIN_ROLES; PRIVILEGED_ROLES view
+suggestions read-only). No merge controls anywhere else. Sections:
 
-- **Families**: list of groups (search, member counts) · `+ New Family` (name + company typeahead
-  reusing `GET /api/companies/contacts/suggestions`, optional primary) · open a family → edit
-  name/primary/notes, add/remove companies, and a derived **family roster** — all users who are
-  members of any company in the group (read-only; answers "who's on the Vertigo team?" with no new
-  membership table).
-- **Suggestions** (Phase 2): claims-style queue; each row shows the pair/target + signal + evidence
-  and three actions — **Group** (create/extend family), **Merge** (duplicate absorption with a
+- **Accounts**: list of groups (search, company + member counts) · `+ New Account` (name + company
+  typeahead reusing `GET /api/companies/contacts/suggestions` + member typeahead) · open an account →
+  edit name/notes, add/remove companies, add/remove members, view the roster.
+- **Suggestions** (Phase 2): a review queue; each row shows the pair/target + signal + evidence
+  and three actions — **Group** (create/extend account), **Merge** (duplicate absorption with a
   confirm showing exactly what moves), **Dismiss**.
 
-Adjacent admin touch: `CompanyClaimsTab.tsx` claim rows for a grouped company show a family badge
-("VERTIGO REV family — 2 existing members across group") so admins catch cross-LLC situations.
-This lives inside the Admin Panel already, so it doesn't violate the centralization rule.
+The **Claims tab and all claim UI are removed** (§5.4). Members get onto an account only through the
+Company Merging tab (and, later, onboarding).
 
-**All users (public, locked):**
-- Expanded company card in the directory: **"Part of {family name} ({n} companies)"** chip +
-  sibling list; clicking a sibling runs the existing `handleCompanyClick`. That is the *entire*
-  `/data` change in v1.
-- `MyCompaniesTab.tsx`: memberships grouped under their family header with sibling companies listed.
+**All users (public):**
+- Directory expanded company card: **"Part of {account name} ({n} companies)"** chip + sibling list;
+  clicking a sibling runs the existing `handleCompanyClick`. That is the *entire* `/data` change in v1.
+- Profile "My Companies" surface → "My Accounts": accounts grouped with their companies listed.
 
-**Member dashboard (locked: full page, this project):**
-- New authenticated page (e.g. `/portfolio`), gated by `requireAuth` + non-empty reach:
-  family rollup tiles (properties owned, sold YTD, assigned, purchase-to-ARV ratio, internal
-  transfers), per-LLC breakdown table, 90-day acquisition chart at family level, and a "view on
-  map" hand-off into `/data` (initially: per-LLC hand-off; family-wide map filter is the later
-  `?companyGroup=` enhancement).
-- Design per `.claude/docs/design-guidelines.md`; chart via existing Recharts patterns from
+**Member dashboard (later phase — full page):**
+- New authenticated page (e.g. `/portfolio`), gated by `requireAuth` + non-empty account membership:
+  account rollup tiles (properties owned, sold YTD, purchase-to-ARV ratio, internal transfers),
+  per-LLC breakdown table, 90-day acquisition chart at account level, "view on map" hand-off into
+  `/data`. Design per `.claude/docs/design-guidelines.md`; chart via existing Recharts patterns in
   `CompanyDirectory.tsx:790-898`.
 
 ---
 
-## 8. Where associations come from (the "how do we get that association?" question)
+## 8. Where associations come from
 
-Three sources. **Nothing ever auto-groups or auto-merges — a human confirms every link.** False
-merges are worse than missed ones: they leak one family's dashboard reach to another family's
-members (grouping) or corrupt attribution (hard merge).
+Three sources. **Nothing ever auto-groups or auto-merges — a human confirms every link.** A false
+account link leaks one client's dashboard/emails to another; a false merge corrupts attribution.
 
-1. **Manual (Phase 1 backbone).** Admin recognizes the family (market knowledge, deed patterns)
-   and builds it in the Company Merging tab. Seeds VERTIGO REV / SD REV / CO REV day one.
-2. **Suggestion engine (Phase 2 — pulled forward, locked).** A detector job (cron, alongside
-   existing jobs in `server/jobs/index.ts`) writes `company_merge_suggestions`. Signal tiers:
-   - **Tier 1 — no enrichment needed, DB-wide, ship first:**
-     - **Near-duplicate names** — small edit distance / one-token difference after stripping
-       entity suffixes (`LYKOS HOLDING LLC` ↔ `LYKOS HOLDINGS LLC`). Primarily feeds **merge**.
-     - **Name patterns** — shared distinctive tokens after suffix-stripping (`SD REV LLC` /
-       `CO REV LLC` share `REV`); high recall, low precision → ranked below corroborated signals.
-       Primarily feeds **group**.
-     - **Intra-transfer detection** — two companies transacting with each other (§6.2's exclusion
-       logic inverted into discovery). Feeds **group**.
-   - **Tier 2 — enrichment-dependent, grows with coverage:** shared registered agent
-     (`company_details.agent_name/agent_address` — strongest single family signal), OpenCorporates
-     relationship metadata (`corporate_groupings`, `controlling_entity`,
-     `ultimate_controlling_company`, `home_company`, `alternative_names` — stored since enrichment
-     was built, used by nothing), shared officers across `company_contacts`, shared
-     `company_addresses`. Caveat: enrichment currently runs for the San Diego MSA only, 500/month
-     budget (`server/jobs/enrich-companies.ts:14-16`) — these signals are only as broad as
-     enrichment coverage.
-3. **Pipeline hook for new arrivals (Phase 2, with the detector).** The brief's "new ones
-   constantly being created": after `insertCompanies` returns its newly-created set
-   (`insert-companies.ts` already knows which rows are new), run the Tier-1 detectors against just
-   those names (vs existing group names, group members, and all company names) and enqueue
-   suggestions. New sibling LLC appears on a deed Tuesday night → suggestion waiting Wednesday
-   morning. Keeps the consumer's critical path untouched (fire-and-forget after Step 5, or fold
-   into the nightly detector run — build-phase decision).
+1. **Manual (Phase 1 backbone).** Admin recognizes the account (market knowledge, deed patterns) and
+   builds it in the Company Merging tab. Seeds VERTIGO REV / SD REV / CO REV day one.
+2. **Suggestion engine (Phase 2).** A detector job (cron, alongside `server/jobs/index.ts`) writes
+   `company_merge_suggestions`. Signal tiers:
+   - **Tier 1 — no enrichment, DB-wide, ship first:** near-duplicate names (edit distance after
+     entity-suffix strip → feeds **merge**); name patterns (shared distinctive tokens → feeds
+     **group**, ranked low); intra-transfer detection (two companies transacting with each other →
+     feeds **group**).
+   - **Tier 2 — enrichment-dependent:** shared registered agent
+     (`company_details.agent_name/agent_address`), OC relationship metadata
+     (`corporate_groupings`, `controlling_entity`, `ultimate_controlling_company`, `home_company`,
+     `alternative_names`), shared officers/addresses. Caveat: enrichment runs SD-MSA-only, 500/month
+     (`server/jobs/enrich-companies.ts:14-16`).
+3. **Pipeline hook for new arrivals (Phase 2).** After `insertCompanies` returns its newly-created
+   set, run Tier-1 detectors against just those names and enqueue suggestions — a new sibling LLC on
+   Tuesday's deed → suggestion Wednesday morning.
 
-**Dissolved LLCs** ("old ones constantly being dissolved"): stay in their group forever — history
-is the product. `company_details.dissolution_date` / `inactive` already exist; the group breakdown
-badges dissolved members. No archival mechanics needed or wanted.
+**Dissolved LLCs** stay in their account forever — history is the product. `dissolution_date` /
+`inactive` already exist; the breakdown badges dissolved members.
 
 ---
 
 ## 9. Hard merge — healing typo-duplicate rows (first-class, Phase 2)
 
-The confirmed real-world case: the **same LLC** split across rows by a clerical error on deed
-paperwork (`LYKOS HOLDING LLC` vs `LYKOS HOLDINGS LLC`). Grouping these would be wrong — the family
-UI would show "2 companies" that are one, and stats would stay fragmented. These need a real merge,
-and there's a trap the mechanism must solve:
+The **same LLC** split across rows by a clerical deed error (`LYKOS HOLDING LLC` vs `LYKOS HOLDINGS
+LLC`). Grouping would be wrong (UI would show "2 companies" that are one; stats stay fragmented).
+These need a real merge, and there's a trap:
 
 > **The pipeline resurrects deleted duplicates.** `insert-companies.ts` matches on exact trimmed
-> name; if we repoint FKs from `LYKOS HOLDING LLC` to `LYKOS HOLDINGS LLC` and delete the loser
-> row, the next sync batch containing the misspelling recreates it, and the split begins again.
-> The `company_aliases` table (§4.4) is the fix: the bad spelling permanently maps to the
-> canonical row.
+> name; deleting the loser row lets the next sync recreate it. The `company_aliases` table (§4.5)
+> permanently maps the bad spelling to the canonical row.
 
 Mechanism — one transaction behind `POST /api/companies/:id/merge-duplicate` (winner = `:id`):
-1. Repoint `property_transactions.buyer_id/seller_id/assignor_id` and `properties`' current-sale
-   FKs; merge `company_msas`, `company_counties` (composite-PK upserts — dedupe on conflict),
-   `company_contacts` (unique `(company_id, first, last)` — skip conflicts), `company_members`
-   (PK conflict → drop loser row), `company_claims`, `company_details` (keep the richer of the
-   two), `company_group_companies` (loser grouped ≠ winner's group → **abort**, human resolves the
-   group question first).
+1. Repoint `property_transactions.buyer_id/seller_id/assignor_id` and `properties`' current-sale FKs;
+   merge `company_msas`, `company_counties`, `company_contacts` (dedupe on conflict),
+   `company_details` (keep the richer); reconcile `company_group_companies` (loser in a *different*
+   account than winner → **abort**, human resolves the account question first). *(No `company_members`
+   step — that table no longer exists.)*
 2. Insert the loser's name into **`company_aliases`** pointing at the winner.
-3. Delete the loser row; recompute the winner's `purchaseToArvRatio`
-   (`recomputeRatiosForCompanies`).
-4. Pipeline change (the only sync-path change in this whole plan): `insert-companies.ts:64-69` and
-   `resolve-ids.ts:48-53` build their name→company maps from `companies` **UNION
-   `company_aliases`** so alias spellings resolve to the canonical row and never re-create the
-   duplicate. (Note: the raw `buyer_name`/`seller_name` strings on old transaction rows keep the
-   misspelling — correct, that's what the deed said; the FK carries identity.)
+3. Delete the loser row; recompute the winner's `purchaseToArvRatio`.
+4. Pipeline change (the only sync-path change in the plan): `insert-companies.ts:64-69` and
+   `resolve-ids.ts:48-53` build their name→company maps from `companies` **UNION `company_aliases`**.
+   (Raw `buyer_name`/`seller_name` strings on old rows keep the misspelling — the FK carries identity.)
 
-Admin surface: the **Merge** action in the suggestions queue (near-duplicate signal feeds it), plus
-a direct "Merge into…" flow in the Families/company management UI for pairs the detector misses.
-The confirm dialog is diff-style: shows both rows' counts and exactly what will move. Not undoable
-— the dialog says so.
+Not undoable — the diff-style confirm dialog says so.
 
 ---
 
-## 10. Complications & edge cases (decisions pre-made where possible)
+## 10. Complications & edge cases
 
 | # | Issue | Resolution |
 |---|---|---|
-| 1 | Company in two families (JV) | Not supported v1 (PK enforces one group). `notes` documents it; relaxing later is additive. |
-| 2 | Moving a company between groups | Explicit remove-then-add. Add endpoint returns `already-grouped` conflict — no silent steal. |
-| 3 | Group shrinks to 0/1 companies | 1 is allowed (awaiting siblings). 0 via company deletion cascade is possible but companies are never deleted today; the admin Families list surfaces empties. |
-| 4 | Primary company removed from group / deleted / merged away | FK `set null` + endpoint nulls pointer on member-removal; hard merge retargets it to the winner. Group keeps functioning (Scenario 2 shape). |
-| 5 | Rollup double-counting | §6.2 rules: exclude both-sides-in-group transactions; distinct-property semantics; surface `internalTransferCount`. |
-| 6 | User members in two different families | Fine by construction — reach is a set union; dashboard shows multiple family sections. |
-| 7 | Claim on a grouped company when a sibling already has members | Family badge/context in claims review (§7.3); approval flow unchanged. Whether cross-LLC claims should auto-escalate to `dispute` type — flagged in §13. |
-| 8 | Group name collides with a company name | Allowed (Scenario 1's group is naturally named like its parent row). Group names unique only among groups. |
-| 9 | Hard-merging two companies that are BOTH grouped (different groups) | Merge aborts; admin resolves the family assignment first, then re-runs. Same group → fine, loser's link row is just deleted. |
-| 10 | Merge chosen when group was right (or vice versa) | Group is fully reversible (remove/dissolve). Merge is not (destructive) — hence diff-style confirm + queue keeps `resolution` for audit. When unsure, admins should group first; a grouped pair can be merged later, a merged pair can't be split. **Rule of thumb in the UI copy.** |
-| 11 | `is_primary`/`role` on `company_members` | Untouched-but-unused today; this design doesn't need them. If a "team admin" concept arrives later it slots into `role` without schema change. |
-| 12 | Reach-based access leaking | Reach only powers *member-facing* dashboard/notifications; it never grants admin powers over sibling companies. All group/merge mutations stay ADMIN_ROLES. |
-| 13 | Enrichment coverage gaps (SD-only, budget-capped) | Suggestion engine degrades gracefully — Tier-1 signals are DB-wide; Tier-2 improves as enrichment expands. |
-| 14 | `getLeaderboard` is name-string based | Cannot participate in grouping without an id-based rework; out of scope, documented as debt (§6.4). Hard merges partially heal it for duplicates. |
-| 15 | Docs & agents | Schema + routes changes trigger `database.md`, `api.md`, `access-control.md`, `apps.md` (Data section) updates; the Agent Updater hook will enforce. |
+| 1 | Company in two accounts (JV) | Not supported v1 (PK enforces one account). `notes` documents it; relaxing later is additive. |
+| 2 | Moving a company between accounts | Explicit remove-then-add. Add endpoint returns `already-grouped` — no silent steal. |
+| 3 | Account shrinks to 0/1 companies | 1 is allowed. 0 via company-deletion cascade is possible but companies are never deleted today; the admin list surfaces empties. |
+| 4 | Removing a company from an account | It becomes standalone and memberless (members belonged to the account). Re-add later if needed. |
+| 5 | Dissolving an account | `group_members` + `company_group_companies` cascade; companies go standalone. Members lose access; no provenance restore (chosen — §5.1). |
+| 6 | Rollup double-counting | §6.2 rules. |
+| 7 | User on two accounts | Fine — reach is a set union; dashboard shows multiple account sections; emails dedupe by user. |
+| 8 | Getting a user onto a company | Only via account membership in the Company Merging tab — there is no claim / self-service path (§5.4). |
+| 9 | Account name collides with a company name | Allowed. Account names unique only among accounts. |
+| 10 | Hard-merging two companies both grouped (different accounts) | Merge aborts; admin resolves the account assignment first. Same account → loser's link row just deleted. |
+| 11 | Merge chosen when group was right (or vice versa) | Group is reversible (remove/dissolve); merge is destructive → diff-style confirm + queue keeps `resolution` for audit. **UI copy: when unsure, group — a grouped pair can be merged later, a merged pair can't be split.** |
+| 12 | `group_members.role` | Reserved-but-unused; a future "account admin" slots in without schema change. |
+| 13 | Reach-based access leaking | Account membership powers only *member-facing* dashboard/notifications; never admin powers. All group/merge mutations stay ADMIN_ROLES. |
+| 14 | `getLeaderboard` name-string based | Out of scope; documented as debt. Hard merges partially heal it. |
+| 15 | Docs & agents | Schema + route changes trigger `database.md`, `api.md`, `access-control.md`, `apps.md` (Data section) updates; the Agent Updater hook enforces. |
 
 ---
 
 ## 11. Build phases
 
-**Phase 1 — Grouping core + centralized admin tab**
-1. Schema: `company_groups`, `company_group_companies` (+ `group_source` enum); inserts/updates/
-   validation; `db:push`.
-2. New `server/services/groups/` + controllers + `company-groups.routes.ts` (§7.1 core table);
-   mount in `server/routes/index.ts`.
-3. `getCompanyById` + `getUserMemberships` responses gain `group`.
-4. Admin UI: **Company Merging tab** in `Admin.tsx` — Families section (list/create/edit/add/
-   remove/dissolve + derived family roster). Claims-tab family badge.
-5. Public family chip + sibling list on the directory's expanded company card (the only `/data`
-   change).
-6. Ceremony: api.md / access-control.md / database.md / apps.md updates; baseline integration
-   tests (`/test-route`); `npm run check`.
+**Phase 1 — Accounts core + centralized admin tab + membership cutover**
+1. Schema: `company_groups`, `company_group_companies` (+ `group_source` enum), `group_members`;
+   inserts/updates/validation; `db:push`.
+2. **Claim removal + membership cutover:** delete the claim feature end-to-end (§5.4); migrate
+   existing `company_members` rows into accounts (§5.5); repoint the admin membership editor to
+   `group_members`; drop `company_members`.
+3. New `server/services/groups/` + controllers + `company-groups.routes.ts` (§7.1 core + member
+   routes); mount in `server/routes/index.ts`.
+4. `getCompanyById` response gains `group`; user membership surface returns accounts.
+5. Admin UI: **Company Merging tab** — Accounts section (list/create/edit, add/remove companies,
+   add/remove members, roster). Remove the Claims tab and all claim UI (§5.4).
+6. Public account chip + sibling list on the directory's expanded company card.
+7. Ceremony: api.md / access-control.md / database.md / apps.md updates; baseline integration tests
+   (`/test-route`); `npm run check`.
 
-**Phase 2 — Discovery + duplicate merge** (pulled forward; makes the feature usable at
-thousands-of-companies scale)
+**Phase 2 — Discovery + duplicate merge**
 1. `company_merge_suggestions` + `company_aliases` schema.
-2. Tier-1 detector job (near-duplicate names, name patterns, intra-transfers) + pipeline hook for
-   newly-inserted companies; suggestion routes.
+2. Tier-1 detector job + pipeline hook for newly-inserted companies; suggestion routes.
 3. Suggestions section in the Company Merging tab (Group / Merge / Dismiss).
-4. Hard-merge service + `POST /api/companies/:id/merge-duplicate` + pipeline alias lookup in
-   `insert-companies.ts` / `resolve-ids.ts` + diff-style confirm UI.
+4. Hard-merge service + `POST /api/companies/:id/merge-duplicate` + pipeline alias lookup + diff-style
+   confirm UI. **(Manual admin-create of a non-SFR company can land here too, sharing the
+   normalization + alias work.)**
 
-**Phase 3 — Rollups + member dashboard** (independent of Phase 2 — the two can swap or interleave;
-sequence at build time)
-1. `getGroupById` rollup (inArray aggregates, intra-transfer exclusion, per-LLC breakdown, group
-   ratio) on `GET /api/company-groups/:id`.
-2. `getUserCompanyReach` service; **`/portfolio` dashboard page** (requireAuth + reach-gated):
-   rollup tiles, per-LLC table, 90-day family chart, map hand-off.
-3. Family-grouped `MyCompaniesTab`.
-4. Audit membership consumers per §5 (code-violations recipients → reach).
+**Phase 3 — Rollups + member dashboard** (independent of Phase 2)
+1. `getGroupById` rollup on `GET /api/company-groups/:id` (inArray aggregates, intra-account
+   exclusion, per-LLC breakdown, account ratio).
+2. `getUserAccounts` service; **`/portfolio` dashboard page** (requireAuth + account-gated).
+3. "My Accounts" profile surface.
+4. Audit membership consumers per §5.3 (code-violations recipients → account).
 
-**Later / backlog (explicitly out of scope for this project):** Tier-2 suggestion signals as
-enrichment expands · `?companyGroup=` family-wide property/map filter on `/data` · directory
-"group by family" rollup toggle · id-based leaderboard rework · claims auto-dispute across
-families · relaxing one-group-per-company if a real JV case appears.
+**Later / backlog:** Tier-2 signals as enrichment expands · manual admin-create of non-SFR companies ·
+`?companyGroup=` account-wide `/data` filter · directory "group by account" toggle · id-based
+leaderboard rework · relaxing one-account-per-company for a real JV.
 
-Phase 1 is independently valuable (associations become visible and queryable immediately);
-Phases 2 and 3 each ship alone.
+Phase 1 is independently valuable; Phases 2 and 3 each ship alone.
 
 ---
 
 ## 12. Rejected alternatives (and why)
 
-- **`is_parent` boolean on `companies` + link table** (Neil's floated alternative — discussed and
-  decided 2026-07-06): the link table is needed either way; the only difference is whether the
-  parent is a `companies` row or a `company_groups` row. Genuine upside: one mental model — the
-  parent would be clickable/claimable/enrichable like any company. Rejected because Scenario 2
-  forces fabricating synthetic company rows, which then (a) must be filtered out of every
-  directory count-sort, (b) occupy unique names the pipeline matches against, and (c) still don't
-  prevent near-name duplicates when the real parent eventually transacts under a variant spelling.
-  The group table gets the same UX (the UI can label groups "Parent Company") with none of the
-  filtering burden.
-- **`parent_company_id` self-FK on `companies`** — same synthetic-row problem, plus conflates
-  "entity that appears on deeds" with "grouping concept."
-- **Materialized membership fan-out** (a `company_members` row per user per family company) — the
-  10-rows problem the brief worries about, plus a permanent reconciliation burden on every
-  group/ungroup/move. Derived reach makes the entire script class unnecessary.
-- **Group-level membership table** (`user_id, group_id`) — loses the real-world fact of *which* LLC
-  a user belongs to, breaks the existing claim flow's granularity, and creates dual sources of
-  membership truth that can disagree.
-- **Hard-merging family LLCs into one row** — ruled out in the brief (transactions must keep the
-  true recorded LLC); irreversible; and the pipeline would resurrect the merged names anyway
-  (§9's trap, at family scale). Hard merge is reserved for true duplicates only.
-- **Auto-grouping/auto-merging from signals without review** — a false family link leaks dashboard
-  reach across unrelated organizations; a false merge corrupts attribution irreversibly. Human
-  confirmation is the safety gate (§8).
+- **`is_parent` boolean / `primary_company_id` pointer / synthetic parent `companies` row** — a
+  parent entity forces either fabricating synthetic company rows (which pollute directory count-sorts
+  and occupy unique names the pipeline matches against) or conflating "appears on deeds" with
+  "grouping concept." The account (`company_groups.name`) is the parent; nothing is fabricated.
+- **Derived reach from company-level membership** (keep `company_members`, expand to siblings at read
+  time) — elegant for the no-fan-out property, but it **cannot express "member of this one LLC
+  only"**: any company membership auto-expands to the whole family once that company is grouped. Since
+  we want a company-level *and* an account-level access concept, the model has to know which one
+  applies — and Option A answers that by making the account the sole membership holder.
+- **Two coexisting tables (`company_members` + `group_members`) with dedupe** (Option B) — no data
+  migration, but permanent dual-model logic: every membership write branches on "is this company
+  grouped?", grouping runs a migration, and the "no company members for a grouped company" invariant
+  can race a concurrent membership write. Option A collapses this to one table and deletes the branching.
+- **Materialized membership fan-out** (a member row per user per account company) — the 10-rows
+  problem, plus reconciliation on every group/ungroup/move. Account-level membership makes it
+  unnecessary.
+- **Hard-merging family LLCs into one row** — transactions must keep the true recorded LLC;
+  irreversible; the pipeline would resurrect the names. Hard merge is reserved for true duplicates.
+- **Auto-grouping/auto-merging from signals without review** — a false account link leaks
+  dashboard/email reach across clients; a false merge corrupts attribution irreversibly. Human
+  confirmation is the gate (§8).
 
 ---
 
 ## 13. Remaining open questions (none block Phase 1; defaults noted)
 
-Resolved 2026-07-06: data model (§ header #1) · admin UX centralization (#2) · public visibility
-(#3) · `/data` v1 behavior (#4) · suggestions priority (#5) · dashboard scope (#6) · duplicate
-class + hard-merge requirement (#7).
+Resolved 2026-07-08: the group is the account (§3) · membership at the account level only, Option A
+(§5) · **claim feature removed** (§5.4) · no parent (§3, §12) · create-company deferred (§2.1,
+decision #5) · admin UX centralization (§7.3) · public account chip (decision #6) · `/data` v1
+behavior (decision #7).
 
-1. **Directory rollup toggle** (§6.4): should families eventually collapse into one ranked row in
-   the directory sorts? *Backlog either way; opinion shapes whether rollup counts get denormalized.*
-2. **Claims across a family** (§10.7): if user A is a member of SD REV and user B requests to join
-   CO REV (same family), normal claim or dispute-style review? *Default: normal claim + family
-   context badge for the reviewing admin.*
-3. **Phase 2 vs Phase 3 ordering**: discovery+merge and rollups+dashboard are independent — which
-   ships first? *Default: Phase 2 (discovery) first, since clean/linked data makes the dashboard
-   numbers right on arrival.*
-4. **Suggestion detector cadence**: nightly full scan vs per-sync incremental only. *Default:
-   both — incremental hook for new companies + weekly full re-scan.*
-5. **Group naming**: purely cosmetic display name until a real parent row appears (default), or do
-   you also want to record a "legal parent name to watch for" so the pipeline hook can flag when
-   that exact name first appears on a deed? *Cheap to add to the detector if wanted.*
+1. **Member roster visibility** (§7.1 note): is the account's member list public alongside the family
+   chip, or admin-only? *Default admin-only.*
+2. **Directory rollup toggle** (§6.4): should accounts collapse into one ranked row in directory
+   sorts? *Backlog; shapes whether rollup counts get denormalized.*
+3. **Phase 2 vs Phase 3 ordering**: discovery+merge vs rollups+dashboard — independent. *Default:
+   Phase 2 first, so clean/linked data makes dashboard numbers right on arrival.*
+4. **Suggestion detector cadence**: nightly full scan vs per-sync incremental. *Default: both —
+   incremental hook + weekly full re-scan.*
