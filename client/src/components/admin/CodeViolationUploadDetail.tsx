@@ -286,6 +286,14 @@ function ViolationRow({ violation }: ViolationRowProps) {
                     {violation.recordType ? ` · ${violation.recordType}` : ''}
                     {violation.statusText ? ` · ${violation.statusText}` : ''}
                 </div>
+                {violation.description && (
+                    <div
+                        className="text-xs text-muted-foreground mt-1 max-w-xs line-clamp-4"
+                        title={violation.description}
+                    >
+                        {violation.description}
+                    </div>
+                )}
             </TableCell>
             <TableCell className="align-top text-sm">
                 {owner ?? <span className="text-muted-foreground">—</span>}
@@ -294,7 +302,10 @@ function ViolationRow({ violation }: ViolationRowProps) {
                 {violation.recipients.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
                         {violation.recipients.map((r) => (
-                            <span key={r.userId} className="text-xs text-muted-foreground">
+                            <span
+                                key={r.userId}
+                                className="text-xs text-muted-foreground whitespace-nowrap"
+                            >
                                 {r.email}
                             </span>
                         ))}
