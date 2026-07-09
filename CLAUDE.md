@@ -229,12 +229,15 @@ via the `/test` command, but you could be asked to write tests as well.
 
 ---
 
-## Automated Agents (run automatically — do not invoke manually)
+## Code Review & Doc Sync (run on demand)
 
-Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json` and fire automatically whenever a session has uncommitted changes. You do not need to remember to invoke them; the hook does. They are documented here so you know what they do:
+Reviews and doc-sync are invoked deliberately at checkpoints — they are **not** wired into a hook. The `Stop` hook only runs `npm run check` (type check). Invoke the right skill/command yourself:
 
-- **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues.
-- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks whether code changes made any agent documentation stale and asks for approval before editing docs. It MUST run for database and API changes so the markdown docs stay in sync.
+- **`/code-review`** — review the working diff for correctness bugs + reuse/simplification/efficiency (`--fix` applies the fixes).
+- **`/hunt <file-or-folder>`** — deep bug hunt (logic, data-flow, robustness; security/perf on request) with blast-radius, plus an always-on standards/design-compliance pass.
+- **`/smell commit | pr`** — Clean Code + Gang of Four code-smell review of committed changes (pre-push / pre-merge).
+- **`/audit`** — repo-wide standards-drift sweep grouped by rule.
+- **`/doc-drift`** — detect drift between the code (schema, routes, filenames) and the `.claude` docs. Run it after database/API changes to keep the markdown docs in sync (this replaced the old auto agent-updater).
 
 ---
 
@@ -256,7 +259,6 @@ Default to a **feature branch** in the main checkout (`git switch -c feat/<name>
 - `.claude/docs/apps.md` — combined overview of all four apps (Data, Deals, Vendors, Mastermind)
 - `.claude/docs/database.md` — full database schema reference (tables, columns, constraints, indexes)
 - `.claude/docs/mastermind.md` — Mastermind design doc and phased build plan
-- `.claude/docs/agent-updater.md` — detection rules for keeping agent docs in sync
 - `.claude/docs/new-msa.md` — how to add a new MSA to the application
 - `.claude/docs/git-workflows.md` — git workflow: feature branches (default) vs worktrees, start-to-finish commands, and Node/worktree gotchas
 

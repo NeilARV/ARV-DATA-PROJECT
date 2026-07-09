@@ -91,7 +91,17 @@
       "Skill(update-config:*)",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('prettier dep:', \\(p.devDependencies&&p.devDependencies.prettier\\)||\\(p.dependencies&&p.dependencies.prettier\\)||'NONE'\\); console.log\\('scripts:', Object.keys\\(p.scripts||{}\\).join\\(', '\\)\\)\")",
       "Bash(node_modules/.bin/prettier --check --ignore-unknown server/jobs/index.ts)",
-      "Bash(rm /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/agents/code-optimizer.md && echo \"deleted code-optimizer.md\" && ls -la /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/agents/)"
+      "Bash(rm /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/agents/code-optimizer.md && echo \"deleted code-optimizer.md\" && ls -la /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/agents/)",
+      "Bash(gh repo *)",
+      "Bash(command -v gh)",
+      "Bash(command -v brew)",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT remote get-url origin)",
+      "Bash(brew --version)",
+      "Bash(rm /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/docs/issue-tracker.md && echo \"deleted issue-tracker.md\")",
+      "Bash(gh label *)",
+      "Bash(grep -rn \"\\\\.claude/specs\" to-spec to-tickets triage wayfinder)",
+      "Bash(grep -rni \"local-markdown\\\\|tickets.md\\\\|local markdown\\\\|local file\" to-spec to-tickets triage wayfinder)",
+      "Bash(cd /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/skills && mv github project-setup && ls project-setup)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",
@@ -99,7 +109,9 @@
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/services/auth",
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/property-card-redesign",
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/server/controllers/deals",
-      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/agents"
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/agents",
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/docs",
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/skills/github"
     ]
   }
 }
