@@ -1,280 +1,131 @@
-# Project: ARV Finance Data App
-Express + Vite full-stack app for ARV (After Repair Value) / real estate finance data: property listings, market sync by MSA (Denver, Miami, San Diego, LA, SF, Port St. Lucie), resale verification, admin auth, and scheduled email updates.
+# ARV Finance Data App
 
-## Architecture
-- `/client` — React SPA (Vite): pages, components, hooks, `lib`, UI (Radix + Tailwind)
-- `/server` — Express API: routes (auth, admin, properties, companies, geocoding, users, deals, vendors, posts, categories, channels, messages, notifications), controllers, services, jobs (cron data sync, email, cache cleanup), websocket layer
-- `/database` — Drizzle schemas, inserts, updates, types; also contains Zod validation schemas used for data migration and runtime validation
-- `/shared` — Shared utilities (formatting, Mastermind event protocol, etc.)
+Express + Vite full-stack app for ARV (After Repair Value) real-estate finance data: property intelligence by MSA (Denver, Miami, San Diego, LA, SF, Port St. Lucie), a deal marketplace, a vendor community, and a real-time mastermind — plus admin auth, code-violation tracking, and scheduled email updates.
 
-## Tech Stack
-- TypeScript (strict mode, ES modules)
-- React 18 + Vite, Wouter (routing), TanStack Query
-- Express, express-session, Passport (local), Neon serverless PostgreSQL session store
-- Drizzle ORM + PostgreSQL (Neon)
-- Zod (schema validation; schemas live in `/database`)
-- Tailwind CSS, Radix UI, Recharts, Leaflet, react-hook-form + Zod
-- `ws` (WebSocket) for the Mastermind real-time layer
-- Supabase Storage (image + file uploads)
+## Stack
+
+TypeScript (strict, ES modules) · React 18 + Vite · Wouter · TanStack Query · Tailwind + Radix UI · Recharts · Leaflet · react-hook-form · Express · express-session + Passport (local) · Drizzle ORM + Neon PostgreSQL · Zod · `ws` (Mastermind real-time) · Supabase Storage · Postmark (email).
 
 ## Commands
-- `npm run dev` — Start dev server (Express + Vite HMR)
-- `npm run build` — Vite client build + esbuild server bundle to `dist/`
-- `npm run start` — Run production server (`node dist/index.js`)
-- `npm run check` — TypeScript type-check (`tsc`)
-- `npm run db:push` — Push Drizzle schema (requires `DATABASE_URL`)
-- `npm run test` — Run unit tests once (Vitest)
-- `npm run test:watch` — Run unit tests in watch mode (Vitest)
-- `npm run test:integration` — Run integration tests once (uses `vitest.integration.config.ts`)
-- `npm run test:all` — Run unit tests + integration tests sequentially
 
----
-
-## Environment Variables
-
-The following environment variables are required or used by the application. **Never read, commit, or expose `.env` files.**
-
-| Variable | Purpose |
+| | |
 |---|---|
-| `DATABASE_URL` | Drizzle ORM + Neon PostgreSQL connection |
-| `SESSION_SECRET` | Express session signing (server exits if unset); also used to unsign the session cookie on the WebSocket upgrade |
-| `SFR_API_URL` | Base URL for the SFR external property data API |
-| `SFR_API_KEY` | Auth key for the SFR API (used in data pipeline) |
-| `POSTMARK_SERVER_API_KEY` | Postmark transactional email — server API key |
-| `POSTMARK_ACCOUNT_TOKEN` | Postmark account-level token (used to create RM sender signatures) |
-| `DEFAULT_CONTACT_RECIPIENT` | Default recipient address for contact/notification emails |
-| `DEFAULT_FROM_EMAIL` | Default sender address for outgoing emails |
-| `GOOGLE_API_KEY` | Google Maps / Geocoding API key |
-| `MICROLINK_API_KEY` | Microlink link-preview API key (optional — the free public endpoint works without it; a key raises rate/concurrency limits) |
-| `SUPABASE_URL` | Supabase project URL — required for all Storage uploads (posts, vendors, users, Mastermind) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key — server-side Storage auth (required for uploads) |
-| `APP_URL` | Public base URL for absolute links in outgoing emails (verification, deals, Mastermind), resolved via `getAppBaseUrl()` in `server/utils/appBaseUrl.ts` (optional — falls back to `https://data.arvfinance.com`) |
+| `npm run dev` | Dev server (Express + Vite HMR) |
+| `npm run build` | Client build + esbuild server bundle → `dist/` |
+| `npm run start` | Production server (`node dist/index.js`) |
+| `npm run check` | TypeScript type-check (also run by the `Stop` hook) |
+| `npm run db:push` | Push Drizzle schema (needs `DATABASE_URL`) |
+| `npm run test` / `test:watch` | Unit tests (Vitest) |
+| `npm run test:integration` | Integration tests |
+| `npm run test:all` | Unit + integration |
 
-> **Postmark template aliases are not env vars.** They are non-secret, environment-independent constants defined in `server/services/postmark/templates.ts` (`POSTMARK_TEMPLATES`) — the same alias is used in dev and prod. Only the Postmark secrets above (`POSTMARK_SERVER_API_KEY`, `POSTMARK_ACCOUNT_TOKEN`) live in env.
->
-> **Storage bucket names are not env vars.** They are non-secret public constants defined in `server/lib/supabase.ts` (`DEV_BUCKETS` / `PROD_BUCKETS`), selected by `NODE_ENV` — dev uses `*-dev`, production uses `*-prod`.
->
-> **Supabase Storage buckets must be public** and configured to allow the app's MIME types and size limits. The Mastermind bucket allows **JPEG, PNG, PDF, CSV, TXT at ≤10 MB** — this must match the server allowlist in `server/services/messages/attachments.services.ts` (`ALLOWED_ATTACHMENT_TYPES` / `MAX_ATTACHMENT_BYTES`).
+## Architecture
 
----
+Four layers, split by responsibility. **Dependencies point inward:** `client` and `server` may import from `shared` and `database`; `shared`/`database` import from no one; `client` and `server` never import from each other.
 
-## Security Rules
-- NEVER read, display, print, or access any `.env` file or any file containing secrets/credentials
-- If a task requires environment variables, ask the user to provide only the variable NAME, not the value
+```
+client/    React SPA (Vite) — frontend only
+  src/{api, components, constants, hooks, lib, pages, types, utils}
+server/    Express API — never imported by the client
+  {controllers, routes, services, middleware, jobs, websocket, lib, utils, constants, assets}
+database/  Source of truth for data shapes — Drizzle + Zod (both sides import this)
+  {schemas, inserts, updates, validation, types}
+shared/    Imported by BOTH client and server (the only neutral layer)
+  {types, utils, constants, mastermind}
+```
 
----
+- **controllers** parse req → call service → shape res; **services** own business logic + Drizzle I/O; **routes** wire paths + middleware → controllers.
+- **jobs** — `data_v2/` sync pipeline, `code-violations/`, email, cache cleanup.
+- **websocket** — Mastermind real-time layer; protocol lives in `shared/mastermind/events.ts`.
+- `tests/` mirrors the `client`/`server` tree.
+
+**Where types live** — narrowest place that holds all consumers; move outward only when a wider consumer appears (1 spot → co-locate; 2+ → a types folder). Plain `.ts` with explicit `export`, never `.d.ts`.
+
+| Location | For |
+|---|---|
+| co-located | used by one file (props, local state, a service's I/O type) |
+| `client/src/types/` | 2+ **client** files, never crosses the wire (filters, view-models) |
+| `shared/types/` | used by **both** sides — API request/response/wire contracts (`Deal`, `Roles`, …) |
+| `database/types/` | entity/row shapes **derived** from a schema (`$inferSelect`, `z.infer`) — never hand-written |
 
 ## Apps
 
-The application is organized as four distinct feature areas that function like separate apps, all sharing common code (auth, providers, backend). All four are documented in a single reference: `.claude/docs/apps.md`. You MUST read the relevant section of that document when working on the corresponding side of the application.
+Four feature areas that behave like separate apps over shared code (auth, providers, backend). **Read the matching section of `.claude/docs/apps.md` before working on a side.**
 
-### Data
-Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database.
+- **Data** (`/`) — property intelligence: browse SFR transactions by MSA, filter, Leaflet map, company directory, property detail, code-violation records. Fed by the SFR sync pipeline. → `properties.services.ts`, `companies.services.ts`, `code-violations.services.ts`
+- **Deals** (`/deals`) — deal marketplace: post wholesale/agent/sold/REO deals, browse, request contact, submit offers. App-access gated. → `deals.services.ts`
+- **Vendors** (`/vendors`) — community hub: activity feed of posts (rich text + vendor/category mentions) beside a vendor directory. → `vendors.services.ts`, `posts.services.ts`, `categories.services.ts`
+- **Mastermind** (`/mastermind`) — Slack-style real-time community (the live layer of the mastermind subscription): channels, messages, DMs, @mentions, reactions, pins, attachments, notifications. App-access gated; channel management is admin/owner only. → `channels.services.ts`, `messages.services.ts`, `notifications.services.ts` · design: `.claude/docs/features/mastermind.md`
 
-> **Full reference**: `.claude/docs/apps.md` (Data section) | `/` | `properties.services.ts`, `companies.services.ts`
+## Read before you touch
 
-### Deals
-Deal marketplace. Users post wholesale, agent, sold, and REO deals; other investors browse, filter by location, request contact info, and submit offers. App-access gated (any subscription tier — basic/pro/premium — or any team role).
+These docs are canonical — read the relevant one before writing code in that area. Where any doc disagrees with the one named here, the one named here wins.
 
-> **Full reference**: `.claude/docs/apps.md` (Deals section) | `/deals` | `deals.services.ts`, `deals.controllers.ts`, `deals.routes.ts`
-
-### Vendors
-Community hub. Two-panel layout: an activity feed for community posts (with rich text + vendor/category mentions) and a vendor directory organized by trade category.
-
-> **Full reference**: `.claude/docs/apps.md` (Vendors section) | `/vendors` | `vendors.services.ts`, `posts.services.ts`, `categories.services.ts`
-
-### Mastermind
-Slack-style real-time community (the live layer of the mastermind subscription): topic channels, real-time messages, @mentions, reactions, pins, attachments, and in-app notifications. App-access gated (any subscription tier or team role); channel management is admin/owner only. Under construction — Phase 1 Parts 1–9 built; email notifications (Part 10) remaining.
-
-> **Full reference**: `.claude/docs/apps.md` (Mastermind section) + `.claude/docs/mastermind.md` (design + phased plan) | `/mastermind` | `channels.services.ts`, `messages.services.ts`, `notifications.services.ts`
-
----
-
-## Access Control
-Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`. It is the single source of truth for what each route requires. The middleware that implements access control is `server/middleware/requireAuth.ts`, `server/middleware/requireAccess.ts`, `server/middleware/requireRole.ts`, `server/middleware/requireSub.ts`, and `server/middleware/requireMastermind.ts`; the frontend mirror is `client/src/hooks/use-auth.ts`.
-
-> **Full reference**: `.claude/docs/access-control.md` — canonical route permission tables, middleware behavior, status code contract, and guidance for writing access-control tests. Where any other doc disagrees with it on auth, this file wins.
-
----
-
-## Coding Style
-
-Before adding or modifying ANY code, read the standards file for the layer you're touching. These are authoritative; each owns a rule-ID prefix used by `/smell`.
-
-- **TypeScript (any code)** → `.claude/docs/standards/typescript.md` (`TS.*`)
-- **React / frontend** → `.claude/docs/standards/react.md` (`RX.*`)
-- **Express / backend / Drizzle** → `.claude/docs/standards/express.md` (`EX.*`, `DB.*`)
-
-Read the domain file directly for the layer you're in. The cross-cutting rules below apply everywhere and are not repeated in those files.
-
-### General principles (apply everywhere)
-- **Clarity over cleverness.** Code is read far more than written.
-- **Consistency over preference.** Match the surrounding pattern.
-- **One responsibility.** If you say "and" to describe it, split it.
-- **No dead code.** Remove unused vars/imports/functions/commented-out blocks; git is the history.
-- **No speculative abstraction.** Three similar lines beats a premature helper.
-- **Fail loudly.** Explicit errors and early returns over silent fallbacks.
-
-### Comments policy (two tiers, one job each)
-
-This is the canonical comment policy. The citable per-layer rules (`TS.JSDOC-EXPORT`, `TS.JSDOC-BUDGET`, `TS.COMMENT-WHY` in `typescript.md`; `EX.JSDOC-EXPORT` in `express.md`; `RX.JSDOC-EXPORT` in `react.md`) enforce it and defer to this section.
-
-**JSDoc headers (`/** … */`) — the caller's contract.** Every exported function/component/hook gets one. The default is a **single sentence** stating what it does — and for most exports that sentence is the entire comment. The editor tooltip pairs the JSDoc with the typed signature, so types never need restating. Escalate only for a contract the signature can't express — one line per item:
-
-| Line | Add only when |
-|---|---|
-| `@param` | a param's semantics aren't evident from its name + type |
-| `@returns` | it adds semantics the type doesn't carry (null cases, format guarantees, units) |
-| `Side effect:` | the function sends email, writes storage, fires a WS event, etc. |
-| constraint | one cross-file invariant, named by file/function (e.g. "Must match the SQL in `getUserByEmail`") |
-
-**Ceiling** (cite whichever fails first): summary + at most one line per ladder item, and never longer than the function body.
-
-**Banned from JSDoc:**
-- caller enumerations ("used by X, Y, Z") — that's find-references, and it goes stale
-- design rationale / justification of correctness — PR-description material; a live invariant is one `//` at the line where it bites
-- restating the summary or the type in `@param`/`@returns`
-- re-explaining anything a canonical doc owns (env vars → the table above, auth → `access-control.md`) — name it, don't re-explain it
-
-**Inline `//` — the maintainer's why.** Inside function bodies (and above module-level constants), for a non-obvious *why* — a constraint, workaround, or invariant — at the exact line it applies to. One sentence; a second sentence belongs in the PR description. No JSDoc tags in `//` comments. A why lives in exactly one place, closest to the code it constrains — never duplicated into the header.
-
-**Hygiene:** delete dead/obsolete comments; a stale comment that contradicts code is worse than none.
-
-### Formatting
-Prettier owns all formatting and runs automatically via the `PostToolUse` hook. Don't fight it or restate its rules. Semantic choices it can't make (quote intent, `T[]` vs `Array<T>`, import order) live in `typescript.md`.
-
-### Project-specific rules
-- **ARV.RAW-COMPANY-NAME** — DB company names are ALL CAPS; always pass through `formatCompanyName` from `@shared/utils/formatCompanyName` before rendering in a component **or** returning in any user-facing API response. (Cards, modals, directory, table rows, search, tooltips.)
-- **ARV.SECRET-ACCESS** — Never read/print/access any `.env` or secret; reference env vars by NAME only. (Also hook-enforced.)
-
-### File & folder organization
-
-Four top-level layers, split by responsibility. **Dependencies point inward:** `client` and `server` may import from `shared` and `database`; `shared` and `database` never import from `client`/`server`, and `client`/`server` never import from each other.
-
-```
-ARV-DATA-PROJECT/
-├── client/               # React SPA (Vite) — the frontend; nothing server-side runs here
-│   └── src/
-│       ├── api/          # Typed fetch wrappers, one file per domain (properties.api.ts, …)
-│       ├── components/   # React components grouped by app: admin, auth, data, deals,
-│       │                 #   mastermind, modals, profile, vendors + ui/ (Radix primitives)
-│       ├── constants/    # Client-only constant values (filter options, status colors, map zoom)
-│       ├── hooks/        # React hooks + context providers (use-auth, useFilters, useView, …)
-│       ├── lib/          # Client utilities with logic (query-param builders, queryClient)
-│       ├── pages/        # Route-level page components (Wouter)
-│       ├── types/        # Types reused across 2+ CLIENT files only (see "Where types live")
-│       └── utils/        # Small pure client helpers (date, avatar, …)
-│
-├── server/               # Express API — the backend; never imported by the client
-│   ├── controllers/      # HTTP layer: parse req → call service → shape res. Per-domain + index.ts barrels
-│   ├── routes/           # Route tables wiring paths + middleware → controllers
-│   ├── services/         # Business logic + DB access (Drizzle). Per-domain; owns its own I/O types
-│   ├── middleware/       # Cross-cutting request handling (requireAuth/Access/Role/Sub, errorHandler)
-│   ├── jobs/             # Background work: data_v2/ sync pipeline, email, cache cleanup
-│   ├── websocket/        # Mastermind real-time layer (ws): registry, auth, connection
-│   ├── lib/              # Server integrations (supabase, microlink)
-│   ├── utils/            # Server pure helpers (data transforms, validate, asyncHandler)
-│   ├── constants/        # Server-only constants (role groups)
-│   └── assets/           # Static assets (email .mustache templates)
-│                         #   (no types/ folder by design — see "Where types live")
-│
-├── database/             # Source of truth for data shapes — Drizzle + Zod, imported by both sides
-│   ├── schemas/          # Drizzle table definitions (users, properties, deals, …)
-│   ├── inserts/          # Insert schemas
-│   ├── updates/          # Update schemas
-│   ├── validation/       # Zod request-validation schemas (posts, vendors, users, mastermind)
-│   └── types/            # Types DERIVED from the above ($inferSelect / z.infer) — never hand-written
-│
-└── shared/               # Code imported by BOTH client and server (the only neutral layer)
-    ├── types/            # Cross-tier contracts: deals, users, properties, claims (see below)
-    ├── utils/            # Isomorphic helpers (formatCompanyName, formatPhoneNumber, formatAddress)
-    ├── constants/        # Cross-tier constants (state defaults)
-    └── mastermind/       # The Mastermind WebSocket event protocol (events.ts) — client + server
-```
-
-(`tests/` mirrors the `server`/`client` tree for unit + integration tests; `.claude/` holds agent docs, standards, and settings.)
-
-#### Where types live (and why)
-
-A type lives in the **narrowest** place that still holds all its consumers, and moves outward only when a consumer in a wider scope appears. Rule of thumb: **used in one spot → define it there; used in 2+ spots → a types folder.** Type files are plain `.ts` modules with explicit `export` (never `.d.ts`, never ambient globals).
-
-| Where | What goes there | Why here |
+| Touching… | Read first | Owns |
 |---|---|---|
-| **co-located** (in the component / hook / service file) | A type used by only that one file — props, local state, a service's I/O type | Keeps the type next to its only user; no indirection for something nobody else reads |
-| **`client/src/types/`** | Types reused across 2+ **client** files that the server never touches (filters, view options, UI view-models) | Client-only — keeping them out of `shared` keeps `shared` meaning "crosses the wire," not "every type" |
-| **`shared/types/`** | Types used by **both** client and server — API request/response/wire contracts (`Deal`, `Roles`, `ClaimRow`, …) | The boundary's neutral home: both sides import *inward*, so neither depends on the other and the two can't silently drift |
-| **`database/types/`** | Entity + row shapes, **derived** from a Drizzle/Zod schema | The schema is the source of truth; deriving (`$inferSelect`, `z.infer`) means the type can't drift from the table/validator |
+| any code | `.claude/docs/standards/typescript.md` | `TS.*` |
+| React / frontend | `.claude/docs/standards/react.md` | `RX.*` |
+| Express / Drizzle | `.claude/docs/standards/express.md` | `EX.*`, `DB.*` |
+| access by role / subscription / auth | `.claude/docs/access-control.md` | route permission tables, middleware, status codes |
+| any UI (components, styling, tokens) | the `ui-design` skill | colors, type, spacing, dark mode; tokens in `tailwind.config.ts` + `client/src/index.css` |
+| tests | `.claude/docs/standards/testing.md` | `TST.*` |
 
-**Why `shared/types` and not `client/src/types` for cross-tier types:** if a type is needed on both sides but lived in `client/src/types`, the *server* would have to reach into the client folder (a backwards dependency), or each side would hand-copy it and the two would drift. `shared` is the one place both `client` and `server` are allowed to import from, so anything that crosses the wire goes there. Conversely, a type only the client uses stays in `client/src/types` — putting it in `shared` would erode the signal that `shared` = the client↔server contract.
+## Coding standards
 
-**No `server/types/` today:** server-internal types co-locate with the service/job that owns them (a service exports the types its controller needs). A `server/types/` folder is only created if a genuinely cross-cutting, server-only type with no natural owner appears.
+**General principles.** Clarity over cleverness. Consistency over preference — match the surrounding pattern. One responsibility (if you say "and" to describe it, split it). No dead code (git is the history). No speculative abstraction (three similar lines beats a premature helper). Fail loudly — explicit errors and early returns over silent fallbacks.
 
----
+**Comments — canonical policy.** The per-layer rules (`TS.JSDOC-EXPORT`, `TS.JSDOC-BUDGET`, `TS.COMMENT-WHY`, `EX.JSDOC-EXPORT`, `RX.JSDOC-EXPORT`) enforce this section and defer to it.
 
-## Design
-Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md` first and stay within its tokens and conventions.
+- **JSDoc `/** … */` — the caller's contract.** Every exported function/component/hook gets one; the default is a **single sentence**, and for most exports that's the whole comment (the tooltip already shows the types). Escalate only for what the signature can't express, one line each: `@param` when a param's meaning isn't evident from name + type; `@returns` for semantics the type doesn't carry (null cases, units, format); `Side effect:` when it emails / writes storage / fires a WS event; one cross-file invariant named by file/function. **Ceiling:** never more than one line per item, never longer than the function body. **Never** put in JSDoc: caller enumerations, design rationale, restatements of the type, or re-explanations of what a canonical doc owns — name it.
+- **Inline `//` — the maintainer's why.** For a non-obvious *why* (constraint, workaround, invariant) at the exact line it applies to. One sentence, no JSDoc tags. A why lives in exactly one place, closest to the code — never duplicated into the header.
+- **Hygiene.** Delete stale comments; one that contradicts the code is worse than none.
 
-> **Full reference**: `.claude/docs/design-guidelines.md` — authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states). Style tokens live in `tailwind.config.ts` and `client/src/index.css`.
+**Formatting** is Prettier's, run automatically by the `PostToolUse` hook — don't restate or fight it. Semantic choices it can't make (quote intent, `T[]` vs `Array<T>`, import order) live in `typescript.md`.
 
----
+**Project rules.**
+- **ARV.RAW-COMPANY-NAME** — DB company names are ALL CAPS; always pass through `formatCompanyName` from `@shared/utils/formatCompanyName` before rendering **or** returning in any user-facing response (cards, modals, directory, tables, search, tooltips).
+- **ARV.SECRET-ACCESS** — never read/print/access any `.env` or secret; reference env vars by NAME only (also hook-enforced).
 
-## Testing
-Testing standards live in `.claude/docs/standards/testing.md` (owns `TST.*`). Write
-**testable** code by default (services return data, ownership in the service layer,
-inputs Zod-validated), but do **not** generate test files inline while building a
-feature unless explicitly asked. Test generation is a deliberate, separate pass run
-via the `/test` command, but you could be asked to write tests as well.
+## Environment & security
 
-> **Full reference**: `.claude/docs/standards/testing.md` · generator: `/test`
+**Never read, commit, or expose any `.env` file or secret.** If a task needs an env var, ask for the variable NAME, not its value.
 
----
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Drizzle + Neon connection |
+| `SESSION_SECRET` | Session signing (server exits if unset); also unsigns the WS-upgrade cookie |
+| `SFR_API_URL` / `SFR_API_KEY` | SFR external property-data API (sync pipeline) |
+| `POSTMARK_SERVER_API_KEY` | Postmark transactional email |
+| `POSTMARK_ACCOUNT_TOKEN` | Postmark account token (creates RM sender signatures) |
+| `DEFAULT_CONTACT_RECIPIENT` / `DEFAULT_FROM_EMAIL` | Default email recipient / sender |
+| `GOOGLE_API_KEY` | Google Maps / Geocoding |
+| `MICROLINK_API_KEY` | Link-preview API (optional; a key raises rate limits) |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage (uploads) |
+| `APP_URL` | Public base URL for email links, via `getAppBaseUrl()` (optional; falls back to `https://data.arvfinance.com`) |
 
-## Code Review & Doc Sync (run on demand)
+Non-secret constants that are **not** env vars: Postmark template aliases (`server/services/postmark/templates.ts`), Storage bucket names (`server/lib/supabase.ts`, `*-dev` / `*-prod` by `NODE_ENV`). Supabase buckets must be public; the Mastermind bucket's MIME/size allowlist (JPEG, PNG, PDF, CSV, TXT ≤10 MB) must match `server/services/messages/attachments.services.ts`.
 
-Reviews and doc-sync are invoked deliberately at checkpoints — they are **not** wired into a hook. The `Stop` hook only runs `npm run check` (type check). Invoke the right skill/command yourself:
+## Skills & commands
 
-- **`/code-review`** — review the working diff for correctness bugs + reuse/simplification/efficiency (`--fix` applies the fixes).
-- **`/hunt <file-or-folder>`** — deep bug hunt (logic, data-flow, robustness; security/perf on request) with blast-radius, plus an always-on standards/design-compliance pass.
-- **`/smell commit | pr`** — Clean Code + Gang of Four code-smell review of committed changes (pre-push / pre-merge).
-- **`/audit`** — repo-wide standards-drift sweep grouped by rule.
-- **`/doc-drift`** — detect drift between the code (schema, routes, filenames) and the `.claude` docs. Run it after database/API changes to keep the markdown docs in sync (this replaced the old auto agent-updater).
+Quality and workflow tools are invoked deliberately — none is wired into a hook. Each self-describes; run `/` to list them. The most-used:
 
----
+- **Build** — `/implement` (build from a spec/tickets), `tdd` (red-green-refactor).
+- **Plan & scope** — `/to-spec`, `/to-tickets`, `/wayfinder` (map work too big for one session), `/triage`, `grilling` (stress-test a plan), `/project-setup` (one-time tracker/label config).
+- **Design & model** — `codebase-design`, `improve-codebase-architecture`, `domain-modeling`.
+- **Review** — `/hunt <file|folder>` (deep bug hunt + standards/design pass), `/smell commit|pr` (Clean Code + GoF review of committed work), `/audit` (repo-wide standards drift), `/test` (generate tests for the current diff), `/code-review` (working-diff correctness + cleanups).
+- **Debug & git** — `diagnosing-bugs`, `resolving-merge-conflicts`, `ui-design`.
 
-## Git Workflow
-Default to a **feature branch** in the main checkout (`git switch -c feat/<name>` off an updated `main`); use a **git worktree** only for genuinely parallel work (e.g. multiple agents on different branches). Commit/push only when asked; if on `main`, branch first. Worktrees don't share `node_modules` and have no `.env` — run DB commands from the main checkout.
+## Git & verification
 
-> **Full reference**: `.claude/docs/git-workflows.md` — branch vs worktree vs clone, start-to-finish commands, the Node `node_modules`/junction gotcha, seeing diffs, and worktree cleanup.
+Default to a **feature branch** off updated `main` (`git switch -c feat/<name>`); use a worktree only for genuinely parallel work. Commit/push only when asked; if on `main`, branch first. Force-push is hook-blocked. Worktrees have no `node_modules`/`.env` — run DB commands from the main checkout.
 
----
+Before finishing any task, `npm run check` must pass (enforced by the `Stop` hook).
 
 ## References
-- `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params). Auth notes are summarized per route; `access-control.md` is canonical for auth.
-- `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
-- `.claude/docs/standards/typescript.md` — Standards — TypeScript language rules (`TS.*`) |
-- `.claude/docs/standards/react.md` — Standards — React rules (`RX.*`) |
-- `.claude/docs/standards/express.md` — Standards — Express/Drizzle backend rules (`EX.*`, `DB.*`) |
-- `.claude/docs/standards/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
-- `.claude/docs/design-guidelines.md` — UI design system (colors, typography, components, dark mode)
-- `.claude/docs/apps.md` — combined overview of all four apps (Data, Deals, Vendors, Mastermind)
-- `.claude/docs/database.md` — full database schema reference (tables, columns, constraints, indexes)
-- `.claude/docs/mastermind.md` — Mastermind design doc and phased build plan
-- `.claude/docs/new-msa.md` — how to add a new MSA to the application
-- `.claude/docs/git-workflows.md` — git workflow: feature branches (default) vs worktrees, start-to-finish commands, and Node/worktree gotchas
 
----
-
-## Requirements
-1. You must refer to the Data section of `.claude/docs/apps.md` when working on the data side of the application
-2. You must refer to the Deals section of `.claude/docs/apps.md` when working on the deals side of the application
-3. You must refer to the Vendors section of `.claude/docs/apps.md` when working on the vendors side of the application
-4. You must refer to the Mastermind section of `.claude/docs/apps.md` (and `.claude/docs/mastermind.md`) when working on the mastermind side of the application
-5. Before adding or modifying ANY code, read `.claude/docs/standards/react.md`, `.claude/docs/standards/express.md`, `.claude/docs/standards/typescript.md`
-6. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
-7. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md`
-8. Before writing or running ANY test, read `.claude/docs/testing.md`
-
----
-
-## Verification
-Before completing any task, run: `npm run check` (also enforced by the `Stop` hook — fix any type errors before finishing).
+- `.claude/docs/apps.md` — all four apps, in depth
+- `.claude/docs/api.md` — every route, request/response shapes, params
+- `.claude/docs/access-control.md` — canonical route permissions + middleware
+- `.claude/docs/database.md` — full schema (tables, columns, constraints, indexes)
+- `.claude/docs/standards/{typescript,react,express,testing}.md` — layer standards
+- `.claude/docs/features/{mastermind,cv,email-settings}.md` — feature deep-dives (Mastermind, Code Violations, email notification settings)

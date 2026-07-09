@@ -101,7 +101,9 @@
       "Bash(gh label *)",
       "Bash(grep -rn \"\\\\.claude/specs\" to-spec to-tickets triage wayfinder)",
       "Bash(grep -rni \"local-markdown\\\\|tickets.md\\\\|local markdown\\\\|local file\" to-spec to-tickets triage wayfinder)",
-      "Bash(cd /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/skills && mv github project-setup && ls project-setup)"
+      "Bash(cd /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/skills && mv github project-setup && ls project-setup)",
+      "Bash(gh issue *)",
+      "Bash(echo \"---EXIT: $?---\")"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",
