@@ -1,7 +1,7 @@
 ---
 description: Generate the tests a change needs to meet the testing standard (unit, integration, component), scoped to the current diff
 argument-hint: "[target-branch | path]"
-allowed-tools: Bash(bash .claude/scripts/smell-diff.sh:*), Bash(npm run test:*), Bash(npm run test:integration:*), Bash(npx vitest:*), Read, Write, Edit, Glob, Grep
+allowed-tools: Bash(npm run test:*), Bash(npm run test:integration:*), Bash(npx vitest:*), Read, Write, Edit, Glob, Grep
 ---
 
 # /test — Test generation

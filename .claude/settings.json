@@ -1,6 +1,6 @@
 {
     "permissions": {
-        "allow": ["Read(**)", "Edit(**)", "Write(**)", "Bash(bash .claude/scripts/smell-diff.sh:*)"],
+        "allow": ["Read(**)", "Edit(**)", "Write(**)", "Bash(bash .claude/skills/smell/scripts/smell-diff.sh:*)"],
         "deny": [
             "Read(**/.env*)",
             "Read(**/secrets/**)",
