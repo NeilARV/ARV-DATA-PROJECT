@@ -34,6 +34,9 @@ export const companies = pgTable('companies', {
     // such sale has a traceable acquisition price. Recomputed by the data pipeline and
     // the backfill script (server/services/companies/purchaseArvRatio.services.ts).
     purchaseToArvRatio: decimal('purchase_to_arv_ratio', { precision: 6, scale: 4 }),
+    // The operator group this company belongs to; null = ungrouped. Disbanding a group
+    // SET NULLs this rather than deleting the company (grouping is non-destructive).
+    groupId: uuid('group_id').references(() => companyGroups.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -199,5 +202,37 @@ export const companyMembers = pgTable(
         primaryKey({ columns: [t.userId, t.companyId] }),
         index('idx_company_members_user_id').on(t.userId),
         index('idx_company_members_company_id').on(t.companyId),
+    ],
+);
+
+// An admin-managed umbrella tying several company records together as one operator.
+export const companyGroups = pgTable('company_groups', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').unique().notNull(),
+    description: text('description'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// The future replacement for company_members: membership lives on the group, so a member
+// is associated with every company in the group. isPrimary marks the user's primary group.
+export const groupMembers = pgTable(
+    'group_members',
+    {
+        groupId: uuid('group_id')
+            .notNull()
+            .references(() => companyGroups.id, { onDelete: 'cascade' }),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        role: memberRoleEnum('role'),
+        isPrimary: boolean('is_primary').notNull().default(false),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+    },
+    (t) => [
+        primaryKey({ columns: [t.userId, t.groupId] }),
+        index('idx_group_members_user_id').on(t.userId),
+        index('idx_group_members_group_id').on(t.groupId),
     ],
 );
