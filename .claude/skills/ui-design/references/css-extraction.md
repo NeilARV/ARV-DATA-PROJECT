@@ -52,7 +52,7 @@ question is open.
 There is no one to ask, and blocking would deadlock the loop. So:
 
 - **Do not create the file. Do not extract the class. Leave the duplicated utilities in place.**
-- Append an entry to `docs/css-debt.md`:
+- Append an entry to `.claude/docs/css-debt.md`:
 
   ```markdown
   ## <ISO date> — <branch> — <commit sha>
