@@ -1,0 +1,39 @@
+# Sanctioned color literals. Paired with references/colors.md — edit both together.
+# Format: one uppercase 6-digit hex per line, or `path:` prefix for a whole-file exemption.
+# Anything not listed here is a DS.NO-HARDCODED-COLOR violation.
+
+# --- Files where hex literals are the point ---
+path:client/src/index.css
+path:tailwind.config.ts
+path:client/src/utils/transactionTypeBadge.ts
+path:client/src/components/ui/badge.tsx
+
+# --- Brand ---
+#5BC8DC
+#FFFFFF
+
+# --- Deal types (DealCard2.tsx) ---
+#9333EA
+#FF0000
+#F97316
+#6366F1
+
+# --- Transaction types (fills) ---
+#22C55E
+#F59E0B
+#3B82F6
+#06B6D4
+#EF4444
+#69C9E1
+
+# --- Transaction types (text shades) ---
+#16A34A
+#D97706
+#7E22CE
+#1D4ED8
+#0E7490
+#DC2626
+#0891B2
+
+# --- Status dots ---
+#9CA3AF
