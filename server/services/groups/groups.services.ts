@@ -1,9 +1,14 @@
 import { db } from 'server/storage';
-import { eq, and, sql, isNotNull } from 'drizzle-orm';
+import { eq, and, sql, isNotNull, inArray } from 'drizzle-orm';
 import { companies, companyGroups, groupMembers } from '@database/schemas/companies.schema';
 import { users } from '@database/schemas/users.schema';
 import type { CompanyGroup, GroupMember } from '@database/types/companies';
-import type { GroupSummary, GroupDetail } from '@shared/types/groups';
+import type {
+    GroupSummary,
+    GroupDetail,
+    UserGroupCompany,
+    UserGroupMembership,
+} from '@shared/types/groups';
 import type { MemberRoleInput } from '@database/validation/groups.validation';
 import { isUniqueViolation } from 'server/utils/dbErrors';
 
@@ -402,4 +407,92 @@ export async function mergeGroups(
     await db.delete(companyGroups).where(eq(companyGroups.id, sourceId));
 
     return { group: target, companiesMoved: movedCompanies.length, membersMoved };
+}
+
+// ── User membership consumers (cutover from company_members → group_members, #91) ──────────────
+
+/**
+ * Lists every company a user is associated with through their group membership(s) — one row per
+ * company across all the groups they belong to, ordered by group then company name.
+ */
+export async function getUserGroupCompanies(userId: string): Promise<UserGroupCompany[]> {
+    const rows = await db
+        .select({
+            companyId: companies.id,
+            companyName: companies.companyName,
+            groupId: companyGroups.id,
+            groupName: companyGroups.name,
+            joinedAt: groupMembers.createdAt,
+        })
+        .from(groupMembers)
+        .innerJoin(companyGroups, eq(companyGroups.id, groupMembers.groupId))
+        .innerJoin(companies, eq(companies.groupId, companyGroups.id))
+        .where(eq(groupMembers.userId, userId))
+        .orderBy(companyGroups.name, companies.companyName);
+
+    return rows.map((r) => ({ ...r, joinedAt: r.joinedAt.toISOString() }));
+}
+
+/** Lists the groups a user is a member of, oldest membership first. */
+export async function getUserGroups(userId: string): Promise<UserGroupMembership[]> {
+    const rows = await db
+        .select({
+            groupId: companyGroups.id,
+            groupName: companyGroups.name,
+            role: groupMembers.role,
+            isPrimary: groupMembers.isPrimary,
+            joinedAt: groupMembers.createdAt,
+        })
+        .from(groupMembers)
+        .innerJoin(companyGroups, eq(companyGroups.id, groupMembers.groupId))
+        .where(eq(groupMembers.userId, userId))
+        .orderBy(groupMembers.createdAt);
+
+    return rows.map((r) => ({ ...r, joinedAt: r.joinedAt.toISOString() }));
+}
+
+type SetUserGroupsResult = { status: 'ok' } | { status: 'unknown-group-ids'; unknownIds: string[] };
+
+/** Replaces a user's group memberships with exactly the given groups (admin operation). */
+export async function setUserGroups(
+    userId: string,
+    groupIds: string[],
+): Promise<SetUserGroupsResult> {
+    const nextIds = new Set(groupIds);
+
+    // Reject ids with no matching group up front — otherwise the insert below fails the FK and
+    // surfaces as a 500 instead of a validation error.
+    if (nextIds.size > 0) {
+        const existing = await db
+            .select({ id: companyGroups.id })
+            .from(companyGroups)
+            .where(inArray(companyGroups.id, Array.from(nextIds)));
+        const existingIds = new Set(existing.map((r) => r.id));
+        const unknownIds = Array.from(nextIds).filter((id) => !existingIds.has(id));
+        if (unknownIds.length > 0) return { status: 'unknown-group-ids', unknownIds };
+    }
+
+    const currentRows = await db
+        .select({ groupId: groupMembers.groupId })
+        .from(groupMembers)
+        .where(eq(groupMembers.userId, userId));
+    const currentIds = new Set(currentRows.map((r) => r.groupId));
+
+    const toAdd = Array.from(nextIds).filter((id) => !currentIds.has(id));
+    const toRemove = Array.from(currentIds).filter((id) => !nextIds.has(id));
+
+    if (toRemove.length > 0) {
+        await db
+            .delete(groupMembers)
+            .where(and(eq(groupMembers.userId, userId), inArray(groupMembers.groupId, toRemove)));
+    }
+
+    if (toAdd.length > 0) {
+        await db
+            .insert(groupMembers)
+            .values(toAdd.map((groupId) => ({ userId, groupId })))
+            .onConflictDoNothing();
+    }
+
+    return { status: 'ok' };
 }

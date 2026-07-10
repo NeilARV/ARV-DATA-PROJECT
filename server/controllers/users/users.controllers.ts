@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { UsersServices } from 'server/services/users';
 import { UserServices } from 'server/services/auth';
+import { GroupsService } from 'server/services/groups';
 import { adminPatchUserSchema } from '@database/updates/users.update';
 import {
     listSenderSignatures,
@@ -479,5 +481,76 @@ export async function deleteUserHandler(req: Request, res: Response) {
     } catch (error) {
         console.error('Error deleting user:', error);
         return res.status(500).json({ message: 'Error deleting user' });
+    }
+}
+
+// ── Group membership (companies resolve through the user's group(s), #91) ──────────────────────
+
+const uuidParam = z.string().uuid();
+
+/** Lists the companies the session user reaches through their group membership(s). */
+export async function getMyGroupCompaniesHandler(req: Request, res: Response): Promise<void> {
+    try {
+        const userId = req.session.userId;
+        if (!userId) {
+            res.status(401).json({ message: 'Unauthorized - Please log in' });
+            return;
+        }
+        const companies = await GroupsService.getUserGroupCompanies(userId);
+        res.json({ data: companies, count: companies.length });
+    } catch (error) {
+        console.error('Error fetching user companies:', error);
+        res.status(500).json({ message: 'Error fetching user companies' });
+    }
+}
+
+/** Lists the groups a user belongs to (admin group-membership editor). */
+export async function getUserGroupsHandler(req: Request, res: Response): Promise<void> {
+    try {
+        const idValidation = uuidParam.safeParse(req.params.userId);
+        if (!idValidation.success) {
+            res.status(400).json({ message: 'Invalid user ID' });
+            return;
+        }
+        const groups = await GroupsService.getUserGroups(idValidation.data);
+        res.json({ data: groups, count: groups.length });
+    } catch (error) {
+        console.error('Error fetching user groups:', error);
+        res.status(500).json({ message: 'Error fetching user groups' });
+    }
+}
+
+/** Replaces a user's group memberships with the given group ids (admin operation). */
+export async function setUserGroupsHandler(req: Request, res: Response): Promise<void> {
+    try {
+        const idValidation = uuidParam.safeParse(req.params.userId);
+        if (!idValidation.success) {
+            res.status(400).json({ message: 'Invalid user ID' });
+            return;
+        }
+
+        const bodyValidation = z
+            .object({ groupIds: z.array(z.string().uuid()) })
+            .safeParse(req.body);
+        if (!bodyValidation.success) {
+            res.status(400).json({
+                message: 'Invalid request data',
+                errors: bodyValidation.error.errors,
+            });
+            return;
+        }
+
+        const result = await GroupsService.setUserGroups(
+            idValidation.data,
+            bodyValidation.data.groupIds,
+        );
+        if (result.status === 'unknown-group-ids') {
+            res.status(400).json({ message: `Unknown group ids: ${result.unknownIds.join(', ')}` });
+            return;
+        }
+        res.json({ message: 'Group memberships updated' });
+    } catch (error) {
+        console.error('Error updating group memberships:', error);
+        res.status(500).json({ message: 'Error updating group memberships' });
     }
 }

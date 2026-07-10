@@ -19,6 +19,9 @@ vi.mock('server/controllers/users', () => ({
         removeRoleHandler: vi.fn((_req, res) => res.status(204).send()),
         patchUserHandler: vi.fn((_req, res) => res.status(200).json({})),
         deleteUserHandler: vi.fn((_req, res) => res.status(204).send()),
+        getMyGroupCompaniesHandler: vi.fn((_req, res) => res.status(200).json({ data: [] })),
+        getUserGroupsHandler: vi.fn((_req, res) => res.status(200).json({ data: [] })),
+        setUserGroupsHandler: vi.fn((_req, res) => res.status(200).json({})),
     },
 }));
 

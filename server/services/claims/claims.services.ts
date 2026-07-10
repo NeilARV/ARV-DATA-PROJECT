@@ -1,5 +1,5 @@
 import { db } from 'server/storage';
-import type { ClaimRow, UserMembership } from '@shared/types/claims';
+import type { ClaimRow } from '@shared/types/claims';
 import { companyClaims, companyMembers, companies } from '@database/schemas/companies.schema';
 import { users } from '@database/schemas/users.schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
@@ -376,77 +376,4 @@ export async function getCompanyMembers(companyId: string): Promise<MemberRow[]>
         .orderBy(companyMembers.createdAt);
 
     return rows;
-}
-
-// ─── Get company memberships for a user ──────────────────────────────────────
-
-/** Lists the companies a user belongs to, oldest membership first. */
-export async function getUserMemberships(userId: string): Promise<UserMembership[]> {
-    const rows = await db
-        .select({
-            companyId: companies.id,
-            companyName: companies.companyName,
-            role: companyMembers.role,
-            isPrimary: companyMembers.isPrimary,
-            joinedAt: companyMembers.createdAt,
-        })
-        .from(companyMembers)
-        .innerJoin(companies, eq(companyMembers.companyId, companies.id))
-        .where(eq(companyMembers.userId, userId))
-        .orderBy(companyMembers.createdAt);
-
-    return rows.map((r) => ({ ...r, joinedAt: r.joinedAt.toISOString() }));
-}
-
-// ─── Set company memberships for a user (admin) ───────────────────────────────
-
-type SetUserCompanyMembershipsResult =
-    | { status: 'ok' }
-    | { status: 'unknown-company-ids'; unknownIds: string[] };
-
-/** Replaces a user's company memberships with exactly the given companies (admin operation). */
-export async function setUserCompanyMemberships(
-    userId: string,
-    companyIds: string[],
-): Promise<SetUserCompanyMembershipsResult> {
-    const nextIds = new Set(companyIds);
-
-    // Reject ids with no matching company up front — otherwise the insert below fails the FK
-    // and surfaces as a 500 instead of a validation error.
-    if (nextIds.size > 0) {
-        const existing = await db
-            .select({ id: companies.id })
-            .from(companies)
-            .where(inArray(companies.id, Array.from(nextIds)));
-        const existingIds = new Set(existing.map((r) => r.id));
-        const unknownIds = Array.from(nextIds).filter((id) => !existingIds.has(id));
-        if (unknownIds.length > 0) return { status: 'unknown-company-ids', unknownIds };
-    }
-
-    const currentRows = await db
-        .select({ companyId: companyMembers.companyId })
-        .from(companyMembers)
-        .where(eq(companyMembers.userId, userId));
-
-    const currentIds = new Set(currentRows.map((r) => r.companyId));
-
-    const toAdd = Array.from(nextIds).filter((id) => !currentIds.has(id));
-    const toRemove = Array.from(currentIds).filter((id) => !nextIds.has(id));
-
-    if (toRemove.length > 0) {
-        await db
-            .delete(companyMembers)
-            .where(
-                and(eq(companyMembers.userId, userId), inArray(companyMembers.companyId, toRemove)),
-            );
-    }
-
-    if (toAdd.length > 0) {
-        await db
-            .insert(companyMembers)
-            .values(toAdd.map((companyId) => ({ userId, companyId })))
-            .onConflictDoNothing();
-    }
-
-    return { status: 'ok' };
 }

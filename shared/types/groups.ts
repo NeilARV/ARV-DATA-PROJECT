@@ -43,3 +43,22 @@ export type GroupDetail = {
     companies: GroupCompany[];
     members: GroupMemberDetail[];
 };
+
+// A company a user is associated with through one of their groups — the "My Companies" surface.
+// A user's reach is every company across every group they belong to.
+export type UserGroupCompany = {
+    companyId: string;
+    companyName: string;
+    groupId: string;
+    groupName: string;
+    joinedAt: string;
+};
+
+// A group a user is a member of — the admin "add user to group(s)" editor surface.
+export type UserGroupMembership = {
+    groupId: string;
+    groupName: string;
+    role: GroupMemberRole | null;
+    isPrimary: boolean;
+    joinedAt: string;
+};
