@@ -55,11 +55,14 @@ function match(
     return { violation: violation(v), parsed: { normalizedStreet } as never, outcome };
 }
 
+// A matched owner in an operator group that has members AND is approved for alerts — the fully
+// clear-to-send case. Override notificationsEnabled to exercise the approval gate (#93).
 const NOTIFIABLE_OWNER = {
     isNotifiable: true,
     ownerCompanyId: 'c1',
     ownerName: 'ACME LLC',
     memberUserIds: ['u1'],
+    notificationsEnabled: true,
 };
 
 beforeEach(() => {
@@ -147,6 +150,26 @@ describe('runCodeViolationConsumer', () => {
             match({ kind: 'matched', propertyId: 'p1' }, tmp),
         ]);
         resolveOwnerMod.resolveOwner.mockResolvedValue(NOTIFIABLE_OWNER);
+
+        await runCodeViolationConsumer();
+
+        expect(notifyMod.notifyViolation).not.toHaveBeenCalled();
+        expect(markStatus.markComplete).toHaveBeenCalledWith('v1', {
+            normalizedAddress: '123 MAIN ST',
+            notified: false,
+        });
+    });
+
+    it('runCodeViolationConsumer — matched + notifiable + sendable but group NOT approved — stores without emailing', async () => {
+        fetchQueue.claimPendingViolations.mockResolvedValue([violation()]);
+        matchAddress.matchViolationBatch.mockResolvedValue([
+            match({ kind: 'matched', propertyId: 'p1' }),
+        ]);
+        // Group has members (notifiable) but its approval flag is off — the testing-rollout gate.
+        resolveOwnerMod.resolveOwner.mockResolvedValue({
+            ...NOTIFIABLE_OWNER,
+            notificationsEnabled: false,
+        });
 
         await runCodeViolationConsumer();
 

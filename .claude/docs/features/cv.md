@@ -17,8 +17,10 @@ and the app then:
 1. parses + archives the CSV and **enqueues** each complaint,
 2. **matches** each complaint's address to a property we already track,
 3. resolves the property's **current owning company** from transaction data,
-4. checks whether any of **our users belong to that company**, and
-5. **emails those users** that a property tied to their company has a new code complaint.
+4. checks whether that company belongs to an **operator group with members** (§9, re-pointed off
+   `company_members` in #93), and
+5. **emails those group members** that a property tied to their operator has a new code complaint —
+   but only when that group has been **approved for alerts** (§6.3).
 
 Every complaint that resolves to a property we track is **stored** (notifiable or not), so the `cv_`
 tables become a complete code-violation ledger keyed to our properties.
@@ -27,10 +29,12 @@ tables become a complete code-violation ledger keyed to our properties.
 complaint on one of your properties." A daily manual upload is fast enough for V1 — **no scraping, no
 external API calls.**
 
-**Alerts send automatically — no approval step.** Right after upload, the consumer matches, resolves
-owners, and emails inline. It emails only **sendable** complaints: a code-enforcement `CE-*` record
-with an open Accela status (`New` or `Active …`). Closed `CE-*` complaints and all temporary
-`##TMP-*` records are still matched and stored — they just never email (§6.3).
+**Alerts send automatically — no per-complaint approval step.** Right after upload, the consumer
+matches, resolves owners, and emails inline. It emails only **sendable** complaints: a
+code-enforcement `CE-*` record with an open Accela status (`New` or `Active …`). Closed `CE-*`
+complaints and all temporary `##TMP-*` records are still matched and stored — they just never email
+(§6.3). One **per-group approval gate** sits on top (#93): while the feature is in testing, a group
+emails only after an admin flips its `code_violation_notifications_enabled` flag on (§6.3, §13).
 
 ---
 
@@ -44,9 +48,11 @@ The feature is a join across four things already modeled. Understanding the chai
                                    ├─ most-recent arms-length tx (property_transactions)
                                    │        └─ buyerId ──► companies            (current owner)
                                    │                          │
-                                   │                          └─ company_members ──► users (emails)
+                                   │                          └─ group_id ──► company_groups (operator)
+                                   │                                             └─ group_members ──► users (emails)
                                    └─ if no matching property, or owner is an individual,
-                                      or the company has no member  →  store, don't notify
+                                      or the company is ungrouped / its group has no member
+                                        →  store, don't notify
 ```
 
 | Step | Where | Notes |
@@ -54,17 +60,23 @@ The feature is a join across four things already modeled. Understanding the chai
 | Property + address | [database/schemas/properties.schema.ts](database/schemas/properties.schema.ts) — `properties` (uuid PK) + 1:1 `addresses` | match on the normalized `addresses.formatted_street_address` + `city`/`state` (+ `zip` tiebreak) |
 | Current owner | `property_transactions`, re-sorted by recording date | the **buyer** of the most-recent arms-length tx is the current owner |
 | Owner identity | `companies` (uuid PK) | linked via `property_transactions.buyerId`; only `buyerName` (no FK) → **individual/unlinked**, don't notify |
-| User association | `company_members` (`userId`, `companyId`, `role`, `isPrimary`) | a company can have multiple members → notify them all |
+| Operator group | `companies.group_id` → `company_groups` | null = ungrouped → don't notify. The group's `code_violation_notifications_enabled` flag is the per-group approval gate |
+| User association | `group_members` (`userId`, `groupId`, `role`, `isPrimary`) | a group can have multiple members → notify them all. Reach is **group-wide**: a member is tied to every company in the group |
 | User email | `users.email` | filtered by the master notifications kill-switch before sending |
 
-> ⚠️ **Notify only through `company_members`, never `company_contacts`.** `company_members` is the
-> roster of *actual platform users* tied to a company (real, deliverable emails). `company_contacts`
-> is the public OpenCorporates display roster — usually not platform users, email often absent. The
-> entire notify path ([resolve-owner.ts](server/jobs/code-violations/processes/resolve-owner.ts),
-> [notify.ts](server/jobs/code-violations/processes/notify.ts)) joins `company_members` only.
+> ⚠️ **Notify through `group_members`, never `company_members` or `company_contacts`.** As of #93 the
+> notify path resolves recipients through the owner's **operator group** (`companies.group_id` →
+> `company_groups` → `group_members`) — the go-forward membership model. `company_contacts` is the
+> public OpenCorporates display roster (usually not platform users, email often absent) and is never
+> used. The whole notify path
+> ([resolve-owner.ts](server/jobs/code-violations/processes/resolve-owner.ts),
+> [notify.ts](server/jobs/code-violations/processes/notify.ts)) and the admin detail panel's
+> would-be-recipient list join `group_members` only.
 
-There is **no `entity_type` column.** The only "notifiable" gate is: *did the most-recent arms-length
-transaction resolve to a `companies` FK (`buyerId`) that has ≥1 `company_members` row.*
+There is **no `entity_type` column.** The "notifiable" gate is: *did the most-recent arms-length
+transaction resolve to a `companies` FK (`buyerId`) whose `group_id` points at a group with ≥1
+`group_members` row.* **Behavior shift (#93, accepted):** notification is now **group-wide** — a
+violation on any of an operator's companies notifies all the operator's group members.
 
 ---
 
@@ -239,8 +251,11 @@ an email went out* (`notified`). Keeping them separate makes `notified` an unamb
 > Zod value-sets and the badge maps only so any pre-change rows still render — nothing writes them.
 
 ### 6.2 `notified` (boolean) — read alongside the status
-- `complete` + `notified=true` → matched, **sendable** (new/active `CE-*`), owner is a company with users, **email sent**.
-- `complete` + `notified=false` → matched but not emailed: not sendable (closed `CE-*` or a `##TMP-*` record), **nobody to email** (individual owner, member-less company), or a `##TMP→CE` duplicate already alerted.
+- `complete` + `notified=true` → matched, **sendable** (new/active `CE-*`), owner is in an
+  **approved** group with members, **email sent**.
+- `complete` + `notified=false` → matched but not emailed: not sendable (closed `CE-*` or a `##TMP-*`
+  record), **nobody to email** (individual owner, ungrouped or member-less-group company), the owner's
+  group is **not approved** for alerts (§6.3), or a `##TMP→CE` duplicate already alerted.
 - `no_match` / `ambiguous` / `failed` → `notified` stays false.
 
 ### 6.3 The send filter (`isSendableComplaint`)
@@ -256,9 +271,16 @@ when **both** hold —
   excluded.
 
 Non-sendable complaints still run the full MATCH → RESOLVE → DIFF pipeline and get their `cv_matches`
-row — they just land at `complete`+`notified=false` instead of emailing. The consumer only emails a
-sendable, notifiable, non-duplicate complaint (see the routing in
-[consumer.ts](server/jobs/code-violations/consumer.ts)).
+row — they just land at `complete`+`notified=false` instead of emailing.
+
+**Approval gate (#93).** On top of the send filter, a sendable + notifiable + non-duplicate complaint
+still emails **only when the owner's operator group is approved** — its
+`company_groups.code_violation_notifications_enabled` is `true`. The flag defaults **false**, so a new
+or backfilled group is opted out until an admin turns it on in the Groups admin tab (§13); this keeps
+the feature dark per operator while it's in testing. `resolveOwner` carries the flag on its notifiable
+result and the consumer gates the send on it (a blocked complaint is counted `notApproved` in the run
+summary). So the consumer only emails a **sendable, notifiable, approved, non-duplicate** complaint
+(see the routing in [consumer.ts](server/jobs/code-violations/consumer.ts)).
 
 ---
 
@@ -341,10 +363,16 @@ complaint against the candidates sharing its number.
 > alert the wrong company.
 
 Given a matched `propertyId`, [resolveOwner](server/jobs/code-violations/processes/resolve-owner.ts)
-returns a discriminated union on `isNotifiable`:
-- buyer is a **company with ≥1 `company_members`** → `isNotifiable: true`, `ownerCompanyId` guaranteed
-  non-null, plus `memberUserIds` (reused by NOTIFY so it needn't re-query).
-- buyer is a company with **no members** → `isNotifiable: false`, company id set but member-less → stored, no email.
+resolves notifiability through the owner's **operator group** (#93) via
+`getCompanyGroupNotificationTarget` in
+[groups.services.ts](server/services/groups/groups.services.ts) — the single seam that replaced
+`getCompanyMembers` (`companies.group_id` → `company_groups` → `group_members`). It returns a
+discriminated union on `isNotifiable`:
+- buyer is a company **in a group with ≥1 `group_members`** → `isNotifiable: true`, `ownerCompanyId`
+  guaranteed non-null, plus `memberUserIds` (group-wide, reused by NOTIFY so it needn't re-query),
+  `groupId`, and `notificationsEnabled` (the approval flag the consumer gates on, §6.3).
+- buyer is a company that is **ungrouped, or grouped but member-less** → `isNotifiable: false`,
+  company id set → stored, no email.
 - only a `buyerName`, no `buyerId` → **individual/unlinked** → `ownerCompanyId: null` → stored, no email.
 
 The consumer resolves each property's owner **at most once per run** (`ownerByProperty` cache), so a
@@ -354,10 +382,13 @@ The consumer resolves each property's owner **at most once per run** (`ownerByPr
 
 ## 10. Notification email (`notify.ts`)
 
-Recipients = the owner company's `company_members`, narrowed by `getEmailRecipientsByUserIds`
+Recipients = the owner company's **operator-group members** (#93), narrowed by
+`getEmailRecipientsByUserIds`
 ([server/services/postmark/email.services.ts](server/services/postmark/email.services.ts)) which drops
 anyone with the master `notifications` flag off or an unverified email (the kill-switch). The detail
-panel's recipient list uses the **same** filter, so it matches who a sent alert reached.
+panel's would-be-recipient list uses the **same** group resolution + filter, so it matches who a sent
+alert reached (note it lists group members regardless of the approval flag — the flag governs whether
+the send fires, tracked by `notified`).
 
 The email is **plain inline HTML** built in `buildViolationEmail` (no Postmark template in V1 — that's
 V2 §8.4) and sent via `sendPlainEmail`. Every interpolated value is escaped
@@ -365,10 +396,11 @@ V2 §8.4) and sent via `sendPlainEmail`. Every interpolated value is escaped
 names are title-cased through `formatCompanyName` (**ARV.RAW-COMPANY-NAME**).
 
 `notifyViolation` does **not** set the violation's `processing_status` — the consumer owns that
-transition, so all status writes stay in one place. It's called inline by the consumer for each
-sendable + notifiable complaint, with `memberUserIds` from `resolveOwner` (it falls back to querying
-members if a caller omits them). Re-running is safe: a recipient already in `cv_notifications_sent`
-isn't re-emailed (§7).
+transition, so all status writes stay in one place. It only sends: the caller passes the resolved,
+approval-gated `memberUserIds` (from `resolveOwner`) and `notifyViolation` never re-resolves
+recipients, so the notifiability + approval decision lives in exactly one place (the consumer). It's
+called inline for each sendable, notifiable, **approved**, non-duplicate complaint. Re-running is
+safe: a recipient already in `cv_notifications_sent` isn't re-emailed (§7).
 
 ---
 
@@ -397,8 +429,8 @@ Each `runCodeViolationConsumer()` pass:
    runs grab **disjoint** sets — a real lock, not the advisory SELECT-then-UPDATE the plan sketched.
 3. **Process each row** — MATCH → (if matched) RESOLVE OWNER → DIFF/STORE → route to `complete`,
    emailing inline via NOTIFY only when the complaint is sendable ({@link isSendableComplaint}),
-   notifiable, and not a duplicate; otherwise `complete`+notified=false. Unmatched → `no_match`,
-   multi-match → `ambiguous`.
+   notifiable, its owner group is **approved** (§6.3), and it's not a duplicate; otherwise
+   `complete`+notified=false. Unmatched → `no_match`, multi-match → `ambiguous`.
 4. **Per-row isolation** — a row that throws is `markFailed` with the message (truncated 500 chars,
    **no auto-retry**) and the batch continues.
 5. **Upload roll-up** — `refreshUploadStatus(uploadId)` for every affected upload: recomputes status +
@@ -450,6 +482,12 @@ only when `canManageRoles` (`isOwner || isAdmin`).
 Status→badge maps and `isUploadInFlight` live in
 [client/src/constants/codeViolations.constants.ts](client/src/constants/codeViolations.constants.ts)
 (typed as `Record<CvProcessingStatus, …>`, so a new status is a compile error until it gets a badge).
+
+**Per-group approval toggle (#93) lives in the *Groups* admin tab, not here.** The
+`code_violation_notifications_enabled` flag is a group setting, so it's edited in
+[GroupDetailsForm.tsx](client/src/components/admin/GroupDetailsForm.tsx) (a "Code violation email
+alerts" switch) inside the group detail dialog, and saved via `PATCH /api/groups/:id`. A group only
+emails once this is on (§6.3).
 
 ---
 

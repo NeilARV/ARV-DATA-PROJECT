@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// notifyViolation is the delivery core of the code-violation NOTIFY stage: it decides who gets an
-// email (kill-switch), skips anyone already notified (re-approve / retry safety), and isolates a
-// single bounce. Mock the boundaries it owns — db, the postmark email service, and the company-member
-// lookup — so these assertions exercise that logic without a DB or live Postmark. See §4.6 / Chunk D.
+// notifyViolation is the delivery core of the code-violation NOTIFY stage: it emails the recipient
+// user ids the caller resolved (narrowed by the kill-switch), skips anyone already notified (retry
+// safety), and isolates a single bounce. It never re-resolves recipients — notifiability and the
+// per-group approval gate are decided upstream. Mock the boundaries it owns — db and the postmark
+// email service — so these assertions exercise that logic without a DB or live Postmark. See §4.6.
 
 const email = vi.hoisted(() => ({
     getDefaultFromEmail: vi.fn(() => 'from@arvfinance.com'),
     getEmailRecipientsByUserIds: vi.fn(),
     sendPlainEmail: vi.fn(),
 }));
-const companies = vi.hoisted(() => ({ getCompanyMembers: vi.fn() }));
 const dbMock = vi.hoisted(() => {
     // Each db.select() call shifts the next queued result; await on the builder (or .limit()) resolves
     // to it. The claim insert is db.insert(...).values(...).onConflictDoNothing().returning(), which
@@ -48,7 +48,6 @@ const dbMock = vi.hoisted(() => {
 
 vi.mock('server/storage', () => ({ db: dbMock.db }));
 vi.mock('server/services/postmark/email.services', () => email);
-vi.mock('server/services/companies/companies.services', () => companies);
 
 import { notifyViolation } from 'server/jobs/code-violations/processes/notify';
 import type { CvViolation } from '@database/types/code-violations';
@@ -104,8 +103,6 @@ describe('notifyViolation', () => {
         // Each recipient is claimed (insert) before the send; no claim is released.
         expect(dbMock.insert).toHaveBeenCalledTimes(2);
         expect(dbMock.delete).not.toHaveBeenCalled();
-        // memberUserIds was supplied, so the company-members lookup is skipped.
-        expect(companies.getCompanyMembers).not.toHaveBeenCalled();
     });
 
     it('skips a recipient already notified for this complaint (no double-send)', async () => {
@@ -162,20 +159,5 @@ describe('notifyViolation', () => {
         expect(res.notified).toBe(true);
         expect(dbMock.insert).toHaveBeenCalledTimes(2);
         expect(dbMock.delete).toHaveBeenCalledTimes(1);
-    });
-
-    it('falls back to a company-members lookup when memberUserIds is omitted', async () => {
-        companies.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }]);
-        email.getEmailRecipientsByUserIds.mockResolvedValue([{ userId: 'u1', email: 'a@x.com' }]);
-        dbMock.selectQueue.push([], [{ companyName: 'ACME LLC' }]);
-
-        const res = await notifyViolation({
-            violation: violation(),
-            ownerCompanyId: OWNER_COMPANY_ID,
-        });
-
-        expect(companies.getCompanyMembers).toHaveBeenCalledWith(OWNER_COMPANY_ID);
-        expect(email.getEmailRecipientsByUserIds).toHaveBeenCalledWith(['u1']);
-        expect(res.emailsSent).toBe(1);
     });
 });

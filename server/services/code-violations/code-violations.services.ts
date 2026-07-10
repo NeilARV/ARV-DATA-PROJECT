@@ -1,9 +1,9 @@
 import crypto from 'crypto';
 import Papa from 'papaparse';
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from 'server/storage';
 import { cvMatches, cvUploads, cvViolations } from '@database/schemas/code-violations.schema';
-import { companies, companyMembers } from '@database/schemas/companies.schema';
+import { companies, groupMembers } from '@database/schemas/companies.schema';
 import {
     cvParsedRowSchema,
     CV_UPLOAD_STATUS,
@@ -290,11 +290,12 @@ export async function getCodeViolationUploadById(id: string): Promise<CvUpload |
  * enqueued (by `first_seen_upload_id`), its match + owning company, and the company's alert
  * recipients — so the panel can show per-complaint statuses and who a sent alert reached.
  *
- * Recipients mirror exactly who NOTIFY targets: the matched owner company's `company_members`
- * narrowed by {@link getEmailRecipientsByUserIds} (the master-notifications / verified-email
- * kill-switch) — never `company_contacts` (§2). Member→recipient resolution is batched across the
- * upload's companies (two queries total), not per row. Whether an alert actually fired is the
- * complaint's `notified` flag, independent of this eligible-recipient list.
+ * Recipients mirror who NOTIFY targets: the matched owner company's operator-group members (#93,
+ * re-pointed off `company_members`) narrowed by {@link getEmailRecipientsByUserIds} (the
+ * master-notifications / verified-email kill-switch) — never `company_contacts` (§2). This is the
+ * would-be recipient list regardless of the group's approval flag; whether an alert actually fired
+ * is the complaint's `notified` flag, independent of this list. Resolution is batched across the
+ * upload's companies, not per row.
  *
  * @param uploadId the `cv_uploads` id
  * @returns the upload's complaints, oldest first, each with its resolution + eligible recipients
@@ -344,9 +345,11 @@ export async function getCodeViolationUploadViolations(
 }
 
 /**
- * Resolve each company's would-be email recipients in two batched queries: all members of the given
- * companies, then {@link getEmailRecipientsByUserIds} over the union to apply the kill-switch. A
- * member who fails the kill-switch is dropped — they wouldn't be emailed, so the dry-run omits them.
+ * Resolve each company's would-be email recipients through its operator group (#93): map each
+ * company to its `group_id`, load those groups' members, then {@link getEmailRecipientsByUserIds}
+ * over the union to apply the kill-switch. A member who fails the kill-switch is dropped — they
+ * wouldn't be emailed, so the dry-run omits them. Ungrouped companies resolve to no recipients.
+ * Companies sharing a group share the same (group-wide) recipient list.
  */
 async function getRecipientsByCompany(
     companyIds: string[],
@@ -354,21 +357,39 @@ async function getRecipientsByCompany(
     const byCompany = new Map<string, CvViolationRecipient[]>();
     if (companyIds.length === 0) return byCompany;
 
+    // company → operator group; ungrouped companies drop out (no group, no recipients).
+    const companyGroupRows = await db
+        .select({ companyId: companies.id, groupId: companies.groupId })
+        .from(companies)
+        .where(and(inArray(companies.id, companyIds), isNotNull(companies.groupId)));
+
+    const groupIds = Array.from(
+        new Set(companyGroupRows.map((r) => r.groupId).filter((id): id is string => id !== null)),
+    );
+    if (groupIds.length === 0) return byCompany;
+
     const memberRows = await db
-        .select({ companyId: companyMembers.companyId, userId: companyMembers.userId })
-        .from(companyMembers)
-        .where(inArray(companyMembers.companyId, companyIds));
+        .select({ groupId: groupMembers.groupId, userId: groupMembers.userId })
+        .from(groupMembers)
+        .where(inArray(groupMembers.groupId, groupIds));
 
     const userIds = Array.from(new Set(memberRows.map((m) => m.userId)));
     const recipients = await getEmailRecipientsByUserIds(userIds);
     const emailByUserId = new Map(recipients.map((r) => [r.userId, r.email]));
 
-    for (const { companyId, userId } of memberRows) {
+    // group → eligible recipients (after the kill-switch), then fan back out to each company.
+    const recipientsByGroup = new Map<string, CvViolationRecipient[]>();
+    for (const { groupId, userId } of memberRows) {
         const email = emailByUserId.get(userId);
         if (!email) continue; // suppressed by the kill-switch — wouldn't be emailed
-        const list = byCompany.get(companyId) ?? [];
+        const list = recipientsByGroup.get(groupId) ?? [];
         if (!list.some((r) => r.userId === userId)) list.push({ userId, email });
-        byCompany.set(companyId, list);
+        recipientsByGroup.set(groupId, list);
+    }
+
+    for (const { companyId, groupId } of companyGroupRows) {
+        if (!groupId) continue;
+        byCompany.set(companyId, recipientsByGroup.get(groupId) ?? []);
     }
     return byCompany;
 }

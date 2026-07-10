@@ -382,6 +382,43 @@ Users who are members of a claimed company.
 
 ---
 
+### `company_groups`
+An admin-managed umbrella tying several company records together as one operator. Companies link via
+`companies.group_id`; membership lives on the group (`group_members`), the go-forward replacement for
+`company_members`.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `name` | `text` | UNIQUE, NOT NULL — stored RAW (format at the render edge) |
+| `description` | `text` | nullable |
+| `created_by` | `uuid` | FK → `users.id` (set null), nullable |
+| `code_violation_notifications_enabled` | `boolean` | NOT NULL, default `false` — per-group approval gate for code-violation email alerts (see `features/cv.md` §6.3) |
+| `created_at` | `timestamp` | NOT NULL, default now |
+| `updated_at` | `timestamp` | default now |
+
+---
+
+### `group_members`
+Group-level membership: a member is associated with every company in the group. Replaces
+`company_members` for the code-violation notifier and the "my companies" surfaces.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `group_id` | `uuid` | NOT NULL, FK → `company_groups.id` (cascade) |
+| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `role` | `member_role` enum | nullable |
+| `is_primary` | `boolean` | NOT NULL, default false |
+| `created_at` | `timestamp` | NOT NULL, default now |
+
+**PK:** `(user_id, group_id)`
+
+**Indexes:**
+- `idx_group_members_user_id` on `(user_id)`
+- `idx_group_members_group_id` on `(group_id)`
+
+---
+
 ## Properties
 
 ### `properties`

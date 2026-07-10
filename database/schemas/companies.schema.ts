@@ -211,6 +211,11 @@ export const companyGroups = pgTable('company_groups', {
     name: text('name').unique().notNull(),
     description: text('description'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    // Per-group approval gate for code-violation email alerts. Default false so a newly created or
+    // backfilled group is opted OUT while the feature is in testing — an admin flips it on per group.
+    codeViolationNotificationsEnabled: boolean('code_violation_notifications_enabled')
+        .notNull()
+        .default(false),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
 });
