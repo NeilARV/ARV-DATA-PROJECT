@@ -20,7 +20,6 @@ import {
     Users,
     ShieldCheck,
     Mail,
-    Building2,
     FileWarning,
     Boxes,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ import { UploadPropertyDialog } from '@/components/admin/UploadPropertyDialog';
 import UsersTab from '@/components/admin/UsersTab';
 import EmailListTab from '@/components/admin/EmailListTab';
 import RolesTab from '@/components/admin/RolesTab';
-import CompanyClaimsTab from '@/components/admin/CompanyClaimsTab';
 import CodeViolationsTab from '@/components/admin/CodeViolationsTab';
 import GroupsTab from '@/components/admin/GroupsTab';
 
@@ -64,16 +62,14 @@ export default function Admin() {
 
     const isVerifying = isLoadingUser || isAdminStatusLoading;
     const showAccessDenied = isUserAuthenticated && !canAccessAdminPanel && !isVerifying;
-    /** Only admin or owner can see and use the Roles and Code Violations tabs; RMs cannot. */
+    /** Only admin or owner can see and use the Groups, Roles, and Code Violations tabs; RMs cannot. */
     const canManageRoles = isOwner || isAdmin;
     /** RMs can manage subscription tiers, relationship manager assignments, and email list entries. */
     const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
-    /** Admin, owner, and RM can review company claims. */
-    const canManageClaims = canManageRoles || isRelationshipManager;
 
-    // TabsList grid sizing: 2 always-on tabs + claims (RM-visible) + Groups, Roles & Code Violations
-    // (all admin/owner only, so they appear together — hence +3).
-    const visibleTabCount = 2 + (canManageClaims ? 1 : 0) + (canManageRoles ? 3 : 0);
+    // TabsList grid sizing: 2 always-on tabs (Users, Email List) + Groups, Roles & Code Violations
+    // (all admin/owner only, so they appear together — hence +3). RMs see 2, admin/owner see 5.
+    const visibleTabCount = 2 + (canManageRoles ? 3 : 0);
     const tabsGridClass = TABS_GRID_COLS[visibleTabCount];
 
     // Build query URL with county filter
@@ -188,12 +184,6 @@ export default function Admin() {
                         <Mail className="w-4 h-4 mr-2" />
                         Email List
                     </TabsTrigger>
-                    {canManageClaims && (
-                        <TabsTrigger value="claims" data-testid="tab-claims">
-                            <Building2 className="w-4 h-4 mr-2" />
-                            Claims
-                        </TabsTrigger>
-                    )}
                     {canManageRoles && (
                         <TabsTrigger value="groups" data-testid="tab-groups">
                             <Boxes className="w-4 h-4 mr-2" />
@@ -230,12 +220,6 @@ export default function Admin() {
                         canEditEntries={canManageSubscriptionTier}
                     />
                 </TabsContent>
-
-                {canManageClaims && (
-                    <TabsContent value="claims">
-                        <CompanyClaimsTab />
-                    </TabsContent>
-                )}
 
                 {canManageRoles && (
                     <TabsContent value="groups">

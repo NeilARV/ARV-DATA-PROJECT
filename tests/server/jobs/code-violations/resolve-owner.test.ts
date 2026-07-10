@@ -6,10 +6,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // (sortTransactionsDesc + isArmsLength from orderTransactions) run, since that ordering IS what we're
 // asserting picks the right owner.
 const txns = vi.hoisted(() => ({ getPropertyTransactions: vi.fn() }));
-const claims = vi.hoisted(() => ({ getCompanyMembers: vi.fn() }));
+const companies = vi.hoisted(() => ({ getCompanyMembers: vi.fn() }));
 
 vi.mock('server/services/properties/propertyTransactions.services', () => txns);
-vi.mock('server/services/claims/claims.services', () => claims);
+vi.mock('server/services/companies/companies.services', () => companies);
 
 import { resolveOwner } from 'server/jobs/code-violations/processes/resolve-owner';
 
@@ -30,11 +30,11 @@ describe('resolveOwner', () => {
         txns.getPropertyTransactions.mockResolvedValue([
             armsLength({ buyerId: COMPANY_ID, buyerName: 'ACME LLC' }),
         ]);
-        claims.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
+        companies.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }, { userId: 'u2' }]);
 
         const res = await resolveOwner(PROPERTY_ID);
 
-        expect(claims.getCompanyMembers).toHaveBeenCalledWith(COMPANY_ID);
+        expect(companies.getCompanyMembers).toHaveBeenCalledWith(COMPANY_ID);
         expect(res).toEqual({
             isNotifiable: true,
             ownerCompanyId: COMPANY_ID,
@@ -47,7 +47,7 @@ describe('resolveOwner', () => {
         txns.getPropertyTransactions.mockResolvedValue([
             armsLength({ buyerId: COMPANY_ID, buyerName: 'ACME LLC' }),
         ]);
-        claims.getCompanyMembers.mockResolvedValue([]);
+        companies.getCompanyMembers.mockResolvedValue([]);
 
         const res = await resolveOwner(PROPERTY_ID);
 
@@ -61,7 +61,7 @@ describe('resolveOwner', () => {
 
         const res = await resolveOwner(PROPERTY_ID);
 
-        expect(claims.getCompanyMembers).not.toHaveBeenCalled();
+        expect(companies.getCompanyMembers).not.toHaveBeenCalled();
         expect(res).toEqual({ isNotifiable: false, ownerCompanyId: null, ownerName: 'JANE DOE' });
     });
 
@@ -72,7 +72,7 @@ describe('resolveOwner', () => {
 
         const res = await resolveOwner(PROPERTY_ID);
 
-        expect(claims.getCompanyMembers).not.toHaveBeenCalled();
+        expect(companies.getCompanyMembers).not.toHaveBeenCalled();
         expect(res).toEqual({ isNotifiable: false, ownerCompanyId: null, ownerName: null });
     });
 
@@ -83,11 +83,11 @@ describe('resolveOwner', () => {
             armsLength({ recordingDate: '2020-06-01', buyerId: 'old-co', buyerName: 'OLD LLC' }),
             armsLength({ recordingDate: '2025-03-15', buyerId: COMPANY_ID, buyerName: 'ACME LLC' }),
         ]);
-        claims.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }]);
+        companies.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }]);
 
         const res = await resolveOwner(PROPERTY_ID);
 
-        expect(claims.getCompanyMembers).toHaveBeenCalledWith(COMPANY_ID);
+        expect(companies.getCompanyMembers).toHaveBeenCalledWith(COMPANY_ID);
         expect(res).toMatchObject({ isNotifiable: true, ownerCompanyId: COMPANY_ID, ownerName: 'ACME LLC' });
     });
 });
