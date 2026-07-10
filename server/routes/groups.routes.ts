@@ -22,6 +22,9 @@ router.post('/', requireAdmin, GroupsController.createGroupController);
 router.patch('/:id', requireAdmin, GroupsController.updateGroupController);
 router.delete('/:id', requireAdmin, GroupsController.disbandGroupController);
 
+// Merge source group :id (A) into the target group in the body (B), then delete A.
+router.post('/:id/merge', requireAdmin, GroupsController.mergeGroupController);
+
 // Companies in a group
 router.post('/:id/companies', requireAdmin, GroupsController.addCompanyController);
 router.delete('/:id/companies/:companyId', requireAdmin, GroupsController.removeCompanyController);

@@ -262,3 +262,65 @@ async function createSingletonGroup(
     await db.update(companies).set({ groupId: group.id }).where(eq(companies.id, companyId));
     return group;
 }
+
+// ── Merge ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Merges source group A into target group B: re-points A's companies to B, unions A's members into
+ * B, then deletes A. Non-destructive at the company level — no `companies` row is deleted, only
+ * regrouped. On a `(user_id, group_id)` collision the existing B membership is kept (its role and
+ * isPrimary are not overwritten). 400 if source === target, 404 if either group is missing.
+ * @returns the surviving group B, plus counts of companies re-pointed and members newly added to B.
+ * Side effect: deletes group A (cascading its now-copied group_members rows).
+ */
+export async function mergeGroups(
+    sourceId: string,
+    targetId: string,
+): Promise<{ group: CompanyGroup; companiesMoved: number; membersMoved: number }> {
+    if (sourceId === targetId) throw new GroupServiceError(400, 'Cannot merge a group into itself');
+    await requireGroup(sourceId);
+    const target = await requireGroup(targetId);
+
+    // Writes are ordered so an interrupted run resumes cleanly (neon-http has no interactive tx);
+    // deleting A is the "done" marker and each step is idempotent on re-run.
+
+    // 1) Union A's companies into B. One-group-per-company holds (single nullable group_id), so each
+    //    row simply moves from A to B; a re-run finds none still pointing at A.
+    const movedCompanies = await db
+        .update(companies)
+        .set({ groupId: targetId })
+        .where(eq(companies.groupId, sourceId))
+        .returning({ id: companies.id });
+
+    // 2) Union A's members into B, preserving role/isPrimary/createdAt. onConflictDoNothing on the
+    //    (user_id, group_id) PK keeps B's existing row on a collision; .returning() counts only the
+    //    rows newly added to B (colliding users were already members and are left untouched).
+    const sourceMembers = await db
+        .select()
+        .from(groupMembers)
+        .where(eq(groupMembers.groupId, sourceId));
+
+    let membersMoved = 0;
+    if (sourceMembers.length > 0) {
+        const inserted = await db
+            .insert(groupMembers)
+            .values(
+                sourceMembers.map((m) => ({
+                    groupId: targetId,
+                    userId: m.userId,
+                    role: m.role,
+                    isPrimary: m.isPrimary,
+                    createdAt: m.createdAt,
+                })),
+            )
+            .onConflictDoNothing()
+            .returning({ userId: groupMembers.userId });
+        membersMoved = inserted.length;
+    }
+
+    // 3) Delete A (done marker). Its group_members were copied in step 2 and cascade away here; no
+    //    company still references A after step 1, so the group_id SET NULL touches nothing.
+    await db.delete(companyGroups).where(eq(companyGroups.id, sourceId));
+
+    return { group: target, companiesMoved: movedCompanies.length, membersMoved };
+}

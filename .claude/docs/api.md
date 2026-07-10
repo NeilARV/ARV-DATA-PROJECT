@@ -1119,6 +1119,19 @@ Disband (delete) a group. Its companies revert to ungrouped (`group_id` SET NULL
 
 ---
 
+### `POST /api/groups/:id/merge`
+Merge source group `:id` (A) into a target group (B): unions A's companies and members into B, then deletes A. Non-destructive at the company level — no company row is deleted, only re-pointed to B. On a `(user_id, group_id)` collision the existing B membership is kept (its `role`/`is_primary` are not overwritten).
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** `{ "targetGroupId": "uuid" }` — B, the surviving group (required, must differ from `:id`).
+
+**Response `200`** `{ "message": "Groups merged", "group": { ...companyGroup }, "companiesMoved": 2, "membersMoved": 3 }` — `group` is the surviving target B; `companiesMoved` is the number of companies re-pointed to B; `membersMoved` is the number of A's members newly added to B (colliding members already in B are not counted).
+
+**Errors** `400` invalid id or body, or source === target · `404` source or target group not found
+
+---
+
 ### `POST /api/groups/:id/companies`
 Add a company to a group. If the company already belongs to another group it is **moved** (one group per company); re-adding a company already in this group is an idempotent success.
 

@@ -28,9 +28,13 @@ export const addMemberSchema = z.object({
 
 export const setMemberRoleSchema = z.object({ role: memberRoleSchema });
 
+// The :id path param is the source group (A); targetGroupId is the surviving group (B).
+export const mergeGroupSchema = z.object({ targetGroupId: z.string().uuid() });
+
 export type MemberRoleInput = z.infer<typeof memberRoleSchema>;
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
 export type AddCompanyInput = z.infer<typeof addCompanySchema>;
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
 export type SetMemberRoleInput = z.infer<typeof setMemberRoleSchema>;
+export type MergeGroupInput = z.infer<typeof mergeGroupSchema>;
