@@ -3,8 +3,8 @@ import { formatCompanyName } from '@shared/utils/formatCompanyName';
 
 // getCodeViolationUploadViolations builds the admin per-complaint breakdown: it joins each complaint
 // to its match/owner and resolves the owning company's eligible alert recipients. The recipient
-// resolution is the logic worth pinning — the owning company's operator-group members (#93, not
-// `company_members`/`company_contacts`) narrowed by the kill-switch (getEmailRecipientsByUserIds)
+// resolution is the logic worth pinning — the owning company's operator-group members (#93, never
+// `company_contacts`) narrowed by the kill-switch (getEmailRecipientsByUserIds)
 // and deduped. Mock the boundaries it owns (db + the postmark recipient lookup) so these assertions
 // exercise that mapping without a DB.
 

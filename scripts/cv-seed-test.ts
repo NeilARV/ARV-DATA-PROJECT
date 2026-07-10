@@ -1,9 +1,9 @@
 /**
  * Dev helper: make the Code Violations feature *visibly* testable end-to-end.
  *
- * Finds a real property that resolves to a company owner (preferring a company with NO existing
- * members, so only YOU get emailed), links the given user into that company (notifications on +
- * email verified), and writes a ready-to-upload CSV whose address is built from that property — so
+ * Finds a real property that resolves to a company owner (preferring a company whose operator group
+ * has NO members, so only YOU get emailed), links the given user into that company's operator group
+ * (notifications on + email verified), and writes a ready-to-upload CSV whose address is built from that property — so
  * the complaint is guaranteed to match. The CSV includes a New + an Active Enforcement row (should
  * email) and a Closed + a TMP row (should be stored, never emailed), so one upload demonstrates the
  * whole send filter.
@@ -19,8 +19,13 @@ import { resolve } from 'path';
 import { eq, isNotNull, sql } from 'drizzle-orm';
 import { db } from 'server/storage';
 import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
-import { companies, companyMembers } from '@database/schemas/companies.schema';
+import { companies } from '@database/schemas/companies.schema';
 import { users } from '@database/schemas/users.schema';
+import {
+    addMemberToCompany,
+    getCompanyGroupNotificationTarget,
+    GroupServiceError,
+} from 'server/services/groups/groups.services';
 import { resolveOwner } from 'server/jobs/code-violations/processes/resolve-owner';
 import {
     parseCsvAddress,
@@ -140,12 +145,10 @@ async function main() {
         ]);
         if (outcome.kind !== 'matched') continue;
 
-        const memberCount = await scalar(
-            db
-                .select({ n: sql<number>`count(*)::int` })
-                .from(companyMembers)
-                .where(eq(companyMembers.companyId, owner.ownerCompanyId)),
-        );
+        // Notifiability is group-wide now (#93): a company with no operator group, or a group with
+        // no members, emails nobody — the ideal target, since only the recipient we add will be told.
+        const target = await getCompanyGroupNotificationTarget(owner.ownerCompanyId);
+        const memberCount = target ? target.memberUserIds.length : 0;
         const [co] = await db
             .select({ companyName: companies.companyName })
             .from(companies)
@@ -227,10 +230,19 @@ async function main() {
         .set({ notifications: true, emailVerifiedAt: user.emailVerifiedAt ?? new Date() })
         .where(eq(users.id, user.id));
 
-    await db
-        .insert(companyMembers)
-        .values({ userId: user.id, companyId: chosen.companyId, isPrimary: false })
-        .onConflictDoNothing();
+    // Adding the recipient to the company's operator group (auto-creating a singleton group if the
+    // company is ungrouped) is what makes the violation notifiable to them (#93). Re-runs are no-ops.
+    try {
+        await addMemberToCompany({
+            companyId: chosen.companyId,
+            userId: user.id,
+            role: null,
+            createdBy: user.id,
+        });
+    } catch (err) {
+        if (!(err instanceof GroupServiceError) || err.statusCode !== 409) throw err;
+    }
+    const seededTarget = await getCompanyGroupNotificationTarget(chosen.companyId);
 
     const header = 'Date,Record Number,Record Type,Address,Application Name,Status,Description';
     const body = rows
@@ -248,7 +260,9 @@ async function main() {
         .join('\n');
     writeFileSync(OUT, `${header}\n${body}\n`);
 
-    console.log(`\n✅ Seeded. Linked ${EMAIL} into company ${chosen.companyId}.`);
+    console.log(
+        `\n✅ Seeded. Linked ${EMAIL} into the operator group for company ${chosen.companyId}.`,
+    );
     console.log(`✅ Wrote ${OUT}\n`);
     console.log(
         'Next: launch the app, open Admin → Code Violations, and upload cv-test-seeded.csv.',
@@ -257,9 +271,11 @@ async function main() {
         'Expect: the New + Active Enforcement rows email you; Closed + TMP are stored, not emailed.\n',
     );
     console.log('Cleanup when done:');
-    console.log(
-        `  DELETE FROM company_members WHERE user_id='${user.id}' AND company_id='${chosen.companyId}';`,
-    );
+    if (seededTarget) {
+        console.log(
+            `  DELETE FROM group_members WHERE user_id='${user.id}' AND group_id='${seededTarget.groupId}';`,
+        );
+    }
     console.log(
         `  DELETE FROM cv_violations WHERE record_number LIKE 'CE-TEST-%' OR record_number LIKE '26TMP-TEST-%';\n`,
     );

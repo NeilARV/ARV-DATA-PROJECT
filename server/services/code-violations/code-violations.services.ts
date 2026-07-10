@@ -290,8 +290,8 @@ export async function getCodeViolationUploadById(id: string): Promise<CvUpload |
  * enqueued (by `first_seen_upload_id`), its match + owning company, and the company's alert
  * recipients — so the panel can show per-complaint statuses and who a sent alert reached.
  *
- * Recipients mirror who NOTIFY targets: the matched owner company's operator-group members (#93,
- * re-pointed off `company_members`) narrowed by {@link getEmailRecipientsByUserIds} (the
+ * Recipients mirror who NOTIFY targets: the matched owner company's operator-group members (#93)
+ * narrowed by {@link getEmailRecipientsByUserIds} (the
  * master-notifications / verified-email kill-switch) — never `company_contacts` (§2). This is the
  * would-be recipient list regardless of the group's approval flag; whether an alert actually fired
  * is the complaint's `notified` flag, independent of this list. Resolution is batched across the

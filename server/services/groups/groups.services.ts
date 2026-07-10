@@ -114,7 +114,6 @@ export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
                 lastName: users.lastName,
                 email: users.email,
                 role: groupMembers.role,
-                isPrimary: groupMembers.isPrimary,
                 createdAt: groupMembers.createdAt,
             })
             .from(groupMembers)
@@ -138,7 +137,6 @@ export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
             lastName: m.lastName,
             email: m.email,
             role: m.role,
-            isPrimary: m.isPrimary,
             createdAt: m.createdAt.toISOString(),
         })),
     };
@@ -356,10 +354,10 @@ export async function addMemberToCompany(input: {
 
 /**
  * Creates (or reuses) the singleton group for an ungrouped company and links companies.group_id.
- * The name is the RAW company name (ARV.RAW-COMPANY-NAME) — stored verbatim to stay consistent with
- * the backfill's singletons and the UNIQUE(name) constraint, and formatted at the client render edge.
- * onConflictDoNothing reuses a pre-existing same-named group (e.g. a backfilled singleton) instead of
- * failing; group_id is set LAST as the resumable "done" marker (neon-http has no interactive tx).
+ * The name is the RAW company name (ARV.RAW-COMPANY-NAME) — stored verbatim to satisfy the
+ * UNIQUE(name) constraint, and formatted at the client render edge. onConflictDoNothing reuses a
+ * pre-existing same-named group instead of failing; group_id is set LAST as the resumable "done"
+ * marker (neon-http has no interactive tx).
  */
 async function createSingletonGroup(
     companyId: string,
@@ -396,8 +394,8 @@ async function createSingletonGroup(
 /**
  * Merges source group A into target group B: re-points A's companies to B, unions A's members into
  * B, then deletes A. Non-destructive at the company level — no `companies` row is deleted, only
- * regrouped. On a `(user_id, group_id)` collision the existing B membership is kept (its role and
- * isPrimary are not overwritten). 400 if source === target, 404 if either group is missing.
+ * regrouped. On a `(user_id, group_id)` collision the existing B membership is kept (its role is
+ * not overwritten). 400 if source === target, 404 if either group is missing.
  * @returns the surviving group B, plus counts of companies re-pointed and members newly added to B.
  * Side effect: deletes group A (cascading its now-copied group_members rows).
  */
@@ -420,7 +418,7 @@ export async function mergeGroups(
         .where(eq(companies.groupId, sourceId))
         .returning({ id: companies.id });
 
-    // 2) Union A's members into B, preserving role/isPrimary/createdAt. onConflictDoNothing on the
+    // 2) Union A's members into B, preserving role/createdAt. onConflictDoNothing on the
     //    (user_id, group_id) PK keeps B's existing row on a collision; .returning() counts only the
     //    rows newly added to B (colliding users were already members and are left untouched).
     const sourceMembers = await db
@@ -437,7 +435,6 @@ export async function mergeGroups(
                     groupId: targetId,
                     userId: m.userId,
                     role: m.role,
-                    isPrimary: m.isPrimary,
                     createdAt: m.createdAt,
                 })),
             )
@@ -453,7 +450,7 @@ export async function mergeGroups(
     return { group: target, companiesMoved: movedCompanies.length, membersMoved };
 }
 
-// ── User membership consumers (cutover from company_members → group_members, #91) ──────────────
+// ── User membership consumers (group membership is the source of truth, #91) ──────────────
 
 /**
  * Lists every company a user is associated with through their group membership(s) — one row per
@@ -484,7 +481,6 @@ export async function getUserGroups(userId: string): Promise<UserGroupMembership
             groupId: companyGroups.id,
             groupName: companyGroups.name,
             role: groupMembers.role,
-            isPrimary: groupMembers.isPrimary,
             joinedAt: groupMembers.createdAt,
         })
         .from(groupMembers)

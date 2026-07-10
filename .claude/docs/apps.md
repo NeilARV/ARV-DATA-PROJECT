@@ -199,15 +199,14 @@ user a public contact.
 
 Association is **admin/owner-driven**: an admin/owner adds a user from the Admin Panel — the
 **Users** table or the **Groups** tab (adding a member to an ungrouped company auto-creates its
-singleton group). Going-forward membership lives on the company's group (`group_members`,
-resolved through `company_groups`); the legacy `company_members` roster is retained as the source
-for code-violation notifications until the groups cutover completes. A user's associated companies
-appear in their Profile under "My Companies," resolved through their group(s).
+singleton group). Membership lives on the company's group (`group_members`, resolved through
+`company_groups`) — the single source of truth for both code-violation notifications and a user's
+"My Companies." A user's associated companies appear in their Profile under "My Companies,"
+resolved through their group(s).
 
 | Table | Purpose |
 |---|---|
-| `group_members` | Go-forward membership (user↔group; companies resolve via `company_groups`) |
-| `company_members` | Legacy roster (user↔company, `role`, `is_primary`); still drives code-violation notifications |
+| `group_members` | Membership (user↔group; companies resolve via `company_groups`) |
 
 ## Access Control
 | Action | Public | Relationship Manager | Admin/Owner |

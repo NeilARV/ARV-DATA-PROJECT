@@ -44,7 +44,7 @@ export interface NotifyResult {
  * `cv_notifications_sent`.
  *
  * Recipients are the `memberUserIds` the caller resolved (the owning company's operator-group
- * members — §2, re-pointed off `company_members` in #93), narrowed by
+ * members — §2), narrowed by
  * {@link getEmailRecipientsByUserIds}, which drops anyone with the master `notifications` flag off or
  * an unverified email (the kill-switch). Each recipient is **claimed in `cv_notifications_sent` before
  * the email is sent**, so the row's UNIQUE constraint is the real double-send guard: a re-run or

@@ -17,8 +17,7 @@ and the app then:
 1. parses + archives the CSV and **enqueues** each complaint,
 2. **matches** each complaint's address to a property we already track,
 3. resolves the property's **current owning company** from transaction data,
-4. checks whether that company belongs to an **operator group with members** (§9, re-pointed off
-   `company_members` in #93), and
+4. checks whether that company belongs to an **operator group with members** (§9), and
 5. **emails those group members** that a property tied to their operator has a new code complaint.
 
 Every complaint that resolves to a property we track is **stored** (notifiable or not), so the `cv_`
@@ -60,12 +59,12 @@ The feature is a join across four things already modeled. Understanding the chai
 | Current owner | `property_transactions`, re-sorted by recording date | the **buyer** of the most-recent arms-length tx is the current owner |
 | Owner identity | `companies` (uuid PK) | linked via `property_transactions.buyerId`; only `buyerName` (no FK) → **individual/unlinked**, don't notify |
 | Operator group | `companies.group_id` → `company_groups` | null = ungrouped → don't notify; any group with members is notified (no per-group opt-out) |
-| User association | `group_members` (`userId`, `groupId`, `role`, `isPrimary`) | a group can have multiple members → notify them all. Reach is **group-wide**: a member is tied to every company in the group |
+| User association | `group_members` (`userId`, `groupId`, `role`) | a group can have multiple members → notify them all. Reach is **group-wide**: a member is tied to every company in the group |
 | User email | `users.email` | filtered by the master notifications kill-switch before sending |
 
-> ⚠️ **Notify through `group_members`, never `company_members` or `company_contacts`.** As of #93 the
+> ⚠️ **Notify through `group_members`, never `company_contacts`.** As of #93 the
 > notify path resolves recipients through the owner's **operator group** (`companies.group_id` →
-> `company_groups` → `group_members`) — the go-forward membership model. `company_contacts` is the
+> `company_groups` → `group_members`). `company_contacts` is the
 > public OpenCorporates display roster (usually not platform users, email often absent) and is never
 > used. The whole notify path
 > ([resolve-owner.ts](server/jobs/code-violations/processes/resolve-owner.ts),

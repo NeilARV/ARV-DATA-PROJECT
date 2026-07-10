@@ -435,7 +435,7 @@ List ingest runs, most recent first, for the admin results panel.
 ---
 
 ### `GET /api/code-violations/uploads/:id`
-Fetch a single ingest run **plus its per-complaint breakdown** — backs the admin detail panel (per-complaint status, resolved owner, and the owning company's alert recipients). Each violation's `recipients` mirror who NOTIFY targets: the matched owner company's `company_members` narrowed by the master-notifications / verified-email kill-switch (never `company_contacts`); empty when the owner is an individual/unlinked or has no notifiable members. Whether an alert actually fired is the complaint's `notified` flag (only sendable — new/active `CE-*` — complaints email). `violations` lists only the complaints this upload first enqueued (by `first_seen_upload_id`), so a re-upload of all-duplicate rows returns an empty array.
+Fetch a single ingest run **plus its per-complaint breakdown** — backs the admin detail panel (per-complaint status, resolved owner, and the owning company's alert recipients). Each violation's `recipients` mirror who NOTIFY targets: the matched owner company's operator-group members (`group_members`) narrowed by the master-notifications / verified-email kill-switch (never `company_contacts`); empty when the owner is an individual/unlinked, ungrouped, or has no notifiable members. Whether an alert actually fired is the complaint's `notified` flag (only sendable — new/active `CE-*` — complaints email). `violations` lists only the complaints this upload first enqueued (by `first_seen_upload_id`), so a re-upload of all-duplicate rows returns an empty array.
 
 **Auth**: `requireRole(["admin", "owner"])`
 
@@ -927,8 +927,8 @@ Fetch and apply company data from OpenCorporates.
 
 ### `GET /api/users/me/company-memberships`
 Get every company the authenticated user is associated with **through their group(s)** — one row per
-company across all the groups they belong to (companies resolve via `group_members`, not
-`company_members`). Backs the Profile "My Companies" tab.
+company across all the groups they belong to (companies resolve via `group_members`). Backs the
+Profile "My Companies" tab.
 
 **Auth**: `requireAuth`
 
@@ -963,7 +963,7 @@ group the user belongs to.
 ```json
 {
   "data": [
-    { "groupId": "uuid", "groupName": "Acme", "role": "owner", "isPrimary": true, "joinedAt": "2026-06-03T00:00:00Z" }
+    { "groupId": "uuid", "groupName": "Acme", "role": "owner", "joinedAt": "2026-06-03T00:00:00Z" }
   ],
   "count": 1
 }
@@ -1018,7 +1018,7 @@ Get one group with its companies and members. Backs the manage-group dialog.
 {
   "group": { "id": "uuid", "name": "...", "description": "..." | null, "createdAt": "iso", "updatedAt": "iso" | null },
   "companies": [{ "id": "uuid", "companyName": "RAW NAME LLC" }],
-  "members": [{ "userId": "uuid", "firstName": "...", "lastName": "...", "email": "...", "role": "owner" | "member" | null, "isPrimary": false, "createdAt": "iso" }]
+  "members": [{ "userId": "uuid", "firstName": "...", "lastName": "...", "email": "...", "role": "owner" | "member" | null, "createdAt": "iso" }]
 }
 ```
 `companyName` is the RAW DB name (format with `formatCompanyName` at the render edge).
@@ -1072,7 +1072,7 @@ Disband (delete) a group. Its companies revert to ungrouped (`group_id` SET NULL
 ---
 
 ### `POST /api/groups/:id/merge`
-Merge source group `:id` (A) into a target group (B): unions A's companies and members into B, then deletes A. Non-destructive at the company level — no company row is deleted, only re-pointed to B. On a `(user_id, group_id)` collision the existing B membership is kept (its `role`/`is_primary` are not overwritten).
+Merge source group `:id` (A) into a target group (B): unions A's companies and members into B, then deletes A. Non-destructive at the company level — no company row is deleted, only re-pointed to B. On a `(user_id, group_id)` collision the existing B membership is kept (its `role` is not overwritten).
 
 **Auth**: `requireRole(["admin", "owner"])`
 
