@@ -1,8 +1,9 @@
 import { db } from 'server/storage';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql, isNotNull } from 'drizzle-orm';
 import { companies, companyGroups, groupMembers } from '@database/schemas/companies.schema';
 import { users } from '@database/schemas/users.schema';
 import type { CompanyGroup, GroupMember } from '@database/types/companies';
+import type { GroupSummary, GroupDetail } from '@shared/types/groups';
 import type { MemberRoleInput } from '@database/validation/groups.validation';
 import { isUniqueViolation } from 'server/utils/dbErrors';
 
@@ -58,6 +59,84 @@ async function insertMembership(
         }
         throw err;
     }
+}
+
+// ── Read ──────────────────────────────────────────────────────────────────────
+
+/** Lists all groups (name order) with their company + member counts for the admin list view. */
+export async function listGroups(): Promise<GroupSummary[]> {
+    const [groups, companyCounts, memberCounts] = await Promise.all([
+        db.select().from(companyGroups).orderBy(companyGroups.name),
+        db
+            .select({ groupId: companies.groupId, count: sql<number>`count(*)::int` })
+            .from(companies)
+            .where(isNotNull(companies.groupId))
+            .groupBy(companies.groupId),
+        db
+            .select({ groupId: groupMembers.groupId, count: sql<number>`count(*)::int` })
+            .from(groupMembers)
+            .groupBy(groupMembers.groupId),
+    ]);
+
+    const companyCountByGroup = new Map(companyCounts.map((r) => [r.groupId, r.count]));
+    const memberCountByGroup = new Map(memberCounts.map((r) => [r.groupId, r.count]));
+
+    return groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        createdAt: g.createdAt.toISOString(),
+        updatedAt: g.updatedAt ? g.updatedAt.toISOString() : null,
+        companyCount: companyCountByGroup.get(g.id) ?? 0,
+        memberCount: memberCountByGroup.get(g.id) ?? 0,
+    }));
+}
+
+/** Returns a group with its companies and members (each member's identity + role); 404 if missing. */
+export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
+    const group = await requireGroup(groupId);
+
+    const [groupCompanies, memberRows] = await Promise.all([
+        db
+            .select({ id: companies.id, companyName: companies.companyName })
+            .from(companies)
+            .where(eq(companies.groupId, groupId))
+            .orderBy(companies.companyName),
+        db
+            .select({
+                userId: groupMembers.userId,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                email: users.email,
+                role: groupMembers.role,
+                isPrimary: groupMembers.isPrimary,
+                createdAt: groupMembers.createdAt,
+            })
+            .from(groupMembers)
+            .innerJoin(users, eq(users.id, groupMembers.userId))
+            .where(eq(groupMembers.groupId, groupId))
+            .orderBy(users.firstName, users.lastName),
+    ]);
+
+    return {
+        group: {
+            id: group.id,
+            name: group.name,
+            description: group.description,
+            createdAt: group.createdAt.toISOString(),
+            updatedAt: group.updatedAt ? group.updatedAt.toISOString() : null,
+        },
+        companies: groupCompanies,
+        members: memberRows.map((m) => ({
+            userId: m.userId,
+            firstName: m.firstName,
+            lastName: m.lastName,
+            email: m.email,
+            role: m.role,
+            isPrimary: m.isPrimary,
+            createdAt: m.createdAt.toISOString(),
+        })),
+    };
 }
 
 // ── CRUD ────────────────────────────────────────────────────────────────────

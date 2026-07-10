@@ -1075,6 +1075,34 @@ Admin/owner-only management of operator groups (`requireRole(["admin","owner"])`
 access-control.md §5.3b). A company belongs to at most one group; grouping is non-destructive
 (disbanding a group reverts its companies to ungrouped and ends its memberships).
 
+### `GET /api/groups`
+List all groups (name order) with their company + member counts. Backs the Groups admin tab list.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Response `200`** `{ "data": [{ "id": "uuid", "name": "...", "description": "..." | null, "createdAt": "iso", "updatedAt": "iso" | null, "companyCount": 2, "memberCount": 3 }] }`
+
+---
+
+### `GET /api/groups/:id`
+Get one group with its companies and members. Backs the manage-group dialog.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Response `200`**
+```json
+{
+  "group": { "id": "uuid", "name": "...", "description": "..." | null, "createdAt": "iso", "updatedAt": "iso" | null },
+  "companies": [{ "id": "uuid", "companyName": "RAW NAME LLC" }],
+  "members": [{ "userId": "uuid", "firstName": "...", "lastName": "...", "email": "...", "role": "owner" | "member" | null, "isPrimary": false, "createdAt": "iso" }]
+}
+```
+`companyName` is the RAW DB name (format with `formatCompanyName` at the render edge).
+
+**Errors** `400` invalid id · `404` group not found
+
+---
+
 ### `POST /api/groups`
 Create an operator group.
 

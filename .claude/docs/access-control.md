@@ -223,6 +223,8 @@ group `SET NULL`s its companies' `group_id` (they revert to ungrouped) and casca
 
 | Method | Route | Middleware chain | unauth | member | RM | admin/owner |
 |---|---|---|---|---|---|---|
+| GET | `/api/groups` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| GET | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/groups` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | PATCH | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |

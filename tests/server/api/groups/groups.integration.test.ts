@@ -64,6 +64,8 @@ async function cleanupSuiteData() {
 
 // ── API helpers (as the admin unless overridden) ─────────────────────────────
 
+const get = (path: string, actor = ADMIN_USER_ID) =>
+    request(getApp()).get(path).set('x-test-user-id', actor);
 const post = (path: string, actor = ADMIN_USER_ID) =>
     request(getApp()).post(path).set('x-test-user-id', actor);
 const patch = (path: string, actor = ADMIN_USER_ID) =>
@@ -474,6 +476,79 @@ describe('Groups API — merge (integration)', () => {
             .post(`/api/groups/${MEMBER_A_ID}/merge`)
             .send({ targetGroupId: MEMBER_B_ID });
         expect(res.status).toBe(401);
+    });
+});
+
+// ── Read (list + detail) ────────────────────────────────────────────────────────
+
+describe('Groups API — read (integration)', () => {
+    it('GET /api/groups — lists groups with company + member counts', async () => {
+        const group = await createGroup('ListCounts');
+        const companyA = await seedCompany(freshCompanyName('ListA'));
+        const companyB = await seedCompany(freshCompanyName('ListB'));
+        await post(`/api/groups/${group.id}/companies`).send({ companyId: companyA });
+        await post(`/api/groups/${group.id}/companies`).send({ companyId: companyB });
+        await post(`/api/groups/${group.id}/members`).send({ userId: MEMBER_A_ID });
+
+        const res = await get('/api/groups');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.data)).toBe(true);
+
+        const found = res.body.data.find((g: { id: string }) => g.id === group.id);
+        expect(found).toBeDefined();
+        expect(found.name).toBe(group.name);
+        expect(found.companyCount).toBe(2);
+        expect(found.memberCount).toBe(1);
+    });
+
+    it('GET /api/groups — a group with no companies/members reports zero counts', async () => {
+        const group = await createGroup('ListEmpty');
+        const res = await get('/api/groups');
+        const found = res.body.data.find((g: { id: string }) => g.id === group.id);
+        expect(found).toBeDefined();
+        expect(found.companyCount).toBe(0);
+        expect(found.memberCount).toBe(0);
+    });
+
+    it('GET /api/groups/:id — returns the group with its companies and members', async () => {
+        const group = await createGroup('Detail');
+        const companyName = freshCompanyName('DetailCo');
+        const companyId = await seedCompany(companyName);
+        await post(`/api/groups/${group.id}/companies`).send({ companyId });
+        await post(`/api/groups/${group.id}/members`).send({ userId: MEMBER_A_ID, role: 'owner' });
+
+        const res = await get(`/api/groups/${group.id}`);
+        expect(res.status).toBe(200);
+        expect(res.body.group.id).toBe(group.id);
+
+        expect(res.body.companies).toHaveLength(1);
+        expect(res.body.companies[0]).toMatchObject({ id: companyId, companyName });
+
+        expect(res.body.members).toHaveLength(1);
+        expect(res.body.members[0]).toMatchObject({
+            userId: MEMBER_A_ID,
+            role: 'owner',
+            isPrimary: false,
+        });
+        // The member carries the user's identity for display.
+        expect(typeof res.body.members[0].email).toBe('string');
+    });
+
+    it('GET /api/groups/:id — unknown group — returns 404', async () => {
+        expect((await get(`/api/groups/${MEMBER_A_ID}`)).status).toBe(404);
+    });
+
+    it('GET /api/groups/:id — malformed id — returns 400', async () => {
+        expect((await get('/api/groups/not-a-uuid')).status).toBe(400);
+    });
+
+    it('GET /api/groups — member — returns 403', async () => {
+        await assignRole(ACTING_USER_ID, 'member');
+        expect((await get('/api/groups', ACTING_USER_ID)).status).toBe(403);
+    });
+
+    it('GET /api/groups — unauthenticated — returns 401', async () => {
+        expect((await request(getApp()).get('/api/groups')).status).toBe(401);
     });
 });
 
