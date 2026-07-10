@@ -14,7 +14,6 @@ import type { CvViolationDetail, CvViolationRecipient } from '@shared/types/code
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { getSupabase, codeViolationStorageBucket } from 'server/lib/supabase';
 import { getEmailRecipientsByUserIds } from 'server/services/postmark/email.services';
-import { notifyAwaitingReviewForUpload } from 'server/jobs/code-violations/processes/notify';
 import { processCodeViolationQueue } from 'server/jobs/code-violations/consumer';
 
 // The Accela export header, in order. The trailing comma in the real file yields an 8th,
@@ -287,17 +286,18 @@ export async function getCodeViolationUploadById(id: string): Promise<CvUpload |
 }
 
 /**
- * The per-complaint breakdown for one upload's admin detail / dry-run panel: every complaint this
- * upload enqueued (by `first_seen_upload_id`), its match + owning company, and the recipients an
- * approve would email — so the panel can show per-complaint statuses and the dry-run (§4.6).
+ * The per-complaint breakdown for one upload's admin detail panel: every complaint this upload
+ * enqueued (by `first_seen_upload_id`), its match + owning company, and the company's alert
+ * recipients — so the panel can show per-complaint statuses and who a sent alert reached.
  *
- * Recipients mirror exactly what NOTIFY sends: the matched owner company's `company_members`
+ * Recipients mirror exactly who NOTIFY targets: the matched owner company's `company_members`
  * narrowed by {@link getEmailRecipientsByUserIds} (the master-notifications / verified-email
  * kill-switch) — never `company_contacts` (§2). Member→recipient resolution is batched across the
- * upload's companies (two queries total), not per row.
+ * upload's companies (two queries total), not per row. Whether an alert actually fired is the
+ * complaint's `notified` flag, independent of this eligible-recipient list.
  *
  * @param uploadId the `cv_uploads` id
- * @returns the upload's complaints, oldest first, each with its resolution + would-be recipients
+ * @returns the upload's complaints, oldest first, each with its resolution + eligible recipients
  */
 export async function getCodeViolationUploadViolations(
     uploadId: string,
@@ -371,33 +371,4 @@ async function getRecipientsByCompany(
         byCompany.set(companyId, list);
     }
     return byCompany;
-}
-
-/** Result of approving an upload's held-back complaints for notification. */
-export type ApproveUploadResult =
-    | { status: 'ok'; upload: CvUpload; violationsNotified: number; emailsSent: number }
-    | { status: 'not-found' }
-    | { status: 'not-in-review' };
-
-/**
- * Approve an upload's dry-run (§4.6): run its held `awaiting_review` complaints through NOTIFY,
- * sending the emails that were held for review and advancing the upload `review → completed`.
- *
- * Only an upload currently in `review` can be approved — a not-yet-reviewed or already-completed
- * upload is rejected (`not-in-review`) so a double-click or stale panel can't re-fire emails. The
- * notify pass itself is also idempotent, so this is belt-and-suspenders.
- *
- * @param uploadId the upload to approve
- * @returns the refreshed upload with notify counts, or a `not-found` / `not-in-review` status
- * Side effect: sends code-violation alert emails and writes `cv_notifications_sent` rows.
- */
-export async function approveCodeViolationUpload(uploadId: string): Promise<ApproveUploadResult> {
-    const upload = await getCodeViolationUploadById(uploadId);
-    if (!upload) return { status: 'not-found' };
-    if (upload.status !== CV_UPLOAD_STATUS.REVIEW) return { status: 'not-in-review' };
-
-    const { violationsNotified, emailsSent } = await notifyAwaitingReviewForUpload(uploadId);
-
-    const refreshed = await getCodeViolationUploadById(uploadId);
-    return { status: 'ok', upload: refreshed ?? upload, violationsNotified, emailsSent };
 }

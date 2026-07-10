@@ -35,16 +35,17 @@ export type CvUploadSummary = {
     finishedAt: string | null;
 };
 
-/** A user who would be (or was) emailed about a complaint — already kill-switch filtered. */
+/** A user eligible to be emailed about a complaint — already kill-switch filtered. */
 export type CvViolationRecipient = {
     userId: string;
     email: string;
 };
 
 /**
- * One complaint enqueued by an upload, with its resolution and the recipients the dry-run would
- * email. `propertyId`/`owner*` are null until the consumer matches it; `recipients` is empty unless
- * the matched owner is a company with at least one notifiable member.
+ * One complaint enqueued by an upload, with its resolution and the owning company's eligible alert
+ * recipients. `propertyId`/`owner*` are null until the consumer matches it; `recipients` is empty
+ * unless the matched owner is a company with at least one notifiable member. Whether an alert
+ * actually fired is `notified` (only sendable — new/active `CE-*` — complaints email).
  */
 export type CvViolationDetail = {
     id: string;
@@ -63,7 +64,7 @@ export type CvViolationDetail = {
     ownerCompanyId: string | null;
     ownerCompanyName: string | null; // formatted for display (ARV.RAW-COMPANY-NAME)
     ownerName: string | null; // formatted for display (ARV.RAW-COMPANY-NAME)
-    // Who the dry-run / approve would email for this complaint.
+    // The owning company's eligible alert recipients (see `notified` for whether an alert fired).
     recipients: CvViolationRecipient[];
 };
 
@@ -84,11 +85,4 @@ export type CvIngestResponse = {
     rowsTotal: number;
     violationsNew: number;
     skipped: number;
-};
-
-/** `POST /api/code-violations/uploads/:id/approve` */
-export type CvApproveResponse = {
-    upload: CvUploadSummary;
-    violationsNotified: number;
-    emailsSent: number;
 };

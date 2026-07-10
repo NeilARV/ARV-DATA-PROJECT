@@ -331,14 +331,13 @@ All public — no auth required.
 
 ### 5.9a Code Violations (`/api/code-violations`)
 
-Admin + owner only (`requireRole(["admin","owner"])` via `ADMIN_ROLES`) — **not** `PRIVILEGED_ROLES`, so relationship-managers and members are excluded. The CSV ingest is Phase 1 only (archive + parse + enqueue); it then fires the consumer drain in the background (no cron), and the notification emails it holds for review are fired by the **approve** route.
+Admin + owner only (`requireRole(["admin","owner"])` via `ADMIN_ROLES`) — **not** `PRIVILEGED_ROLES`, so relationship-managers and members are excluded. The CSV ingest is Phase 1 only (archive + parse + enqueue); it then fires the consumer drain in the background (no cron), which matches, resolves owners, and emails alerts for sendable complaints automatically (no approval step).
 
 | Method | Route | Middleware chain | unauth | member | RM | admin/owner |
 |---|---|---|---|---|---|---|
 | POST | `/api/code-violations/uploads` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | GET | `/api/code-violations/uploads` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | GET | `/api/code-violations/uploads/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
-| POST | `/api/code-violations/uploads/:id/approve` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 
 ---
 

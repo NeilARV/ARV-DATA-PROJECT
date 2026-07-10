@@ -146,7 +146,9 @@ describe('notifyViolation', () => {
             { userId: 'u2', email: 'b@x.com' },
         ]);
         dbMock.selectQueue.push([], [{ companyName: 'ACME LLC' }]);
-        email.sendPlainEmail.mockRejectedValueOnce(new Error('bounce')).mockResolvedValueOnce(undefined);
+        email.sendPlainEmail
+            .mockRejectedValueOnce(new Error('bounce'))
+            .mockResolvedValueOnce(undefined);
 
         const res = await notifyViolation({
             violation: violation(),
@@ -162,7 +164,7 @@ describe('notifyViolation', () => {
         expect(dbMock.delete).toHaveBeenCalledTimes(1);
     });
 
-    it('falls back to a company-members lookup when memberUserIds is omitted (approve path)', async () => {
+    it('falls back to a company-members lookup when memberUserIds is omitted', async () => {
         claims.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }]);
         email.getEmailRecipientsByUserIds.mockResolvedValue([{ userId: 'u1', email: 'a@x.com' }]);
         dbMock.selectQueue.push([], [{ companyName: 'ACME LLC' }]);

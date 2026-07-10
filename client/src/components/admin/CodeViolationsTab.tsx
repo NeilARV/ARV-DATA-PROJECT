@@ -26,7 +26,7 @@ import CodeViolationUploadDetail from '@/components/admin/CodeViolationUploadDet
 
 /**
  * Admin tab for the Code Violations feature: upload a San Diego Accela CSV export, watch each ingest
- * run drain through the consumer, and open a run to review matches and approve notifications (§4.6).
+ * run drain through the consumer, and open a run to review its matches and the alerts it sent.
  */
 export default function CodeViolationsTab() {
     const { toast } = useToast();
@@ -35,7 +35,7 @@ export default function CodeViolationsTab() {
     const [detailUploadId, setDetailUploadId] = useState<string | null>(null);
     // The just-uploaded run we're waiting on: the Upload button stays in its loading state and the
     // detail dialog is held back until this run finishes draining, so the admin never sees the
-    // transient enqueued/processing screen — only a loading button, then the settled review dialog.
+    // transient enqueued/processing screen — only a loading button, then the settled results dialog.
     const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
 
     const { data, isLoading } = useQuery<CvUploadListResponse>({
@@ -115,8 +115,9 @@ export default function CodeViolationsTab() {
                     </CardTitle>
                     <CardDescription>
                         Upload a San Diego Accela code-enforcement CSV export. Each complaint is
-                        matched to a tracked property and its owner; matched complaints are held for
-                        your review before any email is sent.
+                        matched to a tracked property and its owner; new and active code-enforcement
+                        (CE) complaints are emailed to the owner automatically. Closed complaints
+                        and temporary (TMP) records are stored but never emailed.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -170,7 +171,7 @@ export default function CodeViolationsTab() {
                     <CardTitle className="text-lg">Upload history</CardTitle>
                     <CardDescription>
                         Each run updates as the consumer drains its complaints. Open one to review
-                        matches and approve notifications.
+                        its matches and the alerts that were sent.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -238,9 +239,7 @@ export default function CodeViolationsTab() {
                                                             data-testid={`button-view-upload-${u.id}`}
                                                         >
                                                             <Eye className="w-4 h-4 mr-1" />
-                                                            {u.status === 'review'
-                                                                ? 'Review'
-                                                                : 'View'}
+                                                            View
                                                         </Button>
                                                     </TableCell>
                                                 </TableRow>

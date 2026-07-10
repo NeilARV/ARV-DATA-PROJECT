@@ -27,8 +27,10 @@ tables become a complete code-violation ledger keyed to our properties.
 complaint on one of your properties." A daily manual upload is fast enough for V1 — **no scraping, no
 external API calls.**
 
-**By default, nothing emails automatically.** Matched complaints park at `awaiting_review` and an
-admin must click **Approve & Notify** before any email fires (the `CV_REQUIRE_REVIEW` gate, §6).
+**Alerts send automatically — no approval step.** Right after upload, the consumer matches, resolves
+owners, and emails inline. It emails only **sendable** complaints: a code-enforcement `CE-*` record
+with an open Accela status (`New` or `Active …`). Closed `CE-*` complaints and all temporary
+`##TMP-*` records are still matched and stored — they just never email (§6.3).
 
 ---
 
@@ -81,10 +83,10 @@ is no cron (the consumer is triggered by ingest, not a schedule).
     cv_uploads row    validate        drain and return immediately (dedup by record_number)
 
   PHASE 2 — CONSUMER  (fired by the upload; drains the queue a batch at a time)
-    CLAIM ──► MATCH ──► RESOLVE OWNER ──► DIFF/STORE ──► (REVIEW gate) ──► NOTIFY ──► MARK STATUS
-    pending→  address   most-recent       write          hold at         email each   set terminal
-    processing  → prop  arms-length buyer  cv_matches +   awaiting_review  member +     status +
-    (SKIP LOCKED)       company            TMP→CE dedup   OR notify inline cv_notif…    refresh upload
+    CLAIM ──► MATCH ──► RESOLVE OWNER ──► DIFF/STORE ──► NOTIFY (if sendable) ──► MARK STATUS
+    pending→  address   most-recent       write          email each member     set terminal
+    processing  → prop  arms-length buyer  cv_matches +   of a sendable CE +    status +
+    (SKIP LOCKED)       company            TMP→CE dedup   new/active complaint  refresh upload
 ```
 
 `cv_violations` is **both the system of record and the work queue** — its `processing_status` column
@@ -117,7 +119,7 @@ server/
   routes/code-violations.routes.ts             admin-only routes + multer config; mounted at /api/code-violations
   controllers/code-violations/                 HTTP layer (parse req → service → res)
   services/code-violations/
-    code-violations.services.ts                INGEST (archive+parse+enqueue), list, detail, approve
+    code-violations.services.ts                INGEST (archive+parse+enqueue), list, detail
   jobs/code-violations/
     consumer.ts                                runCodeViolationConsumer (one batch) + processCodeViolationQueue (drain loop, fired by ingest)
     processes/
@@ -126,6 +128,7 @@ server/
       match-address.ts                         parse + normalize + match to a property (pure-ish, batched)
       resolve-owner.ts                         most-recent arms-length buyer company + members
       diff-and-store.ts                        write cv_matches; ##TMP→CE secondary dedup
+      sendable.ts                              isSendableComplaint — CE-* + New/Active send filter
       notify.ts                                resolve members → sendPlainEmail → cv_notifications_sent
   jobs/index.ts                                no CV cron — ingest fires processCodeViolationQueue directly
   lib/supabase.ts                              codeViolations bucket constant (code-violations-dev/-prod)
@@ -138,7 +141,7 @@ shared/
 client/
   pages/Admin.tsx                              "Code Violations" Radix tab (gated isOwner||isAdmin)
   components/admin/CodeViolationsTab.tsx        upload + history table (polls while in-flight)
-  components/admin/CodeViolationUploadDetail.tsx dry-run review dialog + Approve & Notify
+  components/admin/CodeViolationUploadDetail.tsx per-complaint results dialog (matches + who was emailed)
   api/code-violations.api.ts                   typed fetch wrappers
   constants/codeViolations.constants.ts        status→badge maps + isUploadInFlight()
 
@@ -189,7 +192,7 @@ single source of truth (re-exported by the DB types and the shared wire types).
 | `processing_status` | text | **the queue state** (§6.1). Index `(processing_status, created_at)` powers the consumer fetch |
 | `notified` | boolean | hard "an email actually fired" flag, independent of `processing_status` |
 | `error_message` | text | reason when `failed` |
-| `first_seen_upload_id` | uuid FK cv_uploads (set null) | the upload that enqueued it (review/approve is per-upload) |
+| `first_seen_upload_id` | uuid FK cv_uploads (set null) | the upload that enqueued it (the detail panel groups by it) |
 | `processed_at` | timestamptz | when it reached a terminal status |
 | `created_at` / `updated_at` | timestamptz | `updated_at` doubles as the soft-lock age for stale recovery |
 
@@ -226,32 +229,36 @@ an email went out* (`notified`). Keeping them separate makes `notified` an unamb
 |---|---|---|
 | `pending` | enqueued, waiting for the consumer | no |
 | `processing` | the consumer is working this row | no |
-| `awaiting_review` | matched + recipients identified, **email held for admin Approve** (only when the review gate is on) | no → `complete` on Approve |
 | `no_match` | processed cleanly, address is not a property we track | yes |
 | `ambiguous` | matched **more than one** property → needs a human | yes |
-| `complete` | finished through-and-through | yes |
+| `complete` | finished through-and-through (emailed or not) | yes |
 | `failed` | something threw; see `error_message` (no auto-retry) | yes |
 
+> `awaiting_review` is **retired.** The pipeline no longer produces it (nor the `review` upload status)
+> now that alerts send inline instead of waiting on an Approve step. Both value strings are kept in the
+> Zod value-sets and the badge maps only so any pre-change rows still render — nothing writes them.
+
 ### 6.2 `notified` (boolean) — read alongside the status
-- `complete` + `notified=true` → matched, owner is a company with users, **email sent**.
-- `complete` + `notified=false` → matched, but **nobody to email** (individual owner, member-less company, or a `##TMP→CE` duplicate already alerted).
-- `awaiting_review` + `notified=false` → matched and ready, **waiting on Approve**; flips to `complete`+`notified=true` once the email fires.
+- `complete` + `notified=true` → matched, **sendable** (new/active `CE-*`), owner is a company with users, **email sent**.
+- `complete` + `notified=false` → matched but not emailed: not sendable (closed `CE-*` or a `##TMP-*` record), **nobody to email** (individual owner, member-less company), or a `##TMP→CE` duplicate already alerted.
 - `no_match` / `ambiguous` / `failed` → `notified` stays false.
 
-### 6.3 The review gate (`CV_REQUIRE_REVIEW`)
-A wrong address match emailing the wrong investor is worse than a slight delay, so the gate is a state
-in the status machine, not a separate code path:
+### 6.3 The send filter (`isSendableComplaint`)
+Alerts fire inline during processing — there is no approval step. What gates an email is not a status
+stop but a pure predicate on the complaint itself,
+[`isSendableComplaint`](server/jobs/code-violations/processes/sendable.ts): a complaint is emailed only
+when **both** hold —
 
-- **Gate ON (default):** the consumer runs MATCH→RESOLVE→DIFF, writes `cv_matches`, and parks each
-  matched + notifiable complaint at `awaiting_review` **without emailing**. The admin panel shows the
-  dry-run: every match, resolved owner, and **exactly which users would be emailed**. The admin clicks
-  **Approve & Notify** (`POST …/uploads/:id/approve`) → the held rows run NOTIFY → each becomes
-  `complete`+`notified=true`, upload advances `review → completed`.
-- **Gate OFF** (`CV_REQUIRE_REVIEW=false`/`0`/`off`/`no`): the consumer notifies inline; rows go
-  straight `processing → complete`, no `awaiting_review` stop.
+- **it's a code-enforcement record** — `record_number` starts with `CE` (San Diego's `CE-*` codes).
+  Temporary `##TMP-*` records (and any other prefix) are never emailed.
+- **its Accela status is open** — `status_text` is `New` or starts with `Active` (`Active Investigation`,
+  `Active Enforcement`). Every closed disposition's status starts with `Closed`, so all closed cases are
+  excluded.
 
-Gate parsing lives in [consumer.ts `isReviewRequired()`](server/jobs/code-violations/consumer.ts) —
-**only an explicit off value flips it**; anything else (including unset) defaults ON.
+Non-sendable complaints still run the full MATCH → RESOLVE → DIFF pipeline and get their `cv_matches`
+row — they just land at `complete`+`notified=false` instead of emailing. The consumer only emails a
+sendable, notifiable, non-duplicate complaint (see the routing in
+[consumer.ts](server/jobs/code-violations/consumer.ts)).
 
 ---
 
@@ -270,16 +277,16 @@ Daily uploads overlap heavily; the rule is **never notify twice for the same com
    Accela sometimes issues a temporary `##TMP-*` number later replaced by a permanent `CE-*` — the
    *same physical complaint under two record numbers*, which dodges the `record_number` UNIQUE. Before
    notifying, we look for another complaint with the **same normalized street + violation date +
-   `md5(description)`** that is already `awaiting_review` or `complete`+`notified`. If found, this row
-   is stored but marked `complete`+`notified=false`. Logged when it triggers. Needs both a normalized
-   street and a date to be reliable — without both, the key is too weak and we don't dedup.
+   `md5(description)`** that is already alerted (`complete`+`notified`, or a legacy `awaiting_review`).
+   If found, this row is stored but marked `complete`+`notified=false`. Logged when it triggers. Needs
+   both a normalized street and a date to be reliable — without both, the key is too weak and we don't dedup.
    - The DB check can't see a sibling **still `processing` in the same batch**, so the consumer also
      keeps an in-memory `alertedKeysThisRun` set, so a `##TMP`/`CE` pair arriving in one batch is also
      caught ([consumer.ts](server/jobs/code-violations/consumer.ts)).
 3. **`cv_notifications_sent` UNIQUE(`violation_id`,`user_id`,`channel`)** — the hard backstop. NOTIFY
    **claims the row (insert `onConflictDoNothing`) before sending**; if the claim returns nothing, a
    concurrent/previous pass already has it → skip. If the send then throws, the claim is **deleted** so
-   a later pass retries. This is what makes re-run / re-approve safe.
+   a later pass retries. This is what makes a re-run (e.g. re-uploading an overlapping export) safe.
 
 ---
 
@@ -349,22 +356,19 @@ The consumer resolves each property's owner **at most once per run** (`ownerByPr
 
 Recipients = the owner company's `company_members`, narrowed by `getEmailRecipientsByUserIds`
 ([server/services/postmark/email.services.ts](server/services/postmark/email.services.ts)) which drops
-anyone with the master `notifications` flag off or an unverified email (the kill-switch). The dry-run
-panel uses the **same** filter, so "would email" matches exactly who gets emailed.
+anyone with the master `notifications` flag off or an unverified email (the kill-switch). The detail
+panel's recipient list uses the **same** filter, so it matches who a sent alert reached.
 
 The email is **plain inline HTML** built in `buildViolationEmail` (no Postmark template in V1 — that's
 V2 §8.4) and sent via `sendPlainEmail`. Every interpolated value is escaped
 ([server/utils/escapeHtml.ts](server/utils/escapeHtml.ts)); description newlines become `<br>`. Company
 names are title-cased through `formatCompanyName` (**ARV.RAW-COMPANY-NAME**).
 
-`notifyViolation` does **not** set the violation's `processing_status` — the caller owns that
-transition, so all status writes stay in one place (the consumer inline, or the approve pass). Two
-callers, **one function**:
-1. **Consumer inline** (gate off) — passes `memberUserIds` from `resolveOwner`.
-2. **`notifyAwaitingReviewForUpload(uploadId)`** (the approve endpoint) — re-queries members, drains an
-   upload's `awaiting_review` rows, flips each to `complete`, refreshes the upload roll-up. Per-row
-   try/catch (a throw → `failed`, batch continues), and re-running is safe (already-`complete` rows
-   aren't re-fetched; already-emailed recipients are skipped).
+`notifyViolation` does **not** set the violation's `processing_status` — the consumer owns that
+transition, so all status writes stay in one place. It's called inline by the consumer for each
+sendable + notifiable complaint, with `memberUserIds` from `resolveOwner` (it falls back to querying
+members if a caller omits them). Re-running is safe: a recipient already in `cv_notifications_sent`
+isn't re-emailed (§7).
 
 ---
 
@@ -391,17 +395,17 @@ Each `runCodeViolationConsumer()` pass:
    `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED)` flips up to `CV_BATCH_SIZE` (default
    **25**) oldest `pending` rows to `processing` and returns them. `SKIP LOCKED` makes two overlapping
    runs grab **disjoint** sets — a real lock, not the advisory SELECT-then-UPDATE the plan sketched.
-3. **Process each row** — MATCH → (if matched) RESOLVE OWNER → DIFF/STORE → route by status
-   (`no_match` / `ambiguous` / `complete`+notified=false for non-notifiable or duplicate /
-   `awaiting_review` or inline NOTIFY for notifiable). The review gate is read **once per run** so it
-   can't flip mid-batch.
+3. **Process each row** — MATCH → (if matched) RESOLVE OWNER → DIFF/STORE → route to `complete`,
+   emailing inline via NOTIFY only when the complaint is sendable ({@link isSendableComplaint}),
+   notifiable, and not a duplicate; otherwise `complete`+notified=false. Unmatched → `no_match`,
+   multi-match → `ambiguous`.
 4. **Per-row isolation** — a row that throws is `markFailed` with the message (truncated 500 chars,
    **no auto-retry**) and the batch continues.
 5. **Upload roll-up** — `refreshUploadStatus(uploadId)` for every affected upload: recomputes status +
    counters **purely from the rows** (idempotent, never incremented in place). Any in-flight rows →
-   `processing`; else any `awaiting_review` → `review`; else `completed` (+ `finished_at`).
-   `notifications_sent` is counted from the `cv_notifications_sent` ledger so it survives retries. A
-   `failed` (ingest-error) upload is never resurrected.
+   `processing`; else `completed` (+ `finished_at`). `notifications_sent` is counted from the
+   `cv_notifications_sent` ledger so it survives retries. A `failed` (ingest-error) upload is never
+   resurrected.
 
 ---
 
@@ -415,8 +419,7 @@ members are excluded). See [.claude/docs/access-control.md](.claude/docs/access-
 |---|---|---|
 | `POST /uploads` | Phase-1 ingest. multipart `file`; multer **memoryStorage**, fileFilter `text/csv` / `application/vnd.ms-excel`, **2 MB** limit. Archives + parses + enqueues; returns immediately. | `CvIngestResponse` `{ uploadId, rowsTotal, violationsNew, skipped }` |
 | `GET /uploads` | List ingest runs, most recent first. | `CvUploadListResponse` |
-| `GET /uploads/:id` | One run + its per-complaint breakdown (status, resolved owner, would-be recipients) for the detail/dry-run panel. Invalid uuid → 404. | `CvUploadDetailResponse` |
-| `POST /uploads/:id/approve` | Approve the dry-run: fire held emails, advance `review → completed`. Only a run currently in `review` can be approved (else **409**). | `CvApproveResponse` `{ upload, violationsNotified, emailsSent }` |
+| `GET /uploads/:id` | One run + its per-complaint breakdown (status, resolved owner, eligible recipients) for the detail panel. Invalid uuid → 404. | `CvUploadDetailResponse` |
 
 Ingest opens the `cv_uploads` row **before** any fallible work (storage/parse/insert), so a storage
 outage or bad header still leaves a retrievable row the catch marks `failed`. A bad CSV header throws
@@ -434,15 +437,15 @@ A **"Code Violations"** Radix tab in [client/src/pages/Admin.tsx](client/src/pag
 only when `canManageRoles` (`isOwner || isAdmin`).
 
 - **[CodeViolationsTab.tsx](client/src/components/admin/CodeViolationsTab.tsx)** — file picker →
-  `POST /uploads` (TanStack Query mutation). Returns immediately; on success it opens the new run's
-  detail dialog. The history table **polls every 4 s while any upload is in-flight**
+  `POST /uploads` (TanStack Query mutation). Returns immediately; it holds the new run's detail dialog
+  back until the drain settles (so the admin lands on final results, not the transient processing
+  screen). The history table **polls every 4 s while any upload is in-flight**
   (`isUploadInFlight` = `enqueued`/`processing`) and stops once all settle.
 - **[CodeViolationUploadDetail.tsx](client/src/components/admin/CodeViolationUploadDetail.tsx)** — the
-  per-complaint dry-run dialog. Polls every 3 s while in-flight. Sorts rows so ones needing a human
-  (`awaiting_review`, then `ambiguous`/`failed`) surface first. Shows each complaint's identity,
-  resolved owner, **the exact recipients an approve would email**, and its status badge. While the run
-  is in `review`, an **Approve & Notify** button (with a confirm step — "this sends real emails and
-  cannot be undone") hits the approve endpoint.
+  per-complaint results dialog. Polls every 3 s while in-flight. Sorts rows so ones needing a human
+  (`ambiguous`/`failed`) surface first. Shows each complaint's identity, resolved owner, the owning
+  company's alert recipients, its status badge, and an **Emailed** badge (the `notified` flag) — the
+  record of what matched and which alerts were sent. No approval action (alerts already fired inline).
 
 Status→badge maps and `isUploadInFlight` live in
 [client/src/constants/codeViolations.constants.ts](client/src/constants/codeViolations.constants.ts)
@@ -462,7 +465,6 @@ by `NODE_ENV`, exported as `codeViolationStorageBucket`. The bucket must exist a
 **Env vars (names only):**
 | Name | Purpose | Default if unset |
 |---|---|---|
-| `CV_REQUIRE_REVIEW` | review gate (§6.3) — hold matched rows at `awaiting_review` until Approve | **on** (only an explicit off value disables) |
 | `CV_BATCH_SIZE` | max `pending` rows claimed per consumer pass (the drain loops until empty) | `25` |
 | `POSTMARK_CODE_VIOLATION_TEMPLATE_ALIAS` | (V2 §8.4) Postmark template — not used in V1 | — |
 
@@ -478,7 +480,8 @@ Reuses `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_SE
 
 **Automated tests** (under [tests/server/](tests/server/)):
 - `jobs/code-violations/` — unit tests for `match-address`, `resolve-owner`, `diff-and-store`,
-  `notify`, and a `consumer` test driving `pending → complete`/`no_match`/`awaiting_review`.
+  `sendable` (the CE-*/New-Active send filter), `notify`, and a `consumer` test driving
+  `pending → complete`/`no_match` and the sendable/non-sendable email routing.
 - `services/code-violations/` — CSV parse, ingest integration, detail.
 - `validation/code-violations.validation.test.ts`, `controllers/`, and `api/…integration.test.ts`
   (the auth matrix: admin/owner allowed; RM/member/anon rejected).
@@ -493,10 +496,10 @@ is needed — uploading is enough):
    it exercises the normalizer *and* the secondary dedup at once). Ensures the recipient has
    `notifications=true` + a verified email (else NOTIFY drops them). Test record numbers are stamped
    `…-TEST-…`.
-2. Upload `cv-test-upload.csv` in the admin panel — ingest fires the drain automatically. With the gate
-   on, matched+notifiable rows land at `awaiting_review` (no emails); hit **Approve** in the panel to
-   fire them. (If a drain ever stalls, `npm run cv:run-consumer` re-drains;
-   [scripts/cv-run-consumer.ts](scripts/cv-run-consumer.ts) loops `runCodeViolationConsumer()` until empty.)
+2. Upload `cv-test-upload.csv` in the admin panel — ingest fires the drain automatically, matching and
+   emailing inline. A matched, notifiable complaint emails only when it's sendable (a `CE-*` record
+   with a `New`/`Active …` status); closed CE and `##TMP-*` rows are stored, not emailed. (If a drain
+   ever stalls, `npm run cv:run-consumer` re-drains, looping `runCodeViolationConsumer()` until empty.)
 3. `npm run cv:test-cleanup` — removes every `…-TEST-…` row (and the test uploads) so you can re-test
    from a clean slate; pass `-- --unlink <email>` to also drop the recipient's test company links.
 

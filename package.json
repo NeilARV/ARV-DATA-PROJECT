@@ -18,6 +18,7 @@
         "db:push": "drizzle-kit push",
         "seed:sort-order": "tsx scripts/seed-sort-order.ts",
         "reset:one-user": "tsx scripts/reset-one-user.ts",
+        "cv:seed-test": "tsx scripts/cv-seed-test.ts",
         "backfill:supplemental-tax": "tsx scripts/backfill-supplemental-tax.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."

@@ -1,5 +1,4 @@
 import type {
-    CvApproveResponse,
     CvIngestResponse,
     CvUploadDetailResponse,
     CvUploadListResponse,
@@ -52,19 +51,9 @@ export async function fetchCodeViolationUploads(): Promise<CvUploadListResponse>
     return res.json();
 }
 
-/** Fetch one ingest run plus its per-complaint breakdown (statuses + dry-run recipients). */
+/** Fetch one ingest run plus its per-complaint breakdown (statuses + alert recipients). */
 export async function fetchCodeViolationUpload(id: string): Promise<CvUploadDetailResponse> {
     const res = await fetch(`${BASE}/uploads/${id}`, { credentials: 'include' });
-    await throwIfNotOk(res);
-    return res.json();
-}
-
-/** Approve an upload's dry-run — fire the notification emails held for review (§4.6). */
-export async function approveCodeViolationUpload(id: string): Promise<CvApproveResponse> {
-    const res = await fetch(`${BASE}/uploads/${id}/approve`, {
-        method: 'POST',
-        credentials: 'include',
-    });
     await throwIfNotOk(res);
     return res.json();
 }

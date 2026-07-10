@@ -1,15 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // runCodeViolationConsumer is the Phase-2 orchestrator (§4, §5.3). These tests assert its ROUTING —
 // which terminal status each match outcome lands in and when an email actually fires — so every
-// process step it calls is mocked; the per-step logic is covered in its own sibling test file. The
-// review gate is read from CV_REQUIRE_REVIEW per run, so each test sets it explicitly.
+// process step it calls is mocked; the per-step logic is covered in its own sibling test file.
+// Matched complaints email inline during processing; only sendable ones (new/active CE-* records)
+// actually notify — isSendableComplaint is exercised directly in sendable.test.ts.
 const fetchQueue = vi.hoisted(() => ({ claimPendingViolations: vi.fn() }));
 const markStatus = vi.hoisted(() => ({
     resetStaleProcessing: vi.fn(),
     markNoMatch: vi.fn(),
     markAmbiguous: vi.fn(),
-    markAwaitingReview: vi.fn(),
     markComplete: vi.fn(),
     markFailed: vi.fn(),
     refreshUploadStatus: vi.fn(),
@@ -32,10 +32,13 @@ import type { MatchOutcome } from 'server/jobs/code-violations/processes/match-a
 
 const UPLOAD_ID = 'up1';
 
+// A code-enforcement complaint with an open status — sendable by default, so the matched+notifiable
+// tests email. Override recordNumber/statusText to exercise the non-sendable paths.
 function violation(overrides: Partial<CvViolation> = {}): CvViolation {
     return {
         id: 'v1',
         recordNumber: 'CE-1',
+        statusText: 'New',
         violationDate: '2026-01-15',
         description: 'Overgrown lot',
         firstSeenUploadId: UPLOAD_ID,
@@ -44,11 +47,20 @@ function violation(overrides: Partial<CvViolation> = {}): CvViolation {
 }
 
 /** One match record as matchViolationBatch yields it. `normalizedStreet` doubles as the dedup key. */
-function match(outcome: MatchOutcome, v: Partial<CvViolation> = {}, normalizedStreet = '123 MAIN ST') {
+function match(
+    outcome: MatchOutcome,
+    v: Partial<CvViolation> = {},
+    normalizedStreet = '123 MAIN ST',
+) {
     return { violation: violation(v), parsed: { normalizedStreet } as never, outcome };
 }
 
-const ORIGINAL_ENV = process.env.CV_REQUIRE_REVIEW;
+const NOTIFIABLE_OWNER = {
+    isNotifiable: true,
+    ownerCompanyId: 'c1',
+    ownerName: 'ACME LLC',
+    memberUserIds: ['u1'],
+};
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -57,11 +69,6 @@ beforeEach(() => {
     matchAddress.matchViolationBatch.mockResolvedValue([]);
     diffAndStoreMod.diffAndStore.mockResolvedValue({ isDuplicate: false });
     notifyMod.notifyViolation.mockResolvedValue({ emailsSent: 1, notified: true });
-});
-
-afterEach(() => {
-    if (ORIGINAL_ENV === undefined) delete process.env.CV_REQUIRE_REVIEW;
-    else process.env.CV_REQUIRE_REVIEW = ORIGINAL_ENV;
 });
 
 describe('runCodeViolationConsumer', () => {
@@ -95,34 +102,12 @@ describe('runCodeViolationConsumer', () => {
         expect(resolveOwnerMod.resolveOwner).not.toHaveBeenCalled();
     });
 
-    it('runCodeViolationConsumer — matched + notifiable + review ON — holds at awaiting_review, no email', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'true';
+    it('runCodeViolationConsumer — matched + notifiable + sendable — emails inline and completes', async () => {
         fetchQueue.claimPendingViolations.mockResolvedValue([violation()]);
-        matchAddress.matchViolationBatch.mockResolvedValue([match({ kind: 'matched', propertyId: 'p1' })]);
-        resolveOwnerMod.resolveOwner.mockResolvedValue({
-            isNotifiable: true,
-            ownerCompanyId: 'c1',
-            ownerName: 'ACME LLC',
-            memberUserIds: ['u1'],
-        });
-
-        await runCodeViolationConsumer();
-
-        expect(markStatus.markAwaitingReview).toHaveBeenCalledWith('v1', '123 MAIN ST');
-        expect(notifyMod.notifyViolation).not.toHaveBeenCalled();
-        expect(markStatus.markComplete).not.toHaveBeenCalled();
-    });
-
-    it('runCodeViolationConsumer — matched + notifiable + review OFF — emails inline and completes', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'false';
-        fetchQueue.claimPendingViolations.mockResolvedValue([violation()]);
-        matchAddress.matchViolationBatch.mockResolvedValue([match({ kind: 'matched', propertyId: 'p1' })]);
-        resolveOwnerMod.resolveOwner.mockResolvedValue({
-            isNotifiable: true,
-            ownerCompanyId: 'c1',
-            ownerName: 'ACME LLC',
-            memberUserIds: ['u1'],
-        });
+        matchAddress.matchViolationBatch.mockResolvedValue([
+            match({ kind: 'matched', propertyId: 'p1' }),
+        ]);
+        resolveOwnerMod.resolveOwner.mockResolvedValue(NOTIFIABLE_OWNER);
 
         await runCodeViolationConsumer();
 
@@ -135,13 +120,48 @@ describe('runCodeViolationConsumer', () => {
             normalizedAddress: '123 MAIN ST',
             notified: true,
         });
-        expect(markStatus.markAwaitingReview).not.toHaveBeenCalled();
+    });
+
+    it('runCodeViolationConsumer — matched + notifiable but a CLOSED CE complaint — stores without emailing', async () => {
+        fetchQueue.claimPendingViolations.mockResolvedValue([
+            violation({ statusText: 'Closed - No Violation' }),
+        ]);
+        matchAddress.matchViolationBatch.mockResolvedValue([
+            match({ kind: 'matched', propertyId: 'p1' }, { statusText: 'Closed - No Violation' }),
+        ]);
+        resolveOwnerMod.resolveOwner.mockResolvedValue(NOTIFIABLE_OWNER);
+
+        await runCodeViolationConsumer();
+
+        expect(notifyMod.notifyViolation).not.toHaveBeenCalled();
+        expect(markStatus.markComplete).toHaveBeenCalledWith('v1', {
+            normalizedAddress: '123 MAIN ST',
+            notified: false,
+        });
+    });
+
+    it('runCodeViolationConsumer — matched + notifiable but a TMP record — stores without emailing', async () => {
+        const tmp = { recordNumber: '26TMP-1', statusText: null };
+        fetchQueue.claimPendingViolations.mockResolvedValue([violation(tmp)]);
+        matchAddress.matchViolationBatch.mockResolvedValue([
+            match({ kind: 'matched', propertyId: 'p1' }, tmp),
+        ]);
+        resolveOwnerMod.resolveOwner.mockResolvedValue(NOTIFIABLE_OWNER);
+
+        await runCodeViolationConsumer();
+
+        expect(notifyMod.notifyViolation).not.toHaveBeenCalled();
+        expect(markStatus.markComplete).toHaveBeenCalledWith('v1', {
+            normalizedAddress: '123 MAIN ST',
+            notified: false,
+        });
     });
 
     it('runCodeViolationConsumer — matched but owner not notifiable — completes without an email', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'false';
         fetchQueue.claimPendingViolations.mockResolvedValue([violation()]);
-        matchAddress.matchViolationBatch.mockResolvedValue([match({ kind: 'matched', propertyId: 'p1' })]);
+        matchAddress.matchViolationBatch.mockResolvedValue([
+            match({ kind: 'matched', propertyId: 'p1' }),
+        ]);
         resolveOwnerMod.resolveOwner.mockResolvedValue({
             isNotifiable: false,
             ownerCompanyId: null,
@@ -158,15 +178,11 @@ describe('runCodeViolationConsumer', () => {
     });
 
     it('runCodeViolationConsumer — ##TMP→CE duplicate (DB-side) — completes without an email', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'false';
         fetchQueue.claimPendingViolations.mockResolvedValue([violation()]);
-        matchAddress.matchViolationBatch.mockResolvedValue([match({ kind: 'matched', propertyId: 'p1' })]);
-        resolveOwnerMod.resolveOwner.mockResolvedValue({
-            isNotifiable: true,
-            ownerCompanyId: 'c1',
-            ownerName: 'ACME LLC',
-            memberUserIds: ['u1'],
-        });
+        matchAddress.matchViolationBatch.mockResolvedValue([
+            match({ kind: 'matched', propertyId: 'p1' }),
+        ]);
+        resolveOwnerMod.resolveOwner.mockResolvedValue(NOTIFIABLE_OWNER);
         diffAndStoreMod.diffAndStore.mockResolvedValue({ isDuplicate: true });
 
         await runCodeViolationConsumer();
@@ -178,22 +194,17 @@ describe('runCodeViolationConsumer', () => {
         });
     });
 
-    it('runCodeViolationConsumer — same-batch ##TMP/CE twins — only the first alerts', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'false';
-        const twinA = violation({ id: 'vA', recordNumber: '##TMP-1' });
-        const twinB = violation({ id: 'vB', recordNumber: 'CE-9' });
+    it('runCodeViolationConsumer — same-batch duplicate twins — only the first alerts', async () => {
+        // Two CE records for the same physical complaint (same street + date + description) in one
+        // batch: the first emails and claims the in-run dedup key; the second completes silently.
+        const twinA = violation({ id: 'vA', recordNumber: 'CE-1' });
+        const twinB = violation({ id: 'vB', recordNumber: 'CE-2' });
         fetchQueue.claimPendingViolations.mockResolvedValue([twinA, twinB]);
-        // Same normalizedStreet + violationDate + description → same in-run dedup key.
         matchAddress.matchViolationBatch.mockResolvedValue([
-            match({ kind: 'matched', propertyId: 'p1' }, { id: 'vA' }),
-            match({ kind: 'matched', propertyId: 'p1' }, { id: 'vB' }),
+            match({ kind: 'matched', propertyId: 'p1' }, { id: 'vA', recordNumber: 'CE-1' }),
+            match({ kind: 'matched', propertyId: 'p1' }, { id: 'vB', recordNumber: 'CE-2' }),
         ]);
-        resolveOwnerMod.resolveOwner.mockResolvedValue({
-            isNotifiable: true,
-            ownerCompanyId: 'c1',
-            ownerName: 'ACME LLC',
-            memberUserIds: ['u1'],
-        });
+        resolveOwnerMod.resolveOwner.mockResolvedValue(NOTIFIABLE_OWNER);
 
         await runCodeViolationConsumer();
 
@@ -206,7 +217,6 @@ describe('runCodeViolationConsumer', () => {
     });
 
     it('runCodeViolationConsumer — resolves each property owner at most once per run', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'false';
         fetchQueue.claimPendingViolations.mockResolvedValue([
             violation({ id: 'vA' }),
             violation({ id: 'vB' }),
@@ -227,7 +237,6 @@ describe('runCodeViolationConsumer', () => {
     });
 
     it('runCodeViolationConsumer — one row throws — marks it failed and continues the batch', async () => {
-        process.env.CV_REQUIRE_REVIEW = 'false';
         fetchQueue.claimPendingViolations.mockResolvedValue([
             violation({ id: 'vBad' }),
             violation({ id: 'vGood' }),

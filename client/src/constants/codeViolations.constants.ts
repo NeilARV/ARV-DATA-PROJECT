@@ -7,6 +7,8 @@ type StatusBadge = { label: string; variant: BadgeVariant };
 /**
  * Per-complaint queue-state badges (§6.1). `Record` over the union forces every status to be
  * mapped — a new `processing_status` value is a compile error here until it gets a badge.
+ * `awaiting_review` is retired (the pipeline no longer produces it) but stays mapped so any
+ * pre-change rows still render.
  */
 export const CV_PROCESSING_STATUS_BADGE: Record<CvProcessingStatus, StatusBadge> = {
     pending: { label: 'Pending', variant: 'secondary' },
@@ -18,7 +20,10 @@ export const CV_PROCESSING_STATUS_BADGE: Record<CvProcessingStatus, StatusBadge>
     failed: { label: 'Failed', variant: 'destructive' },
 };
 
-/** Upload-level lifecycle badges shown in the history table and the detail header. */
+/**
+ * Upload-level lifecycle badges shown in the history table and the detail header. `review` is retired
+ * (uploads no longer enter it) but stays mapped so any pre-change rows still render.
+ */
 export const CV_UPLOAD_STATUS_BADGE: Record<CvUploadStatus, StatusBadge> = {
     enqueued: { label: 'Enqueued', variant: 'secondary' },
     processing: { label: 'Processing', variant: 'secondary' },
@@ -29,8 +34,8 @@ export const CV_UPLOAD_STATUS_BADGE: Record<CvUploadStatus, StatusBadge> = {
 
 /**
  * True while the consumer is still draining an upload — the panels poll on this so the UI reflects
- * progress, and stop once it settles (`review`/`completed`/`failed`). Typed against `CvUploadStatus`
- * so a renamed status is a compile error here.
+ * progress, and stop once it settles (`completed`/`failed`). Typed against `CvUploadStatus` so a
+ * renamed status is a compile error here.
  */
 export function isUploadInFlight(status: CvUploadStatus): boolean {
     return status === 'enqueued' || status === 'processing';

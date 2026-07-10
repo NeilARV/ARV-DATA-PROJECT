@@ -36,10 +36,5 @@ router.get(
     requireRole(ADMIN_ROLES),
     CodeViolationsController.getCodeViolationUpload,
 );
-router.post(
-    '/uploads/:id/approve',
-    requireRole(ADMIN_ROLES),
-    CodeViolationsController.approveCodeViolationUpload,
-);
 
 export default router;

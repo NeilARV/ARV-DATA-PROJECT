@@ -10,7 +10,6 @@ const svc = vi.hoisted(() => ({
     listCodeViolationUploads: vi.fn(),
     getCodeViolationUploadById: vi.fn(),
     getCodeViolationUploadViolations: vi.fn(),
-    approveCodeViolationUpload: vi.fn(),
 }));
 
 vi.mock('server/storage', () => ({ db: {} }));
@@ -23,7 +22,6 @@ vi.mock('server/services/code-violations', () => ({ CodeViolationsService: svc }
 import {
     uploadCodeViolationCsv,
     getCodeViolationUpload,
-    approveCodeViolationUpload,
 } from 'server/controllers/code-violations/code-violations.controllers';
 import { InvalidCsvError } from 'server/services/code-violations/code-violations.services';
 
@@ -41,7 +39,6 @@ beforeEach(() => {
     svc.ingestCodeViolationCsv.mockReset();
     svc.getCodeViolationUploadById.mockReset();
     svc.getCodeViolationUploadViolations.mockReset();
-    svc.approveCodeViolationUpload.mockReset();
 });
 
 describe('getCodeViolationUpload', () => {
@@ -131,51 +128,5 @@ describe('uploadCodeViolationCsv', () => {
         await uploadCodeViolationCsv(req, res);
         expect(res.status).toHaveBeenCalledWith(201);
         expect(res.json).toHaveBeenCalledWith(result);
-    });
-});
-
-describe('approveCodeViolationUpload', () => {
-    it('approveCodeViolationUpload — non-uuid id — returns 404 without calling the service', async () => {
-        const req = { params: { id: 'not-a-uuid' } } as unknown as Request;
-        const res = makeRes();
-        await approveCodeViolationUpload(req, res);
-        expect(res.status).toHaveBeenCalledWith(404);
-        expect(svc.approveCodeViolationUpload).not.toHaveBeenCalled();
-    });
-
-    it('approveCodeViolationUpload — service reports not-found — returns 404', async () => {
-        svc.approveCodeViolationUpload.mockResolvedValue({ status: 'not-found' });
-        const req = { params: { id: VALID_UUID } } as unknown as Request;
-        const res = makeRes();
-        await approveCodeViolationUpload(req, res);
-        expect(svc.approveCodeViolationUpload).toHaveBeenCalledWith(VALID_UUID);
-        expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    // The illegal-state-transition contract: approving an upload not in `review` is a 409.
-    it('approveCodeViolationUpload — service reports not-in-review — returns 409', async () => {
-        svc.approveCodeViolationUpload.mockResolvedValue({ status: 'not-in-review' });
-        const req = { params: { id: VALID_UUID } } as unknown as Request;
-        const res = makeRes();
-        await approveCodeViolationUpload(req, res);
-        expect(res.status).toHaveBeenCalledWith(409);
-    });
-
-    it('approveCodeViolationUpload — ok — returns 200 with notify counts', async () => {
-        const upload = { id: VALID_UUID, status: 'completed' };
-        svc.approveCodeViolationUpload.mockResolvedValue({
-            status: 'ok',
-            upload,
-            violationsNotified: 3,
-            emailsSent: 5,
-        });
-        const req = { params: { id: VALID_UUID } } as unknown as Request;
-        const res = makeRes();
-        await approveCodeViolationUpload(req, res);
-        expect(res.json).toHaveBeenCalledWith({
-            upload,
-            violationsNotified: 3,
-            emailsSent: 5,
-        });
     });
 });

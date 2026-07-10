@@ -1,0 +1,5 @@
+Date,Record Number,Record Type,Address,Application Name,Status,Description
+"07/09/2026","CE-TEST-1783650591954-NEW","Complaint","2871 BRANT ST, SAN DIEGO CA 92103","Building-Substandard Housing","New","TEST New complaint — should EMAIL"
+"07/09/2026","CE-TEST-1783650591954-AE","Complaint","2871 BRANT ST, SAN DIEGO CA 92103","Building-Substandard Housing","Active Enforcement","TEST Active Enforcement — should EMAIL"
+"07/09/2026","CE-TEST-1783650591954-CLOSED","Complaint","2871 BRANT ST, SAN DIEGO CA 92103","Building-Substandard Housing","Closed - No Violation","TEST Closed — should NOT email"
+"07/09/2026","26TMP-TEST-1783650591954","Complaint","2871 BRANT ST, SAN DIEGO CA 92103","Building-Substandard Housing","","TEST temporary permit — should NOT email"

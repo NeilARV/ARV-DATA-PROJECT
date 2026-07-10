@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     Table,
     TableBody,
@@ -8,15 +8,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle2, Loader2, Mail } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import AppDialog from '@/components/modals/Dialog';
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { queryClient } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
-import { approveCodeViolationUpload, fetchCodeViolationUpload } from '@/api/code-violations.api';
+import { fetchCodeViolationUpload } from '@/api/code-violations.api';
 import {
     CV_PROCESSING_STATUS_BADGE,
     CV_UPLOAD_STATUS_BADGE,
@@ -34,33 +31,26 @@ type CodeViolationUploadDetailProps = {
     onClose: () => void;
 };
 
-// Render order: rows needing a human first (awaiting review, then ambiguous/failed), settled last.
+// Render order: rows needing a human first (ambiguous/failed), settled last.
 const STATUS_SORT: Record<CvProcessingStatus, number> = {
-    awaiting_review: 0,
-    ambiguous: 1,
-    failed: 2,
-    processing: 3,
-    pending: 4,
+    ambiguous: 0,
+    failed: 1,
+    processing: 2,
+    pending: 3,
+    awaiting_review: 4, // retired status — only pre-change rows carry it
     complete: 5,
     no_match: 6,
 };
 
-function plural(n: number, noun: string): string {
-    return `${n} ${noun}${n === 1 ? '' : 's'}`;
-}
-
 /**
- * Detail / dry-run panel for one ingest run (§4.6): shows every complaint the upload introduced with
- * its per-complaint status, resolved owner, and the recipients an approve would email — and, while
- * the run is in `review`, an Approve & Notify action that fires those held emails.
+ * Detail panel for one ingest run: shows every complaint the upload introduced with its per-complaint
+ * status, resolved owner, the owning company's alert recipients, and whether an alert email fired.
+ * Matched, sendable (new/active `CE-*`) complaints are emailed automatically during processing.
  */
 export default function CodeViolationUploadDetail({
     uploadId,
     onClose,
 }: CodeViolationUploadDetailProps) {
-    const { toast } = useToast();
-    const [confirmingApprove, setConfirmingApprove] = useState(false);
-
     const { data, isLoading } = useQuery<CvUploadDetailResponse>({
         queryKey: ['/api/code-violations/uploads', uploadId],
         queryFn: () => fetchCodeViolationUpload(uploadId as string),
@@ -68,26 +58,6 @@ export default function CodeViolationUploadDetail({
         refetchInterval: (query) => {
             const status = query.state.data?.upload.status;
             return status && isUploadInFlight(status) ? 3000 : false;
-        },
-    });
-
-    const approveMutation = useMutation({
-        mutationFn: () => approveCodeViolationUpload(uploadId as string),
-        onSuccess: (result) => {
-            // Partial-key invalidation refreshes both this detail and the history list.
-            queryClient.invalidateQueries({ queryKey: ['/api/code-violations/uploads'] });
-            setConfirmingApprove(false);
-            toast({
-                title: 'Notifications sent',
-                description: `Emailed ${plural(result.emailsSent, 'email')} across ${plural(result.violationsNotified, 'complaint')}.`,
-            });
-        },
-        onError: (err) => {
-            toast({
-                title: 'Approval failed',
-                description: err instanceof Error ? err.message : 'Could not send notifications.',
-                variant: 'destructive',
-            });
         },
     });
 
@@ -107,27 +77,14 @@ export default function CodeViolationUploadDetail({
             v.processingStatus === 'ambiguous' ||
             v.processingStatus === 'failed',
     ).length;
-    const awaitingReview = violations.filter((v) => v.processingStatus === 'awaiting_review');
     const emailedCount = violations.filter((v) => v.notified).length;
-    // One email is sent per (complaint, recipient); the distinct recipient count is smaller when a
-    // user owns several awaiting-review complaints. Track both so the copy doesn't conflate them.
-    const pendingEmailCount = awaitingReview.reduce((sum, v) => sum + v.recipients.length, 0);
-    const distinctRecipientCount = new Set(
-        awaitingReview.flatMap((v) => v.recipients.map((r) => r.userId)),
-    ).size;
 
-    const isReview = upload?.status === 'review';
     const uploadBadge = upload ? CV_UPLOAD_STATUS_BADGE[upload.status] : null;
-
-    function handleClose() {
-        setConfirmingApprove(false);
-        onClose();
-    }
 
     return (
         <AppDialog
             open={uploadId !== null}
-            onClose={handleClose}
+            onClose={onClose}
             className="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
         >
             <DialogHeader>
@@ -157,70 +114,11 @@ export default function CodeViolationUploadDetail({
                         </div>
                     )}
 
-                    {/* Review is the first actionable section — the dialog opens straight into it. */}
-                    {isReview && (
-                        <div className="rounded-lg border border-border bg-accent/40 p-4 space-y-3 shrink-0">
-                            <div className="flex items-start gap-2">
-                                <Mail className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">
-                                        {plural(awaitingReview.length, 'complaint')} ready to notify
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Approving sends {plural(pendingEmailCount, 'email')} to{' '}
-                                        {plural(distinctRecipientCount, 'recipient')} across the
-                                        owning companies below. This sends real emails and cannot be
-                                        undone.
-                                    </p>
-                                </div>
-                            </div>
-                            {confirmingApprove ? (
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-sm font-medium">
-                                        Send {plural(pendingEmailCount, 'email')} now?
-                                    </span>
-                                    <Button
-                                        size="sm"
-                                        onClick={() => approveMutation.mutate()}
-                                        disabled={approveMutation.isPending}
-                                        data-testid="button-cv-confirm-approve"
-                                    >
-                                        {approveMutation.isPending ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Sending…
-                                            </>
-                                        ) : (
-                                            'Confirm & Send'
-                                        )}
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setConfirmingApprove(false)}
-                                        disabled={approveMutation.isPending}
-                                    >
-                                        Cancel
-                                    </Button>
-                                </div>
-                            ) : (
-                                <Button
-                                    onClick={() => setConfirmingApprove(true)}
-                                    data-testid="button-cv-approve"
-                                >
-                                    <Mail className="w-4 h-4 mr-2" />
-                                    Approve &amp; Notify
-                                </Button>
-                            )}
-                        </div>
-                    )}
-
                     {/* Counters derived from the per-complaint rows so they stay self-consistent. */}
                     <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm shrink-0">
                         <Stat label="Complaints" value={violations.length} />
                         <Stat label="Matched" value={matched} />
                         <Stat label="Unmatched / issues" value={issues} />
-                        <Stat label="Awaiting review" value={awaitingReview.length} />
                         <Stat label="Emailed" value={emailedCount} />
                     </div>
 
@@ -239,7 +137,7 @@ export default function CodeViolationUploadDetail({
                                     <TableRow>
                                         <TableHead>Complaint</TableHead>
                                         <TableHead>Owner</TableHead>
-                                        <TableHead>Would email</TableHead>
+                                        <TableHead>Recipients</TableHead>
                                         <TableHead>Status</TableHead>
                                         <TableHead>Emailed</TableHead>
                                     </TableRow>

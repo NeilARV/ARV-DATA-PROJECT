@@ -1,15 +1,8 @@
 import { db } from 'server/storage';
 import { and, eq } from 'drizzle-orm';
-import {
-    cvMatches,
-    cvNotificationsSent,
-    cvViolations,
-} from '@database/schemas/code-violations.schema';
+import { cvNotificationsSent } from '@database/schemas/code-violations.schema';
 import { companies } from '@database/schemas/companies.schema';
-import {
-    CV_NOTIFICATION_CHANNEL,
-    CV_PROCESSING_STATUS,
-} from '@database/validation/code-violations.validation';
+import { CV_NOTIFICATION_CHANNEL } from '@database/validation/code-violations.validation';
 import type { CvViolation } from '@database/types/code-violations';
 import { getCompanyMembers } from 'server/services/claims/claims.services';
 import {
@@ -19,7 +12,6 @@ import {
 } from 'server/services/postmark/email.services';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { escapeHtml } from 'server/utils/escapeHtml';
-import { markComplete, markFailed, refreshUploadStatus } from './mark-status';
 
 const LABEL = '[CV-NOTIFY]';
 
@@ -28,9 +20,9 @@ interface NotifyViolationParams {
     /** The owning company id — the caller has already established the violation is notifiable. */
     ownerCompanyId: string;
     /**
-     * The owning company's member user ids, when the caller already has them (the consumer's inline
-     * path gets them from {@link resolveOwner}). Omitted by the approve path — where no resolve ran
-     * this pass — in which case they're queried here.
+     * The owning company's member user ids, when the caller already has them (the consumer gets them
+     * from {@link resolveOwner}). Omitted when the caller hasn't resolved members, in which case
+     * they're queried here.
      */
     memberUserIds?: string[];
 }
@@ -47,12 +39,6 @@ export interface NotifyResult {
     notified: boolean;
 }
 
-/** Result of an approve-triggered notify pass over one upload's held-back complaints. */
-export interface ApproveNotifyResult {
-    violationsNotified: number;
-    emailsSent: number;
-}
-
 /**
  * NOTIFY stage (§4.6, Chunk D): email every platform user linked to the violation's owning company
  * that one of their properties has a new code complaint, and record each delivery in
@@ -65,8 +51,8 @@ export interface ApproveNotifyResult {
  * re-approve, or concurrent pass that finds the row already present skips the send. If the send then
  * fails, the claim is released so a later pass retries; one bounce is logged and never aborts the rest.
  *
- * Does not set the violation's `processing_status` — the caller owns that transition (the consumer
- * inline, or {@link notifyAwaitingReviewForUpload}) so all status writes stay in one place.
+ * Does not set the violation's `processing_status` — the consumer owns that transition so all status
+ * writes stay in one place.
  *
  * @param params the matched violation and its notifiable owning company id
  * @returns the emails sent this pass and whether the complaint has any recorded delivery
@@ -89,8 +75,7 @@ export async function notifyViolation(params: NotifyViolationParams): Promise<No
     const priorlyNotified = alreadySentIds.size > 0;
 
     // Reuse the ids the consumer already resolved; only re-query on the approve path.
-    const userIds =
-        memberUserIds ?? (await getCompanyMembers(ownerCompanyId)).map((m) => m.userId);
+    const userIds = memberUserIds ?? (await getCompanyMembers(ownerCompanyId)).map((m) => m.userId);
     if (userIds.length === 0) return { emailsSent: 0, notified: priorlyNotified };
 
     const recipients = await getEmailRecipientsByUserIds(userIds);
@@ -136,66 +121,6 @@ export async function notifyViolation(params: NotifyViolationParams): Promise<No
     }
 
     return { emailsSent, notified: priorlyNotified || emailsSent > 0 };
-}
-
-/**
- * Approve-triggered notify pass (§4.6): drain one upload's `awaiting_review` complaints — email each
- * one's recipients via {@link notifyViolation}, flip it to `complete` (`notified` = whether an email
- * fired), and refresh the upload's roll-up so it advances `review → completed`.
- *
- * Per-row isolation mirrors the consumer: a complaint that throws is marked `failed` and the pass
- * continues. Re-running is safe — already-`complete` rows are no longer `awaiting_review`, so they're
- * not re-fetched, and {@link notifyViolation} skips anyone already emailed.
- *
- * @param uploadId the upload whose held complaints to notify
- * @returns how many complaints were emailed and the total emails sent
- * Side effect: sends code-violation alert emails and writes `cv_notifications_sent` rows.
- */
-export async function notifyAwaitingReviewForUpload(
-    uploadId: string,
-): Promise<ApproveNotifyResult> {
-    const rows = await db
-        .select({ violation: cvViolations, ownerCompanyId: cvMatches.ownerCompanyId })
-        .from(cvViolations)
-        .innerJoin(cvMatches, eq(cvMatches.violationId, cvViolations.id))
-        .where(
-            and(
-                eq(cvViolations.firstSeenUploadId, uploadId),
-                eq(cvViolations.processingStatus, CV_PROCESSING_STATUS.AWAITING_REVIEW),
-            ),
-        );
-
-    let violationsNotified = 0;
-    let emailsSent = 0;
-
-    for (const { violation, ownerCompanyId } of rows) {
-        const normalizedAddress = violation.normalizedAddress ?? '';
-        try {
-            // awaiting_review implies a notifiable company (the consumer only parks notifiable rows
-            // there); a null owner here would be a data anomaly — complete it without emailing.
-            if (!ownerCompanyId) {
-                await markComplete(violation.id, { normalizedAddress, notified: false });
-                continue;
-            }
-
-            const { emailsSent: sent, notified } = await notifyViolation({
-                violation,
-                ownerCompanyId,
-            });
-            await markComplete(violation.id, { normalizedAddress, notified });
-            if (sent > 0) {
-                violationsNotified++;
-                emailsSent += sent;
-            }
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            console.error(`${LABEL} Approve notify failed for ${violation.recordNumber}: ${message}`);
-            await markFailed(violation.id, message);
-        }
-    }
-
-    await refreshUploadStatus(uploadId);
-    return { violationsNotified, emailsSent };
 }
 
 /** Fetch + title-case the owning company name for the email (ARV.RAW-COMPANY-NAME). */

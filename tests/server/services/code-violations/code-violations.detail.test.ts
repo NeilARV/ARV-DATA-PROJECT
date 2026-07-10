@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 
-// getCodeViolationUploadViolations builds the admin dry-run breakdown: it joins each complaint to its
-// match/owner and resolves the recipients an approve WOULD email. The recipient resolution is the
-// logic worth pinning — members narrowed by the kill-switch (getEmailRecipientsByUserIds), deduped
-// per company, and never `company_contacts`. Mock the boundaries it owns (db + the postmark recipient
-// lookup) so these assertions exercise that mapping without a DB. See §4.6 / Chunk E.
+// getCodeViolationUploadViolations builds the admin per-complaint breakdown: it joins each complaint
+// to its match/owner and resolves the owning company's eligible alert recipients. The recipient
+// resolution is the logic worth pinning — members narrowed by the kill-switch
+// (getEmailRecipientsByUserIds), deduped per company, and never `company_contacts`. Mock the
+// boundaries it owns (db + the postmark recipient lookup) so these assertions exercise that mapping
+// without a DB.
 
 const email = vi.hoisted(() => ({
     getDefaultFromEmail: vi.fn(() => 'from@arvfinance.com'),
@@ -55,8 +56,8 @@ function joinedRow(overrides: Record<string, unknown> = {}) {
             description: 'Overgrown lot',
             violationDate: '2026-06-26',
             rawAddress: '991 Worthington St',
-            processingStatus: 'awaiting_review',
-            notified: false,
+            processingStatus: 'complete',
+            notified: true,
             errorMessage: null,
             createdAt: new Date('2026-06-30T12:00:00.000Z'),
         },

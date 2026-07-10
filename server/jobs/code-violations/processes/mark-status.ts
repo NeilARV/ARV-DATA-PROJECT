@@ -68,19 +68,6 @@ export async function markAmbiguous(id: string, normalizedAddress: string): Prom
 }
 
 /**
- * Matched + recipients identified, email held for the admin's Approve (§4.6 dry-run gate).
- * Not terminal — flips to `complete` once approved (Chunk D).
- */
-export async function markAwaitingReview(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus({
-        id,
-        status: CV_PROCESSING_STATUS.AWAITING_REVIEW,
-        normalizedAddress,
-        terminal: false,
-    });
-}
-
-/**
  * Finish a complaint through-and-through. `notified` is the hard "an email actually fired" flag;
  * it stays `false` when there was nobody to email (individual owner / company with no users) or the
  * row was a ##TMP→CE duplicate already alerted elsewhere.
@@ -115,13 +102,13 @@ export async function markFailed(id: string, message: string): Promise<void> {
  * admin panel reflects the consumer's progress. Idempotent — derived purely from the rows, never
  * incremented in place. A `failed` upload (ingest error) is left untouched.
  *
- * Status: any `pending`/`processing` rows → `processing`; else any `awaiting_review` → `review`;
- * else `completed` (stamps `finished_at`). In the consumer's routing, `complete` and
- * `awaiting_review` both imply a matched complaint, so they count as matched; every other settled
- * status (`no_match`, `ambiguous`, `failed`) didn't resolve to one property, so it counts as
- * unmatched — together they account for all settled rows so none silently vanish from the counters.
+ * Status: any `pending`/`processing` rows → `processing`; else `completed` (stamps `finished_at`).
+ * A `complete` complaint counts as matched; every other settled status (`no_match`, `ambiguous`,
+ * `failed`) didn't resolve to one property, so it counts as unmatched — together they account for all
+ * settled rows so none silently vanish from the counters. (`awaiting_review` is a retired status kept
+ * only so pre-change rows still roll up as matched; the pipeline no longer produces it or `review`.)
  * `notifications_sent` is derived from the `cv_notifications_sent` ledger (the emails actually sent
- * for this upload's complaints), so it stays correct across re-approve / retry.
+ * for this upload's complaints), so it stays correct across retries.
  *
  * @param uploadId the `cv_uploads` row to refresh (a complaint's `first_seen_upload_id`)
  */
@@ -136,9 +123,12 @@ export async function refreshUploadStatus(uploadId: string): Promise<void> {
     for (const row of rows) counts[row.status] = Number(row.n);
 
     const inFlight =
-        (counts[CV_PROCESSING_STATUS.PENDING] ?? 0) + (counts[CV_PROCESSING_STATUS.PROCESSING] ?? 0);
-    const awaitingReview = counts[CV_PROCESSING_STATUS.AWAITING_REVIEW] ?? 0;
-    const matched = (counts[CV_PROCESSING_STATUS.COMPLETE] ?? 0) + awaitingReview;
+        (counts[CV_PROCESSING_STATUS.PENDING] ?? 0) +
+        (counts[CV_PROCESSING_STATUS.PROCESSING] ?? 0);
+    // `awaiting_review` is retired (kept only so any pre-change rows still count as matched).
+    const matched =
+        (counts[CV_PROCESSING_STATUS.COMPLETE] ?? 0) +
+        (counts[CV_PROCESSING_STATUS.AWAITING_REVIEW] ?? 0);
     const unmatched =
         (counts[CV_PROCESSING_STATUS.NO_MATCH] ?? 0) +
         (counts[CV_PROCESSING_STATUS.AMBIGUOUS] ?? 0) +
@@ -152,10 +142,8 @@ export async function refreshUploadStatus(uploadId: string): Promise<void> {
         .where(eq(cvViolations.firstSeenUploadId, uploadId));
     const notificationsSent = Number(notifications?.n ?? 0);
 
-    let status: CvUploadStatus;
-    if (inFlight > 0) status = CV_UPLOAD_STATUS.PROCESSING;
-    else if (awaitingReview > 0) status = CV_UPLOAD_STATUS.REVIEW;
-    else status = CV_UPLOAD_STATUS.COMPLETED;
+    const status: CvUploadStatus =
+        inFlight > 0 ? CV_UPLOAD_STATUS.PROCESSING : CV_UPLOAD_STATUS.COMPLETED;
 
     await db
         .update(cvUploads)
