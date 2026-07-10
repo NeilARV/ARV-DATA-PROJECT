@@ -17,6 +17,10 @@ router.post(
     GroupsController.addMemberToCompanyController,
 );
 
+// Read
+router.get('/', requireAdmin, GroupsController.listGroupsController);
+router.get('/:id', requireAdmin, GroupsController.getGroupController);
+
 // CRUD
 router.post('/', requireAdmin, GroupsController.createGroupController);
 router.patch('/:id', requireAdmin, GroupsController.updateGroupController);

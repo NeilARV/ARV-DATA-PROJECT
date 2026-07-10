@@ -22,6 +22,32 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
     }
 }
 
+// ── GET /api/groups ──────────────────────────────────────────────────────────
+export async function listGroupsController(_req: Request, res: Response): Promise<void> {
+    try {
+        const groups = await GroupsService.listGroups();
+        res.json({ data: groups });
+    } catch (err) {
+        handleServiceError(res, err, 'Error listing groups');
+    }
+}
+
+// ── GET /api/groups/:id ────────────────────────────────────────────────────────
+export async function getGroupController(req: Request, res: Response): Promise<void> {
+    try {
+        const idValidation = uuidParam.safeParse(req.params.id);
+        if (!idValidation.success) {
+            res.status(400).json({ message: 'Invalid group ID' });
+            return;
+        }
+
+        const detail = await GroupsService.getGroupDetail(idValidation.data);
+        res.json(detail);
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching group');
+    }
+}
+
 // ── POST /api/groups ─────────────────────────────────────────────────────────
 export async function createGroupController(req: Request, res: Response): Promise<void> {
     try {

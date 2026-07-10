@@ -22,6 +22,7 @@ import {
     Mail,
     Building2,
     FileWarning,
+    Boxes,
 } from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -33,6 +34,7 @@ import EmailListTab from '@/components/admin/EmailListTab';
 import RolesTab from '@/components/admin/RolesTab';
 import CompanyClaimsTab from '@/components/admin/CompanyClaimsTab';
 import CodeViolationsTab from '@/components/admin/CodeViolationsTab';
+import GroupsTab from '@/components/admin/GroupsTab';
 
 // Maps the number of visible admin tabs to its TabsList grid class. Full literal `grid-cols-*`
 // strings (not interpolated) so Tailwind's content scanner emits each one.
@@ -41,6 +43,7 @@ const TABS_GRID_COLS: Record<number, string> = {
     3: 'grid-cols-3',
     4: 'grid-cols-4',
     5: 'grid-cols-5',
+    6: 'grid-cols-6',
 };
 
 export default function Admin() {
@@ -68,9 +71,9 @@ export default function Admin() {
     /** Admin, owner, and RM can review company claims. */
     const canManageClaims = canManageRoles || isRelationshipManager;
 
-    // TabsList grid sizing: 2 always-on tabs + claims (RM-visible) + Roles & Code Violations
-    // (admin/owner only, so they appear together — hence +2).
-    const visibleTabCount = 2 + (canManageClaims ? 1 : 0) + (canManageRoles ? 2 : 0);
+    // TabsList grid sizing: 2 always-on tabs + claims (RM-visible) + Groups, Roles & Code Violations
+    // (all admin/owner only, so they appear together — hence +3).
+    const visibleTabCount = 2 + (canManageClaims ? 1 : 0) + (canManageRoles ? 3 : 0);
     const tabsGridClass = TABS_GRID_COLS[visibleTabCount];
 
     // Build query URL with county filter
@@ -192,6 +195,12 @@ export default function Admin() {
                         </TabsTrigger>
                     )}
                     {canManageRoles && (
+                        <TabsTrigger value="groups" data-testid="tab-groups">
+                            <Boxes className="w-4 h-4 mr-2" />
+                            Groups
+                        </TabsTrigger>
+                    )}
+                    {canManageRoles && (
                         <TabsTrigger value="roles" data-testid="tab-roles">
                             <ShieldCheck className="w-4 h-4 mr-2" />
                             Roles
@@ -225,6 +234,12 @@ export default function Admin() {
                 {canManageClaims && (
                     <TabsContent value="claims">
                         <CompanyClaimsTab />
+                    </TabsContent>
+                )}
+
+                {canManageRoles && (
+                    <TabsContent value="groups">
+                        <GroupsTab />
                     </TabsContent>
                 )}
 
