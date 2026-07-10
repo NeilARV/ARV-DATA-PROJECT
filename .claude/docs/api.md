@@ -1069,6 +1069,136 @@ Replace a user's company memberships with exactly the given set (adds missing, r
 
 ---
 
+## 5b. Company Groups `/api/groups`
+
+Admin/owner-only management of operator groups (`requireRole(["admin","owner"])` on every route — see
+access-control.md §5.3b). A company belongs to at most one group; grouping is non-destructive
+(disbanding a group reverts its companies to ungrouped and ends its memberships).
+
+### `POST /api/groups`
+Create an operator group.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body**
+```json
+{ "name": "Vertigo Rev", "description": "Multi-LLC operator" }
+```
+`name` is required (1–255 chars, must be unique); `description` is optional (max 1000).
+
+**Response `201`** `{ "message": "Group created", "group": { ...companyGroup } }`
+
+**Errors** `400` invalid body · `409` a group with this name already exists
+
+---
+
+### `PATCH /api/groups/:id`
+Rename a group and/or edit its description.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** — at least one of `name` (1–255) or `description` (string or `null` to clear).
+```json
+{ "name": "Vertigo Rev Holdings", "description": null }
+```
+
+**Response `200`** `{ "message": "Group updated", "group": { ...companyGroup } }`
+
+**Errors** `400` invalid id or body · `404` group not found · `409` name already taken
+
+---
+
+### `DELETE /api/groups/:id`
+Disband (delete) a group. Its companies revert to ungrouped (`group_id` SET NULL) and its memberships end (cascade).
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Response `200`** `{ "message": "Group disbanded", "id": "uuid" }`
+
+**Errors** `400` invalid id · `404` group not found
+
+---
+
+### `POST /api/groups/:id/companies`
+Add a company to a group. If the company already belongs to another group it is **moved** (one group per company); re-adding a company already in this group is an idempotent success.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** `{ "companyId": "uuid" }`
+
+**Response `200`** `{ "message": "Company added to group" }`
+
+**Errors** `400` invalid id or body · `404` group or company not found
+
+---
+
+### `DELETE /api/groups/:id/companies/:companyId`
+Remove a company from a group, reverting it to ungrouped.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Response `200`** `{ "message": "Company removed from group" }`
+
+**Errors** `400` invalid id · `404` company not found or not in that group
+
+---
+
+### `POST /api/groups/:id/members`
+Add a user to a group (associating them with every company in it).
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** — `role` optional (`owner` | `member`; omitted → null).
+```json
+{ "userId": "uuid", "role": "member" }
+```
+
+**Response `201`** `{ "message": "Member added to group", "member": { ...groupMember } }`
+
+**Errors** `400` invalid id or body · `404` group or user not found · `409` already a member
+
+---
+
+### `DELETE /api/groups/:id/members/:userId`
+Remove a user's group membership.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Response `200`** `{ "message": "Member removed from group" }`
+
+**Errors** `400` invalid id · `404` not a member
+
+---
+
+### `PATCH /api/groups/:id/members/:userId`
+Set a group member's role.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** `{ "role": "owner" }` (`owner` | `member`, required)
+
+**Response `200`** `{ "message": "Member role updated", "member": { ...groupMember } }`
+
+**Errors** `400` invalid id or body · `404` not a member
+
+---
+
+### `POST /api/groups/companies/:companyId/members`
+Add a member to a company (auto-singleton). If the company has no group, a singleton group named after the company's **raw** name is auto-created and the company linked to it; otherwise the member is added to the company's existing group.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** — `role` optional (`owner` | `member`).
+```json
+{ "userId": "uuid", "role": "member" }
+```
+
+**Response `201`** `{ "message": "Member added to company", "group": { ...companyGroup }, "member": { ...groupMember } }`
+
+**Errors** `400` invalid id or body · `404` company or user not found · `409` already a member of the resolved group
+
+---
+
 ## 6. Deals `/api/deals`
 
 ### `GET /api/deals`
