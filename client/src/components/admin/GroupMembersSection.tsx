@@ -151,7 +151,8 @@ export default function GroupMembersSection({ groupId, members }: GroupMembersSe
                                     <SelectTrigger className="h-8 w-28" aria-label="Member role">
                                         <SelectValue placeholder="Set role" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    {/* z-[10001]: portaled to body; must sit above the dialog (z-[10000]) or it's hidden behind it */}
+                                    <SelectContent className="z-[10001]">
                                         <SelectItem value="owner">Owner</SelectItem>
                                         <SelectItem value="member">Member</SelectItem>
                                     </SelectContent>

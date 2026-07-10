@@ -7,8 +7,6 @@ export type Group = {
     id: string;
     name: string;
     description: string | null;
-    // Approval gate for code-violation email alerts — only groups with this on produce them.
-    codeViolationNotificationsEnabled: boolean;
     createdAt: string;
     updatedAt: string | null;
 };

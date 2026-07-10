@@ -131,6 +131,7 @@ export default function GroupDetailDialog({ groupId, onClose }: GroupDetailDialo
                         <GroupMembersSection groupId={detail.group.id} members={detail.members} />
                         <Separator />
 
+                        {/* Temporarily disabled: "Merge into another group". Restore this block to re-enable group merging.
                         <section className="space-y-2">
                             <h3 className="text-sm font-semibold">Merge into another group</h3>
                             <p className="text-sm text-muted-foreground">
@@ -142,7 +143,8 @@ export default function GroupDetailDialog({ groupId, onClose }: GroupDetailDialo
                                     <SelectTrigger className="flex-1" aria-label="Merge target group">
                                         <SelectValue placeholder="Select target group..." />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    z-[10001]: portaled to body; must sit above the dialog (z-[10000]) or it's hidden behind it
+                                    <SelectContent className="z-[10001]">
                                         {mergeTargets.length === 0 ? (
                                             <div className="px-2 py-2 text-sm text-muted-foreground">
                                                 No other groups
@@ -167,6 +169,7 @@ export default function GroupDetailDialog({ groupId, onClose }: GroupDetailDialo
                         </section>
 
                         <Separator />
+                        */}
 
                         <div className="flex items-center justify-between gap-4">
                             <div>
