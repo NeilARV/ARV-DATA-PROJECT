@@ -3,7 +3,6 @@ import { requireAuth } from 'server/middleware/requireAuth';
 import { requireRole } from 'server/middleware/requireRole';
 import { ADMIN_ROLES, PRIVILEGED_ROLES, ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 import { UsersController } from 'server/controllers/users';
-import { ClaimsController } from 'server/controllers/claims';
 
 const router = Router();
 
@@ -31,22 +30,18 @@ router.get(
     UsersController.listAccountTypesHandler,
 );
 
-// GET /me/company-memberships — companies the authenticated user belongs to
-router.get('/me/company-memberships', requireAuth, ClaimsController.getUserMembershipsHandler);
+// GET /me/company-memberships — companies the authenticated user reaches through their group(s)
+router.get('/me/company-memberships', requireAuth, UsersController.getMyGroupCompaniesHandler);
 
-// GET /:userId/company-memberships — admin view of any user's company associations
+// GET /:userId/groups — admin view of the groups a user belongs to
 router.get(
-    '/:userId/company-memberships',
+    '/:userId/groups',
     requireRole(PRIVILEGED_ROLES),
-    ClaimsController.getAdminUserMembershipsHandler,
+    UsersController.getUserGroupsHandler,
 );
 
-// PUT /:userId/company-memberships — replace a user's company associations
-router.put(
-    '/:userId/company-memberships',
-    requireRole(ADMIN_ROLES),
-    ClaimsController.setUserCompanyMembershipsHandler,
-);
+// PUT /:userId/groups — replace a user's group memberships
+router.put('/:userId/groups', requireRole(ADMIN_ROLES), UsersController.setUserGroupsHandler);
 
 // POST /:userId/roles — assign an ARV team role to a user
 router.post('/:userId/roles', requireRole(ADMIN_ROLES), UsersController.assignRoleHandler);

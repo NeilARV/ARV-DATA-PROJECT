@@ -1020,7 +1020,9 @@ On approve: inserts a row into `company_members` linking the user to the company
 ---
 
 ### `GET /api/users/me/company-memberships`
-Get all approved company memberships for the currently authenticated user.
+Get every company the authenticated user is associated with **through their group(s)** — one row per
+company across all the groups they belong to (companies resolve via `group_members`, not
+`company_members`). Backs the Profile "My Companies" tab.
 
 **Auth**: `requireAuth`
 
@@ -1030,9 +1032,9 @@ Get all approved company memberships for the currently authenticated user.
   "data": [
     {
       "companyId": "uuid",
-      "companyName": "Acme Capital LLC",
-      "role": "owner",
-      "isPrimary": true,
+      "companyName": "ACME CAPITAL LLC",
+      "groupId": "uuid",
+      "groupName": "Acme",
       "joinedAt": "2026-06-03T00:00:00Z"
     }
   ],
@@ -1040,32 +1042,48 @@ Get all approved company memberships for the currently authenticated user.
 }
 ```
 
-`role` is `"owner"`, `"member"`, or `null`. Rows are wire-shaped `UserMembership` (`shared/types/claims.ts`).
+Rows are wire-shaped `UserGroupCompany` (`shared/types/groups.ts`). `joinedAt` is the user's
+`group_members.created_at` for the group the company belongs to.
 
 ---
 
-### `GET /api/users/:userId/company-memberships`
-Get any user's company memberships (admin view). Same response shape as `GET /api/users/me/company-memberships`.
+### `GET /api/users/:userId/groups`
+Get the groups a user is a member of (admin group-membership editor — backs EditUser). One row per
+group the user belongs to.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
+
+**Response `200`**
+```json
+{
+  "data": [
+    { "groupId": "uuid", "groupName": "Acme", "role": "owner", "isPrimary": true, "joinedAt": "2026-06-03T00:00:00Z" }
+  ],
+  "count": 1
+}
+```
+
+Rows are wire-shaped `UserGroupMembership` (`shared/types/groups.ts`); `role` is `"owner"`,
+`"member"`, or `null`.
 
 **Errors** `400` invalid user ID
 
 ---
 
-### `PUT /api/users/:userId/company-memberships`
-Replace a user's company memberships with exactly the given set (adds missing, removes absent).
+### `PUT /api/users/:userId/groups`
+Replace a user's group memberships with exactly the given set (adds missing, removes absent).
+Writes `group_members`.
 
 **Auth**: `requireRole(["admin", "owner"])`
 
 **Body**
 ```json
-{ "companyIds": ["uuid", "uuid"] }
+{ "groupIds": ["uuid", "uuid"] }
 ```
 
-**Response `200`** `{ "message": "Company memberships updated" }`
+**Response `200`** `{ "message": "Group memberships updated" }`
 
-**Errors** `400` invalid user ID, invalid body, or unknown company ids
+**Errors** `400` invalid user ID, invalid body, or unknown group ids
 
 ---
 

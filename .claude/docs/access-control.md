@@ -353,8 +353,8 @@ All public — no auth required.
 | GET | `/api/users/roles` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | GET | `/api/users/account-types` | `requireRole(["admin","owner","relationship-manager","member"])` | 401 | ✓ | ✓ | ✓ |
 | GET | `/api/users/me/company-memberships` | `requireAuth` | 401 | ✓ | ✓ | ✓ |
-| GET | `/api/users/:userId/company-memberships` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
-| PUT | `/api/users/:userId/company-memberships` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| GET | `/api/users/:userId/groups` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
+| PUT | `/api/users/:userId/groups` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/users/:userId/roles` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/users/:userId/roles/:role` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | PATCH | `/api/users/:userId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |

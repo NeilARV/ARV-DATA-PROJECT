@@ -14,13 +14,14 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, X } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import type { AdminUser, AccountTypeOption } from '@/types/admin';
 import type { RelationshipManager } from '@shared/types/users';
-import type { UserMembership } from '@shared/types/claims';
+import type { UserGroupMembership, GroupSummary } from '@shared/types/groups';
 
-interface CompanyOption {
+interface GroupOption {
     id: string;
-    companyName: string;
+    name: string;
 }
 
 const SUBSCRIPTION_TIERS = ['basic', 'pro', 'premium'] as const;
@@ -52,27 +53,24 @@ export default function EditUserContent({
         user.accountTypes ?? [],
     );
 
-    const [selectedCompanies, setSelectedCompanies] = useState<CompanyOption[]>([]);
-    const [companySearch, setCompanySearch] = useState('');
+    const [selectedGroups, setSelectedGroups] = useState<GroupOption[]>([]);
+    const [groupSearch, setGroupSearch] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const initializedRef = useRef(false);
 
-    const { data: membershipsResponse } = useQuery<{ data: UserMembership[] }>({
-        queryKey: [`/api/users/${user.id}/company-memberships`],
+    const { data: groupsResponse } = useQuery<{ data: UserGroupMembership[] }>({
+        queryKey: [`/api/users/${user.id}/groups`],
     });
 
     useEffect(() => {
-        if (membershipsResponse?.data && !initializedRef.current) {
-            setSelectedCompanies(
-                membershipsResponse.data.map((m) => ({
-                    id: m.companyId,
-                    companyName: m.companyName,
-                })),
+        if (groupsResponse?.data && !initializedRef.current) {
+            setSelectedGroups(
+                groupsResponse.data.map((g) => ({ id: g.groupId, name: g.groupName })),
             );
             initializedRef.current = true;
         }
-    }, [membershipsResponse]);
+    }, [groupsResponse]);
 
     useEffect(() => {
         return () => {
@@ -80,22 +78,22 @@ export default function EditUserContent({
         };
     }, []);
 
-    const trimmedSearch = companySearch.trim();
-    const { data: suggestions } = useQuery<CompanyOption[]>({
-        queryKey: [
-            `/api/companies/contacts/suggestions?search=${encodeURIComponent(trimmedSearch)}`,
-        ],
-        enabled: trimmedSearch.length >= 2,
+    // Groups are admin-managed and few — fetch the full list once and filter client-side.
+    const { data: allGroupsResponse } = useQuery<{ data: GroupSummary[] }>({
+        queryKey: ['/api/groups'],
         staleTime: 30_000,
     });
 
-    const filteredSuggestions = (suggestions ?? []).filter(
-        (s) => !selectedCompanies.some((c) => c.id === s.id),
+    const trimmedSearch = groupSearch.trim().toLowerCase();
+    const filteredSuggestions = (allGroupsResponse?.data ?? []).filter(
+        (g) =>
+            !selectedGroups.some((sel) => sel.id === g.id) &&
+            (trimmedSearch.length === 0 || g.name.toLowerCase().includes(trimmedSearch)),
     );
 
-    const addCompany = (company: CompanyOption) => {
-        setSelectedCompanies((prev) => [...prev, company]);
-        setCompanySearch('');
+    const addGroup = (group: GroupOption) => {
+        setSelectedGroups((prev) => [...prev, group]);
+        setGroupSearch('');
         setShowSuggestions(false);
     };
 
@@ -111,8 +109,8 @@ export default function EditUserContent({
                 accountTypes: selectedAccountTypes,
                 relationshipManagerId: selectedRmId,
             });
-            await apiRequest('PUT', `/api/users/${user.id}/company-memberships`, {
-                companyIds: selectedCompanies.map((c) => c.id),
+            await apiRequest('PUT', `/api/users/${user.id}/groups`, {
+                groupIds: selectedGroups.map((g) => g.id),
             });
             queryClient.invalidateQueries({
                 // The user-list query key varies with the admin filters, so match any variant.
@@ -121,7 +119,7 @@ export default function EditUserContent({
                     query.queryKey[0].startsWith('/api/users/?'),
             });
             queryClient.invalidateQueries({
-                queryKey: [`/api/users/${user.id}/company-memberships`],
+                queryKey: [`/api/users/${user.id}/groups`],
             });
             toast({ title: 'User updated', description: 'Changes have been saved.' });
             onSuccess?.();
@@ -242,22 +240,22 @@ export default function EditUserContent({
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none">Companies</label>
-                    {selectedCompanies.length > 0 && (
+                    <label className="text-sm font-medium leading-none">Groups</label>
+                    {selectedGroups.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pb-1">
-                            {selectedCompanies.map((c) => (
+                            {selectedGroups.map((g) => (
                                 <Badge
-                                    key={c.id}
+                                    key={g.id}
                                     variant="secondary"
                                     className="font-normal"
                                     onRemove={() =>
-                                        setSelectedCompanies((prev) =>
-                                            prev.filter((co) => co.id !== c.id),
+                                        setSelectedGroups((prev) =>
+                                            prev.filter((gr) => gr.id !== g.id),
                                         )
                                     }
-                                    removeLabel={`Remove ${c.companyName}`}
+                                    removeLabel={`Remove ${formatCompanyName(g.name)}`}
                                 >
-                                    {c.companyName}
+                                    {formatCompanyName(g.name)}
                                 </Badge>
                             ))}
                         </div>
@@ -265,10 +263,10 @@ export default function EditUserContent({
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
-                            placeholder="Search companies..."
-                            value={companySearch}
+                            placeholder="Search groups..."
+                            value={groupSearch}
                             onChange={(e) => {
-                                setCompanySearch(e.target.value);
+                                setGroupSearch(e.target.value);
                                 setShowSuggestions(true);
                             }}
                             onFocus={() => setShowSuggestions(true)}
@@ -280,12 +278,12 @@ export default function EditUserContent({
                             }}
                             className="pl-9 pr-9"
                         />
-                        {companySearch && (
+                        {groupSearch && (
                             <button
                                 type="button"
                                 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                                 onClick={() => {
-                                    setCompanySearch('');
+                                    setGroupSearch('');
                                     setShowSuggestions(false);
                                 }}
                                 aria-label="Clear search"
@@ -301,9 +299,9 @@ export default function EditUserContent({
                                         type="button"
                                         className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
                                         onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() => addCompany(s)}
+                                        onClick={() => addGroup({ id: s.id, name: s.name })}
                                     >
-                                        {s.companyName}
+                                        {formatCompanyName(s.name)}
                                     </button>
                                 ))}
                             </div>

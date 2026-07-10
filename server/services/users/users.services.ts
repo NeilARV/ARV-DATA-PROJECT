@@ -7,7 +7,7 @@ import {
     accountTypes,
     userAccountTypes,
 } from '@database/schemas/users.schema';
-import { companyMembers } from '@database/schemas/companies.schema';
+import { groupMembers } from '@database/schemas/companies.schema';
 import { db } from 'server/storage';
 import {
     desc,
@@ -39,7 +39,7 @@ export interface UserListFilters {
     accountTypes?: string[];
     /** true → only verified emails, false → only unverified. */
     emailVerified?: boolean;
-    /** true → only users in ≥1 company, false → only users in no company. */
+    /** true → only users in ≥1 group, false → only users in no group (companies resolve via groups). */
     hasCompany?: boolean;
 }
 
@@ -109,11 +109,12 @@ export async function getUserList(options: UserListFilters) {
     }
 
     if (hasCompany !== undefined) {
-        // Correlated (not)EXISTS avoids the empty-set edge cases of NOT IN.
+        // "Has a company" now means "belongs to a group" — a member reaches companies through their
+        // group(s) (#91). Correlated (not)EXISTS avoids the empty-set edge cases of NOT IN.
         const memberSubquery = db
             .select({ one: sql`1` })
-            .from(companyMembers)
-            .where(eq(companyMembers.userId, users.id));
+            .from(groupMembers)
+            .where(eq(groupMembers.userId, users.id));
         conditions.push(hasCompany ? exists(memberSubquery) : notExists(memberSubquery));
     }
 

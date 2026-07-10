@@ -4,19 +4,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-import type { UserMembership } from '@shared/types/claims';
+import type { UserGroupCompany } from '@shared/types/groups';
 
 export default function MyCompaniesTab() {
-    const { data, isLoading } = useQuery<{ data: UserMembership[]; count: number }>({
+    const { data, isLoading } = useQuery<{ data: UserGroupCompany[]; count: number }>({
         queryKey: ['/api/users/me/company-memberships'],
         queryFn: async () => {
             const res = await apiRequest('GET', '/api/users/me/company-memberships');
-            if (!res.ok) throw new Error('Failed to fetch memberships');
+            if (!res.ok) throw new Error('Failed to fetch companies');
             return res.json();
         },
     });
 
-    const memberships = data?.data ?? [];
+    const companies = data?.data ?? [];
 
     return (
         <Card>
@@ -25,7 +25,9 @@ export default function MyCompaniesTab() {
                     <Building2 className="w-5 h-5" />
                     My Companies
                 </CardTitle>
-                <CardDescription>Companies you have claimed on the platform.</CardDescription>
+                <CardDescription>
+                    Companies you're associated with through your group(s).
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
@@ -33,27 +35,26 @@ export default function MyCompaniesTab() {
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading...
                     </div>
-                ) : memberships.length === 0 ? (
+                ) : companies.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-2">
-                        You haven't claimed any companies yet. Find a company in the directory and
-                        click "Claim This Company."
+                        You're not associated with any companies yet. An admin adds you to a
+                        company's group to grant access.
                     </p>
                 ) : (
                     <div className="space-y-3">
-                        {memberships.map((m) => (
+                        {companies.map((c) => (
                             <div
-                                key={m.companyId}
+                                key={c.companyId}
                                 className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/30"
                             >
                                 <div>
                                     <div className="font-medium text-sm text-foreground">
-                                        {formatCompanyName(m.companyName)}
+                                        {formatCompanyName(c.companyName)}
                                     </div>
-                                    <div className="text-xs text-muted-foreground mt-0.5 capitalize">
-                                        {m.role ?? 'member'}
-                                        {m.isPrimary ? ' · Primary' : ''}
+                                    <div className="text-xs text-muted-foreground mt-0.5">
+                                        {formatCompanyName(c.groupName)}
                                         {' · Joined '}
-                                        {format(new Date(m.joinedAt), 'MMM d, yyyy')}
+                                        {format(new Date(c.joinedAt), 'MMM d, yyyy')}
                                     </div>
                                 </div>
                             </div>
