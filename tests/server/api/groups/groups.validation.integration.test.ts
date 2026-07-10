@@ -66,6 +66,29 @@ describe('DELETE /api/groups/:id — validation (integration)', () => {
     });
 });
 
+describe('POST /api/groups/:id/merge — validation (integration)', () => {
+    it('returns 400 when the source group id is not a uuid', async () => {
+        await admin();
+        const res = await post('/api/groups/not-a-uuid/merge').send({
+            targetGroupId: DUMMY_GROUP_ID,
+        });
+        expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when targetGroupId is missing', async () => {
+        await admin();
+        expect((await post(`/api/groups/${DUMMY_GROUP_ID}/merge`).send({})).status).toBe(400);
+    });
+
+    it('returns 400 when targetGroupId is not a uuid', async () => {
+        await admin();
+        const res = await post(`/api/groups/${DUMMY_GROUP_ID}/merge`).send({
+            targetGroupId: 'nope',
+        });
+        expect(res.status).toBe(400);
+    });
+});
+
 describe('POST /api/groups/:id/companies — validation (integration)', () => {
     it('returns 400 when the group id is not a uuid', async () => {
         await admin();

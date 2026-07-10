@@ -44,6 +44,18 @@ async function membersOf(groupId: string): Promise<GroupMember[]> {
     return db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
 }
 
+// Direct group_members insert — the members API can't set is_primary, which the merge collision
+// tests need to assert stays untouched on the target (B) row.
+async function seedMembership(
+    groupId: string,
+    userId: string,
+    opts: { role?: 'owner' | 'member' | null; isPrimary?: boolean } = {},
+): Promise<void> {
+    await db
+        .insert(groupMembers)
+        .values({ groupId, userId, role: opts.role ?? null, isPrimary: opts.isPrimary ?? false });
+}
+
 async function cleanupSuiteData() {
     // Delete groups first: cascades group_members and SET NULLs companies.group_id; then companies.
     await db.delete(companyGroups).where(like(companyGroups.name, `${PREFIX}%`));
@@ -355,6 +367,113 @@ describe('Groups API — disband semantics (integration)', () => {
         expect((await getCompany(companyB))?.groupId).toBeNull();
         // Memberships are gone (cascade).
         expect(await membersOf(group.id)).toHaveLength(0);
+    });
+});
+
+// ── Merge A→B ────────────────────────────────────────────────────────────────
+
+describe('Groups API — merge (integration)', () => {
+    it('POST /api/groups/:id/merge — unions A’s companies into B without deleting any company', async () => {
+        const a = await createGroup('MergeCoA');
+        const b = await createGroup('MergeCoB');
+        const c1 = await seedCompany(freshCompanyName('MergeCo1'));
+        const c2 = await seedCompany(freshCompanyName('MergeCo2'));
+        const c3 = await seedCompany(freshCompanyName('MergeCo3'));
+        await post(`/api/groups/${a.id}/companies`).send({ companyId: c1 });
+        await post(`/api/groups/${a.id}/companies`).send({ companyId: c2 });
+        await post(`/api/groups/${b.id}/companies`).send({ companyId: c3 });
+
+        const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: b.id });
+        expect(res.status).toBe(200);
+        expect(res.body.group.id).toBe(b.id);
+        expect(res.body.companiesMoved).toBe(2);
+
+        // All three companies now point at B — and none was deleted (non-destructive).
+        for (const id of [c1, c2, c3]) {
+            const company = await getCompany(id);
+            expect(company).toBeDefined();
+            expect(company?.groupId).toBe(b.id);
+        }
+    });
+
+    it('POST /api/groups/:id/merge — unions A’s roster into B', async () => {
+        const a = await createGroup('MergeRosterA');
+        const b = await createGroup('MergeRosterB');
+        await seedMembership(a.id, MEMBER_A_ID, { role: 'member' });
+        await seedMembership(a.id, MEMBER_B_ID, { role: 'owner' });
+
+        const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: b.id });
+        expect(res.status).toBe(200);
+        expect(res.body.membersMoved).toBe(2);
+
+        const rows = await membersOf(b.id);
+        expect(rows.map((r) => r.userId).sort()).toEqual([MEMBER_A_ID, MEMBER_B_ID].sort());
+        expect(rows.find((r) => r.userId === MEMBER_B_ID)?.role).toBe('owner'); // role carried over
+    });
+
+    it('POST /api/groups/:id/merge — (user_id, group_id) collision keeps the target (B) row unchanged', async () => {
+        const a = await createGroup('MergeCollideA');
+        const b = await createGroup('MergeCollideB');
+        // MEMBER_A is in both (collision); MEMBER_B is only in A (migrates).
+        await seedMembership(b.id, MEMBER_A_ID, { role: 'owner', isPrimary: true });
+        await seedMembership(a.id, MEMBER_A_ID, { role: 'member', isPrimary: false });
+        await seedMembership(a.id, MEMBER_B_ID, { role: 'member', isPrimary: true });
+
+        const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: b.id });
+        expect(res.status).toBe(200);
+        expect(res.body.membersMoved).toBe(1); // only MEMBER_B is newly added to B
+
+        const rows = await membersOf(b.id);
+        const collided = rows.find((r) => r.userId === MEMBER_A_ID);
+        expect(collided?.role).toBe('owner'); // B's row untouched — not overwritten by A's 'member'
+        expect(collided?.isPrimary).toBe(true);
+        const migrated = rows.find((r) => r.userId === MEMBER_B_ID);
+        expect(migrated?.role).toBe('member');
+        expect(migrated?.isPrimary).toBe(true);
+    });
+
+    it('POST /api/groups/:id/merge — deletes the source group A', async () => {
+        const a = await createGroup('MergeDelA');
+        const b = await createGroup('MergeDelB');
+        const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: b.id });
+        expect(res.status).toBe(200);
+        expect(await getGroupById(a.id)).toBeUndefined();
+        expect(await getGroupById(b.id)).toBeDefined(); // B survives
+    });
+
+    it('POST /api/groups/:id/merge — merging a group into itself — returns 400', async () => {
+        const a = await createGroup('MergeSelf');
+        const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: a.id });
+        expect(res.status).toBe(400);
+        expect(await getGroupById(a.id)).toBeDefined(); // untouched
+    });
+
+    it('POST /api/groups/:id/merge — unknown source group — returns 404', async () => {
+        const b = await createGroup('MergeNoSource');
+        const res = await post(`/api/groups/${MEMBER_A_ID}/merge`).send({ targetGroupId: b.id });
+        expect(res.status).toBe(404);
+    });
+
+    it('POST /api/groups/:id/merge — unknown target group — returns 404', async () => {
+        const a = await createGroup('MergeNoTarget');
+        const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: MEMBER_B_ID });
+        expect(res.status).toBe(404);
+        expect(await getGroupById(a.id)).toBeDefined(); // source untouched when target is missing
+    });
+
+    it('POST /api/groups/:id/merge — member — returns 403', async () => {
+        await assignRole(ACTING_USER_ID, 'member');
+        const res = await post(`/api/groups/${MEMBER_A_ID}/merge`, ACTING_USER_ID).send({
+            targetGroupId: MEMBER_B_ID,
+        });
+        expect(res.status).toBe(403);
+    });
+
+    it('POST /api/groups/:id/merge — unauthenticated — returns 401', async () => {
+        const res = await request(getApp())
+            .post(`/api/groups/${MEMBER_A_ID}/merge`)
+            .send({ targetGroupId: MEMBER_B_ID });
+        expect(res.status).toBe(401);
     });
 });
 

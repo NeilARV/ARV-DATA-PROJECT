@@ -8,6 +8,7 @@ import {
     addCompanySchema,
     addMemberSchema,
     setMemberRoleSchema,
+    mergeGroupSchema,
 } from '@database/validation/groups.validation';
 
 const uuidParam = z.string().uuid();
@@ -78,6 +79,31 @@ export async function disbandGroupController(req: Request, res: Response): Promi
         res.json({ message: 'Group disbanded', id: result.id });
     } catch (err) {
         handleServiceError(res, err, 'Error disbanding group');
+    }
+}
+
+// ── POST /api/groups/:id/merge ─────────────────────────────────────────────────
+export async function mergeGroupController(req: Request, res: Response): Promise<void> {
+    try {
+        const idValidation = uuidParam.safeParse(req.params.id);
+        if (!idValidation.success) {
+            res.status(400).json({ message: 'Invalid group ID' });
+            return;
+        }
+
+        const parsed = mergeGroupSchema.safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid request data', errors: parsed.error.errors });
+            return;
+        }
+
+        const result = await GroupsService.mergeGroups(
+            idValidation.data,
+            parsed.data.targetGroupId,
+        );
+        res.json({ message: 'Groups merged', ...result });
+    } catch (err) {
+        handleServiceError(res, err, 'Error merging groups');
     }
 }
 

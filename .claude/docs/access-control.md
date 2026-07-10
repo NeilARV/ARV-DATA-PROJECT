@@ -226,6 +226,7 @@ group `SET NULL`s its companies' `group_id` (they revert to ungrouped) and casca
 | POST | `/api/groups` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | PATCH | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| POST | `/api/groups/:id/merge` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/groups/:id/companies` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/groups/:id/companies/:companyId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/groups/:id/members` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
@@ -244,6 +245,11 @@ group `SET NULL`s its companies' `group_id` (they revert to ungrouped) and casca
   company by first auto-creating a singleton group named after the company's **raw** DB name
   (matching the backfill's singletons and the `UNIQUE(name)` constraint), then adding the member. If
   the company already has a group, the member is added to that group instead.
+- **Merge A→B**: `POST /api/groups/:id/merge` (`:id` = source A, body `{ targetGroupId }` = B)
+  unions A's companies and members into B, then deletes A. On a `(user_id, group_id)` collision the
+  existing B membership is kept (role/is_primary unchanged). Non-destructive at the company level —
+  no company row is deleted, only re-pointed to B. `400` if source === target; `404` if either group
+  is missing.
 - Adding a user who is already a member of the target group → `409`; duplicate group name → `409`.
   A missing group, company, user, or membership → `404`.
 
