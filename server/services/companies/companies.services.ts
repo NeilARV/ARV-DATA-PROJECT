@@ -4,6 +4,7 @@ import {
     companyContacts,
     companyDetails,
     companyAddresses,
+    companyMembers,
 } from '@database/schemas/companies.schema';
 import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
 import {
@@ -1177,4 +1178,23 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
 
     console.log(`Enriched company ${company.companyName} (ID: ${id}) from OpenCorporates`);
     return { status: 'ok' };
+}
+
+// ─── Company members ──────────────────────────────────────────────────────────
+
+interface MemberRow {
+    userId: string;
+}
+
+/** Lists the user ids of a company's members, oldest membership first. */
+export async function getCompanyMembers(companyId: string): Promise<MemberRow[]> {
+    // Reads company_members (not group_members): still the live source for code-violation
+    // notifications until the groups cutover completes.
+    const rows = await db
+        .select({ userId: companyMembers.userId })
+        .from(companyMembers)
+        .where(eq(companyMembers.companyId, companyId))
+        .orderBy(companyMembers.createdAt);
+
+    return rows;
 }

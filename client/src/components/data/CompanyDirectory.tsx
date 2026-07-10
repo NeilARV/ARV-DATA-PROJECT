@@ -19,10 +19,8 @@ import {
     Phone,
     Eye,
     RefreshCw,
-    Flag,
     Percent,
 } from 'lucide-react';
-import { ClaimCompanyDialog } from './ClaimCompanyDialog';
 import { useAuth } from '@/hooks/use-auth';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
@@ -115,11 +113,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         () => COUNTIES.find((c) => c.county === (filters.county ?? 'San Diego'))?.state ?? 'CA',
         [filters.county],
     );
-    const { isAdmin, isOwner, isAuthenticated } = useAuth();
-    const [claimDialog, setClaimDialog] = useState<{
-        companyId: string;
-        companyName: string;
-    } | null>(null);
+    const { isAdmin, isOwner } = useAuth();
     const { requireAuth, requireSubscription } = useAccessGate();
     const { view, setView } = useView();
     const nav = useDataNav();
@@ -897,7 +891,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                             )}
                                         </div>
 
-                                        {/* View Properties + Request to Join — visible to all / authenticated users */}
+                                        {/* View Properties — visible to all users */}
                                         <div className="pt-3 border-t border-border space-y-2">
                                             <Button
                                                 variant="outline"
@@ -911,24 +905,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                 <Eye className="w-4 h-4 mr-2" />
                                                 View Properties
                                             </Button>
-                                            {isAuthenticated && isExpanded && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="w-full"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setClaimDialog({
-                                                            companyId: listCompany.id,
-                                                            companyName: listCompany.companyName,
-                                                        });
-                                                    }}
-                                                    data-testid="button-claim-company"
-                                                >
-                                                    <Flag className="w-4 h-4 mr-2" />
-                                                    Request to Join
-                                                </Button>
-                                            )}
                                         </div>
 
                                         {/* Admin Actions - Only visible to owner or admin */}
@@ -1107,16 +1083,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     />
                 )}
             </AppDialog>
-
-            {/* Request to Join dialog */}
-            {claimDialog && (
-                <ClaimCompanyDialog
-                    open={!!claimDialog}
-                    onClose={() => setClaimDialog(null)}
-                    companyId={claimDialog.companyId}
-                    companyName={claimDialog.companyName}
-                />
-            )}
         </div>
     );
 }

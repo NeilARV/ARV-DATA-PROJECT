@@ -4,7 +4,7 @@ import { cvNotificationsSent } from '@database/schemas/code-violations.schema';
 import { companies } from '@database/schemas/companies.schema';
 import { CV_NOTIFICATION_CHANNEL } from '@database/validation/code-violations.validation';
 import type { CvViolation } from '@database/types/code-violations';
-import { getCompanyMembers } from 'server/services/claims/claims.services';
+import { getCompanyMembers } from 'server/services/companies/companies.services';
 import {
     getDefaultFromEmail,
     getEmailRecipientsByUserIds,

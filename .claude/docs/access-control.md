@@ -198,25 +198,14 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | PATCH | `/api/companies/:id/contacts/:contactId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/companies/:id/contacts/:contactId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/companies/:id/enrich` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
-| POST | `/api/companies/:id/claim` | `requireAuth` | 401 | ✓ | ✓ | ✓ |
-| GET | `/api/companies/:id/members` | `requireAuth` | 401 | ✓ | ✓ | ✓ |
-
----
-
-### 5.3a Claims (`/api/claims`)
-
-| Method | Route | Middleware chain | unauth | member | RM | admin/owner |
-|---|---|---|---|---|---|---|
-| GET | `/api/claims` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
-| PATCH | `/api/claims/:id` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
 
 ---
 
 ### 5.3b Company Groups (`/api/groups`)
 
 Admin + owner only (`requireRole(["admin","owner"])` via `ADMIN_ROLES`) — the same gate as Code
-Violations (§5.9a), stricter than the old Claims tab: relationship-managers, members, no-role users,
-and unauthenticated callers are all rejected. This is Phase 2 of Company Groups (#85): the
+Violations (§5.9a): relationship-managers, members, no-role users, and unauthenticated callers are
+all rejected. This is Phase 2 of Company Groups (#85): the
 group-management engine behind the Groups admin tab. Grouping is **non-destructive** — disbanding a
 group `SET NULL`s its companies' `group_id` (they revert to ungrouped) and cascade-deletes its
 `group_members`.

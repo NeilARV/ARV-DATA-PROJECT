@@ -10,7 +10,7 @@ const email = vi.hoisted(() => ({
     getEmailRecipientsByUserIds: vi.fn(),
     sendPlainEmail: vi.fn(),
 }));
-const claims = vi.hoisted(() => ({ getCompanyMembers: vi.fn() }));
+const companies = vi.hoisted(() => ({ getCompanyMembers: vi.fn() }));
 const dbMock = vi.hoisted(() => {
     // Each db.select() call shifts the next queued result; await on the builder (or .limit()) resolves
     // to it. The claim insert is db.insert(...).values(...).onConflictDoNothing().returning(), which
@@ -48,7 +48,7 @@ const dbMock = vi.hoisted(() => {
 
 vi.mock('server/storage', () => ({ db: dbMock.db }));
 vi.mock('server/services/postmark/email.services', () => email);
-vi.mock('server/services/claims/claims.services', () => claims);
+vi.mock('server/services/companies/companies.services', () => companies);
 
 import { notifyViolation } from 'server/jobs/code-violations/processes/notify';
 import type { CvViolation } from '@database/types/code-violations';
@@ -105,7 +105,7 @@ describe('notifyViolation', () => {
         expect(dbMock.insert).toHaveBeenCalledTimes(2);
         expect(dbMock.delete).not.toHaveBeenCalled();
         // memberUserIds was supplied, so the company-members lookup is skipped.
-        expect(claims.getCompanyMembers).not.toHaveBeenCalled();
+        expect(companies.getCompanyMembers).not.toHaveBeenCalled();
     });
 
     it('skips a recipient already notified for this complaint (no double-send)', async () => {
@@ -165,7 +165,7 @@ describe('notifyViolation', () => {
     });
 
     it('falls back to a company-members lookup when memberUserIds is omitted', async () => {
-        claims.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }]);
+        companies.getCompanyMembers.mockResolvedValue([{ userId: 'u1' }]);
         email.getEmailRecipientsByUserIds.mockResolvedValue([{ userId: 'u1', email: 'a@x.com' }]);
         dbMock.selectQueue.push([], [{ companyName: 'ACME LLC' }]);
 
@@ -174,7 +174,7 @@ describe('notifyViolation', () => {
             ownerCompanyId: OWNER_COMPANY_ID,
         });
 
-        expect(claims.getCompanyMembers).toHaveBeenCalledWith(OWNER_COMPANY_ID);
+        expect(companies.getCompanyMembers).toHaveBeenCalledWith(OWNER_COMPANY_ID);
         expect(email.getEmailRecipientsByUserIds).toHaveBeenCalledWith(['u1']);
         expect(res.emailsSent).toBe(1);
     });

@@ -1,5 +1,5 @@
 import { getPropertyTransactions } from 'server/services/properties/propertyTransactions.services';
-import { getCompanyMembers } from 'server/services/claims/claims.services';
+import { getCompanyMembers } from 'server/services/companies/companies.services';
 import { isArmsLength, sortTransactionsDesc } from 'server/utils/orderTransactions';
 
 /**

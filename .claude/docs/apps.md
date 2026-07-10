@@ -191,28 +191,23 @@ phone, title, sortOrder), `company_counties` (activity counties), `company_detai
 - **Enrichment** — admin/owner triggers OpenCorporates enrichment from the company card; fills
   `company_details`; requires a valid 2-letter state code.
 
-## Company Membership & Claiming
+## Company Membership
 Users can be **associated with companies** to see their company's transaction portfolio,
-market ranking, and acquisition activity. Membership lives in the `company_members` join table
-— an access/ownership roster kept deliberately separate from `company_contacts` (the public
-display roster sourced from the pipeline). Being a member does **not** auto-make a user a
-public contact.
+market ranking, and acquisition activity — kept deliberately separate from `company_contacts`
+(the public display roster sourced from the pipeline). Being a member does **not** auto-make a
+user a public contact.
 
-Two ways a user becomes associated:
-1. **Request → approval.** From the Company Directory, an authenticated user submits a request
-   to join a company, creating a `company_claims` row (`status: 'pending'`). An admin/owner
-   reviews it in the **Claims** tab of the Admin Panel; on approval a `company_members` row is
-   created. Multiple users can join the same company; if one already has an approved member,
-   additional requests surface as a **dispute** through the same queue.
-2. **Direct admin assignment.** An admin/owner opens a user in the **Users** table of the
-   Admin Panel and adds associated companies directly, bypassing the request flow.
-
-Approved memberships appear in the user's Profile under "My Companies."
+Association is **admin/owner-driven**: an admin/owner adds a user from the Admin Panel — the
+**Users** table or the **Groups** tab (adding a member to an ungrouped company auto-creates its
+singleton group). Going-forward membership lives on the company's group (`group_members`,
+resolved through `company_groups`); the legacy `company_members` roster is retained as the source
+for code-violation notifications until the groups cutover completes. A user's associated companies
+appear in their Profile under "My Companies," resolved through their group(s).
 
 | Table | Purpose |
 |---|---|
-| `company_claims` | Pending/approved/rejected join requests; admin review queue |
-| `company_members` | Access/ownership roster (user↔company, `role`, `is_primary`) |
+| `group_members` | Go-forward membership (user↔group; companies resolve via `company_groups`) |
+| `company_members` | Legacy roster (user↔company, `role`, `is_primary`); still drives code-violation notifications |
 
 ## Access Control
 | Action | Public | Relationship Manager | Admin/Owner |
@@ -223,8 +218,7 @@ Approved memberships appear in the user's Profile under "My Companies."
 | Add / delete property | — | — | ✓ |
 | Edit company / contacts | — | — | ✓ |
 | Enrich company from OpenCorporates | — | — | ✓ |
-| Request to join a company | authenticated users | ✓ | ✓ |
-| Approve / reject claims, assign user↔company | — | review only | ✓ |
+| Assign user↔company (Users / Groups tab) | — | — | ✓ |
 
 ## Data Pipeline
 The Data app displays what the pipeline ingests. A cron job syncs property transaction data
