@@ -212,6 +212,43 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 
 ---
 
+### 5.3b Company Groups (`/api/groups`)
+
+Admin + owner only (`requireRole(["admin","owner"])` via `ADMIN_ROLES`) — the same gate as Code
+Violations (§5.9a), stricter than the old Claims tab: relationship-managers, members, no-role users,
+and unauthenticated callers are all rejected. This is Phase 2 of Company Groups (#85): the
+group-management engine behind the Groups admin tab. Grouping is **non-destructive** — disbanding a
+group `SET NULL`s its companies' `group_id` (they revert to ungrouped) and cascade-deletes its
+`group_members`.
+
+| Method | Route | Middleware chain | unauth | member | RM | admin/owner |
+|---|---|---|---|---|---|---|
+| POST | `/api/groups` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| PATCH | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| DELETE | `/api/groups/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| POST | `/api/groups/:id/companies` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| DELETE | `/api/groups/:id/companies/:companyId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| POST | `/api/groups/:id/members` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| DELETE | `/api/groups/:id/members/:userId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| PATCH | `/api/groups/:id/members/:userId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| POST | `/api/groups/companies/:companyId/members` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+
+**Behavior notes:**
+- **One group per company** (single-group invariant): `companies.group_id` is a single nullable FK.
+  `POST /api/groups/:id/companies` **moves** a company that already belongs to another group rather
+  than duplicating it; re-adding a company already in the target group is an idempotent `200`.
+- `DELETE /api/groups/:id/companies/:companyId` reverts the company to ungrouped (`group_id = null`)
+  and `404`s if the company is not in that group. Membership lives on the group, so the company's
+  members simply stop being associated with it — no `group_members` rows change.
+- **Auto-singleton**: `POST /api/groups/companies/:companyId/members` adds a member to an ungrouped
+  company by first auto-creating a singleton group named after the company's **raw** DB name
+  (matching the backfill's singletons and the `UNIQUE(name)` constraint), then adding the member. If
+  the company already has a group, the member is added to that group instead.
+- Adding a user who is already a member of the target group → `409`; duplicate group name → `409`.
+  A missing group, company, user, or membership → `404`.
+
+---
+
 ### 5.4 Deals (`/api/deals`)
 
 `requireSub` emits `401` for no session, `403` for wrong tier with no bypass role.
