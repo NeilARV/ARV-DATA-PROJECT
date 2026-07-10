@@ -90,7 +90,6 @@ export async function listGroups(): Promise<GroupSummary[]> {
         id: g.id,
         name: g.name,
         description: g.description,
-        codeViolationNotificationsEnabled: g.codeViolationNotificationsEnabled,
         createdAt: g.createdAt.toISOString(),
         updatedAt: g.updatedAt ? g.updatedAt.toISOString() : null,
         companyCount: companyCountByGroup.get(g.id) ?? 0,
@@ -129,7 +128,6 @@ export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
             id: group.id,
             name: group.name,
             description: group.description,
-            codeViolationNotificationsEnabled: group.codeViolationNotificationsEnabled,
             createdAt: group.createdAt.toISOString(),
             updatedAt: group.updatedAt ? group.updatedAt.toISOString() : null,
         },
@@ -152,16 +150,14 @@ export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
 export interface GroupNotificationTarget {
     /** The group the company belongs to. */
     groupId: string;
-    /** The per-group approval gate — whether this group is cleared to send violation emails. */
-    notificationsEnabled: boolean;
     /** Every member of the group (group-wide reach); empty when the group has no members. */
     memberUserIds: string[];
 }
 
 /**
  * Resolve a company's code-violation notification target through its operator group (cv.md §9): the
- * group, whether it's approved for violation emails, and its member user ids. Returns null when the
- * company is ungrouped; a grouped-but-member-less company returns an empty `memberUserIds`.
+ * group and its member user ids. Returns null when the company is ungrouped; a grouped-but-member-less
+ * company returns an empty `memberUserIds`. Every group is notified — there is no per-group opt-out.
  *
  * @param companyId the owning company resolved from the violation's most-recent arms-length tx
  * @returns the group target, or null when the company belongs to no group
@@ -170,10 +166,7 @@ export async function getCompanyGroupNotificationTarget(
     companyId: string,
 ): Promise<GroupNotificationTarget | null> {
     const [group] = await db
-        .select({
-            groupId: companyGroups.id,
-            notificationsEnabled: companyGroups.codeViolationNotificationsEnabled,
-        })
+        .select({ groupId: companyGroups.id })
         .from(companies)
         .innerJoin(companyGroups, eq(companyGroups.id, companies.groupId))
         .where(eq(companies.id, companyId))
@@ -188,7 +181,6 @@ export async function getCompanyGroupNotificationTarget(
 
     return {
         groupId: group.groupId,
-        notificationsEnabled: group.notificationsEnabled,
         memberUserIds: members.map((m) => m.userId),
     };
 }
@@ -225,7 +217,6 @@ export async function updateGroup(
     input: {
         name?: string;
         description?: string | null;
-        codeViolationNotificationsEnabled?: boolean;
     },
 ): Promise<CompanyGroup> {
     await requireGroup(groupId);
@@ -233,9 +224,6 @@ export async function updateGroup(
     const patch: Partial<typeof companyGroups.$inferInsert> = { updatedAt: new Date() };
     if (input.name !== undefined) patch.name = input.name;
     if (input.description !== undefined) patch.description = input.description;
-    if (input.codeViolationNotificationsEnabled !== undefined) {
-        patch.codeViolationNotificationsEnabled = input.codeViolationNotificationsEnabled;
-    }
 
     try {
         const [row] = await db

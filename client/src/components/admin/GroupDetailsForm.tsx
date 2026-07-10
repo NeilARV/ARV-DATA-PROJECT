@@ -5,7 +5,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Loader2 } from 'lucide-react';
 import { parseApiError } from '@/utils/apiError';
 import type { Group } from '@shared/types/groups';
@@ -22,16 +21,12 @@ export default function GroupDetailsForm({ group }: GroupDetailsFormProps) {
     const { toast } = useToast();
     const [name, setName] = useState(group.name);
     const [description, setDescription] = useState(group.description ?? '');
-    const [cvNotificationsEnabled, setCvNotificationsEnabled] = useState(
-        group.codeViolationNotificationsEnabled,
-    );
 
     const updateMutation = useMutation({
         mutationFn: async () => {
             const res = await apiRequest('PATCH', `/api/groups/${group.id}`, {
                 name: name.trim(),
                 description: description.trim() ? description.trim() : null,
-                codeViolationNotificationsEnabled: cvNotificationsEnabled,
             });
             return res.json();
         },
@@ -49,9 +44,7 @@ export default function GroupDetailsForm({ group }: GroupDetailsFormProps) {
 
     const trimmedName = name.trim();
     const isDirty =
-        trimmedName !== group.name ||
-        description.trim() !== (group.description ?? '') ||
-        cvNotificationsEnabled !== group.codeViolationNotificationsEnabled;
+        trimmedName !== group.name || description.trim() !== (group.description ?? '');
     const canSave = trimmedName.length > 0 && isDirty && !updateMutation.isPending;
 
     return (
@@ -79,26 +72,6 @@ export default function GroupDetailsForm({ group }: GroupDetailsFormProps) {
                     rows={2}
                     maxLength={1000}
                     placeholder="Who is this operator?"
-                />
-            </div>
-            <div className="flex items-start justify-between gap-4">
-                <div className="space-y-0.5">
-                    <label
-                        className="text-sm font-medium text-foreground"
-                        htmlFor="group-cv-notifications"
-                    >
-                        Code violation email alerts
-                    </label>
-                    <p className="text-sm text-muted-foreground">
-                        When on, this group's members are emailed about new code complaints on their
-                        properties.
-                    </p>
-                </div>
-                <Switch
-                    id="group-cv-notifications"
-                    checked={cvNotificationsEnabled}
-                    onCheckedChange={setCvNotificationsEnabled}
-                    aria-label="Code violation email alerts"
                 />
             </div>
             <div className="flex justify-end">

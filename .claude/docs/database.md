@@ -393,7 +393,7 @@ An admin-managed umbrella tying several company records together as one operator
 | `name` | `text` | UNIQUE, NOT NULL — stored RAW (format at the render edge) |
 | `description` | `text` | nullable |
 | `created_by` | `uuid` | FK → `users.id` (set null), nullable |
-| `code_violation_notifications_enabled` | `boolean` | NOT NULL, default `false` — per-group approval gate for code-violation email alerts (see `features/cv.md` §6.3) |
+| `code_violation_notifications_enabled` | `boolean` | NOT NULL, default `false` — **DEPRECATED/unused**: the per-group approval gate is retired (every group with members is notified); retained pending the final-cleanup drop (see `features/cv.md` §6.3) |
 | `created_at` | `timestamp` | NOT NULL, default now |
 | `updated_at` | `timestamp` | default now |
 

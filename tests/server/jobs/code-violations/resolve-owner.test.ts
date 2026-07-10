@@ -27,13 +27,12 @@ beforeEach(() => {
 });
 
 describe('resolveOwner', () => {
-    it('resolveOwner — arms-length buyer is in a group with members — notifiable, carries the group + flag', async () => {
+    it('resolveOwner — arms-length buyer is in a group with members — notifiable, carries the members', async () => {
         txns.getPropertyTransactions.mockResolvedValue([
             armsLength({ buyerId: COMPANY_ID, buyerName: 'ACME LLC' }),
         ]);
         groups.getCompanyGroupNotificationTarget.mockResolvedValue({
             groupId: GROUP_ID,
-            notificationsEnabled: true,
             memberUserIds: ['u1', 'u2'],
         });
 
@@ -45,25 +44,7 @@ describe('resolveOwner', () => {
             ownerCompanyId: COMPANY_ID,
             ownerName: 'ACME LLC',
             memberUserIds: ['u1', 'u2'],
-            notificationsEnabled: true,
         });
-    });
-
-    it('resolveOwner — group not approved for alerts — still notifiable, flag passed through false', async () => {
-        txns.getPropertyTransactions.mockResolvedValue([
-            armsLength({ buyerId: COMPANY_ID, buyerName: 'ACME LLC' }),
-        ]);
-        groups.getCompanyGroupNotificationTarget.mockResolvedValue({
-            groupId: GROUP_ID,
-            notificationsEnabled: false,
-            memberUserIds: ['u1'],
-        });
-
-        const res = await resolveOwner(PROPERTY_ID);
-
-        // Approval is the consumer's send gate, not a notifiability gate — a member-having group is
-        // still "notifiable"; resolveOwner just reports the flag for the consumer to act on.
-        expect(res).toMatchObject({ isNotifiable: true, notificationsEnabled: false });
     });
 
     it('resolveOwner — company owner is ungrouped — not notifiable, company id retained', async () => {
@@ -84,7 +65,6 @@ describe('resolveOwner', () => {
         ]);
         groups.getCompanyGroupNotificationTarget.mockResolvedValue({
             groupId: GROUP_ID,
-            notificationsEnabled: true,
             memberUserIds: [],
         });
 
@@ -124,7 +104,6 @@ describe('resolveOwner', () => {
         ]);
         groups.getCompanyGroupNotificationTarget.mockResolvedValue({
             groupId: GROUP_ID,
-            notificationsEnabled: true,
             memberUserIds: ['u1'],
         });
 

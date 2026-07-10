@@ -211,8 +211,9 @@ export const companyGroups = pgTable('company_groups', {
     name: text('name').unique().notNull(),
     description: text('description'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
-    // Per-group approval gate for code-violation email alerts. Default false so a newly created or
-    // backfilled group is opted OUT while the feature is in testing — an admin flips it on per group.
+    // DEPRECATED: the per-group approval gate is retired — every group with members is always
+    // notified (a per-user opt-out will replace it). Nothing reads or writes this column anymore;
+    // it's retained only so the schema mirrors the live DB and is dropped in the final-cleanup branch.
     codeViolationNotificationsEnabled: boolean('code_violation_notifications_enabled')
         .notNull()
         .default(false),

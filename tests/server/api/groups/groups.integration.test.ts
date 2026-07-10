@@ -132,27 +132,6 @@ describe('Groups API — CRUD (integration)', () => {
         expect((await getGroupById(group.id))?.description).toBe('Updated desc');
     });
 
-    it('POST + GET /api/groups — a new group defaults code-violation alerts to off', async () => {
-        const group = await createGroup('CvDefault');
-        expect((await getGroupById(group.id))?.codeViolationNotificationsEnabled).toBe(false);
-
-        const list = await get('/api/groups');
-        const listed = list.body.data.find((g: { id: string }) => g.id === group.id);
-        expect(listed.codeViolationNotificationsEnabled).toBe(false);
-    });
-
-    it('PATCH /api/groups/:id — toggles the code-violation approval flag and persists it', async () => {
-        const group = await createGroup('CvToggle');
-        const res = await patch(`/api/groups/${group.id}`).send({
-            codeViolationNotificationsEnabled: true,
-        });
-        expect(res.status).toBe(200);
-        expect((await getGroupById(group.id))?.codeViolationNotificationsEnabled).toBe(true);
-
-        const detail = await get(`/api/groups/${group.id}`);
-        expect(detail.body.group.codeViolationNotificationsEnabled).toBe(true);
-    });
-
     it('PATCH /api/groups/:id — rename onto an existing name — returns 409', async () => {
         const taken = await createGroup('Taken');
         const group = await createGroup('Mover');

@@ -19,8 +19,6 @@ export type OwnerResolution =
           ownerName: string | null;
           /** User ids of the owner's group members (≥ 1) — reused by NOTIFY so it needn't re-query. */
           memberUserIds: string[];
-          /** Whether the owner's group is approved to send violation emails — the consumer's send gate. */
-          notificationsEnabled: boolean;
       }
     | {
           isNotifiable: false;
@@ -40,9 +38,8 @@ export type OwnerResolution =
  * `buyerName` (no `buyerId`) is an individual/unlinked owner: stored, never emailed.
  *
  * Notifiability resolves through the owner's operator group (#93), not `company_members`: an
- * ungrouped company, or a group with no members, is stored but not emailed (nobody to tell). When
- * notifiable, the resolution also carries the group's approval flag (`notificationsEnabled`) so the
- * consumer can gate the actual send.
+ * ungrouped company, or a group with no members, is stored but not emailed (nobody to tell). Every
+ * group with members is notified — there is no per-group opt-out.
  *
  * @param propertyId the matched property
  * @returns the owning company id/name and whether at least one group member can be notified
@@ -62,7 +59,6 @@ export async function resolveOwner(propertyId: string): Promise<OwnerResolution>
                 ownerCompanyId,
                 ownerName,
                 memberUserIds: target.memberUserIds,
-                notificationsEnabled: target.notificationsEnabled,
             };
         }
     }
