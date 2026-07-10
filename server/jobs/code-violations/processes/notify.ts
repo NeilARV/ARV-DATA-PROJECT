@@ -4,7 +4,6 @@ import { cvNotificationsSent } from '@database/schemas/code-violations.schema';
 import { companies } from '@database/schemas/companies.schema';
 import { CV_NOTIFICATION_CHANNEL } from '@database/validation/code-violations.validation';
 import type { CvViolation } from '@database/types/code-violations';
-import { getCompanyMembers } from 'server/services/companies/companies.services';
 import {
     getDefaultFromEmail,
     getEmailRecipientsByUserIds,
@@ -20,11 +19,11 @@ interface NotifyViolationParams {
     /** The owning company id — the caller has already established the violation is notifiable. */
     ownerCompanyId: string;
     /**
-     * The owning company's member user ids, when the caller already has them (the consumer gets them
-     * from {@link resolveOwner}). Omitted when the caller hasn't resolved members, in which case
-     * they're queried here.
+     * The owning company's group member user ids, resolved and approval-gated by the caller (the
+     * consumer, from {@link resolveOwner}). Required: notifiability and the per-group approval gate
+     * are decided upstream, so this stage only sends — it never re-resolves recipients.
      */
-    memberUserIds?: string[];
+    memberUserIds: string[];
 }
 
 /** Outcome of notifying one complaint. */
@@ -44,17 +43,19 @@ export interface NotifyResult {
  * that one of their properties has a new code complaint, and record each delivery in
  * `cv_notifications_sent`.
  *
- * Recipients are the company's `company_members` (never `company_contacts` — §2) narrowed by
+ * Recipients are the `memberUserIds` the caller resolved (the owning company's operator-group
+ * members — §2, re-pointed off `company_members` in #93), narrowed by
  * {@link getEmailRecipientsByUserIds}, which drops anyone with the master `notifications` flag off or
- * an unverified email (the kill-switch). Each recipient is **claimed in `cv_notifications_sent`
- * before the email is sent**, so the row's UNIQUE constraint is the real double-send guard: a re-run,
- * re-approve, or concurrent pass that finds the row already present skips the send. If the send then
- * fails, the claim is released so a later pass retries; one bounce is logged and never aborts the rest.
+ * an unverified email (the kill-switch). Each recipient is **claimed in `cv_notifications_sent` before
+ * the email is sent**, so the row's UNIQUE constraint is the real double-send guard: a re-run or
+ * concurrent pass that finds the row already present skips the send. If the send then fails, the claim
+ * is released so a later pass retries; one bounce is logged and never aborts the rest.
  *
- * Does not set the violation's `processing_status` — the consumer owns that transition so all status
- * writes stay in one place.
+ * This stage only sends — notifiability and the per-group approval gate are decided upstream (the
+ * consumer, via {@link resolveOwner}). Does not set the violation's `processing_status` — the consumer
+ * owns that transition so all status writes stay in one place.
  *
- * @param params the matched violation and its notifiable owning company id
+ * @param params the matched violation, its owning company id, and the resolved recipient user ids
  * @returns the emails sent this pass and whether the complaint has any recorded delivery
  */
 export async function notifyViolation(params: NotifyViolationParams): Promise<NotifyResult> {
@@ -74,11 +75,9 @@ export async function notifyViolation(params: NotifyViolationParams): Promise<No
     const alreadySentIds = new Set(alreadySent.map((r) => r.userId));
     const priorlyNotified = alreadySentIds.size > 0;
 
-    // Reuse the ids the consumer already resolved; only re-query on the approve path.
-    const userIds = memberUserIds ?? (await getCompanyMembers(ownerCompanyId)).map((m) => m.userId);
-    if (userIds.length === 0) return { emailsSent: 0, notified: priorlyNotified };
+    if (memberUserIds.length === 0) return { emailsSent: 0, notified: priorlyNotified };
 
-    const recipients = await getEmailRecipientsByUserIds(userIds);
+    const recipients = await getEmailRecipientsByUserIds(memberUserIds);
     const pending = recipients.filter((r) => !alreadySentIds.has(r.userId));
     if (pending.length === 0) return { emailsSent: 0, notified: priorlyNotified };
 

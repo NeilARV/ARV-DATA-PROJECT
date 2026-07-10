@@ -60,6 +60,9 @@ async function membersOfGroup(groupId: string): Promise<GroupMember[]> {
 }
 
 beforeAll(async () => {
+    // Delete-then-seed so a crashed prior run's leftover users don't collide on users_pkey.
+    await deleteTestUser(USER_IDS.multiCompany);
+    await deleteTestUser(USER_IDS.aOnly);
     await seedTestUser(USER_IDS.multiCompany);
     await seedTestUser(USER_IDS.aOnly);
 

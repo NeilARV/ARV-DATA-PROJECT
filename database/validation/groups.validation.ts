@@ -13,10 +13,15 @@ export const updateGroupSchema = z
     .object({
         name: z.string().trim().min(1, 'Group name is required').max(255).optional(),
         description: z.string().max(1000).nullable().optional(),
+        codeViolationNotificationsEnabled: z.boolean().optional(),
     })
-    .refine((data) => data.name !== undefined || data.description !== undefined, {
-        message: 'Provide a name or description to update',
-    });
+    .refine(
+        (data) =>
+            data.name !== undefined ||
+            data.description !== undefined ||
+            data.codeViolationNotificationsEnabled !== undefined,
+        { message: 'Provide a name, description, or notification setting to update' },
+    );
 
 export const addCompanySchema = z.object({ companyId: z.string().uuid() });
 

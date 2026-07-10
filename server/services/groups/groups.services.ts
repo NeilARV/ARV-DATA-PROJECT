@@ -90,6 +90,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
         id: g.id,
         name: g.name,
         description: g.description,
+        codeViolationNotificationsEnabled: g.codeViolationNotificationsEnabled,
         createdAt: g.createdAt.toISOString(),
         updatedAt: g.updatedAt ? g.updatedAt.toISOString() : null,
         companyCount: companyCountByGroup.get(g.id) ?? 0,
@@ -128,6 +129,7 @@ export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
             id: group.id,
             name: group.name,
             description: group.description,
+            codeViolationNotificationsEnabled: group.codeViolationNotificationsEnabled,
             createdAt: group.createdAt.toISOString(),
             updatedAt: group.updatedAt ? group.updatedAt.toISOString() : null,
         },
@@ -141,6 +143,53 @@ export async function getGroupDetail(groupId: string): Promise<GroupDetail> {
             isPrimary: m.isPrimary,
             createdAt: m.createdAt.toISOString(),
         })),
+    };
+}
+
+// ── Code-violation notifier seam ─────────────────────────────────────────────
+
+/** A company's code-violation notification target, resolved through its operator group. */
+export interface GroupNotificationTarget {
+    /** The group the company belongs to. */
+    groupId: string;
+    /** The per-group approval gate — whether this group is cleared to send violation emails. */
+    notificationsEnabled: boolean;
+    /** Every member of the group (group-wide reach); empty when the group has no members. */
+    memberUserIds: string[];
+}
+
+/**
+ * Resolve a company's code-violation notification target through its operator group (cv.md §9): the
+ * group, whether it's approved for violation emails, and its member user ids. Returns null when the
+ * company is ungrouped; a grouped-but-member-less company returns an empty `memberUserIds`.
+ *
+ * @param companyId the owning company resolved from the violation's most-recent arms-length tx
+ * @returns the group target, or null when the company belongs to no group
+ */
+export async function getCompanyGroupNotificationTarget(
+    companyId: string,
+): Promise<GroupNotificationTarget | null> {
+    const [group] = await db
+        .select({
+            groupId: companyGroups.id,
+            notificationsEnabled: companyGroups.codeViolationNotificationsEnabled,
+        })
+        .from(companies)
+        .innerJoin(companyGroups, eq(companyGroups.id, companies.groupId))
+        .where(eq(companies.id, companyId))
+        .limit(1);
+    if (!group) return null; // ungrouped (group_id null) or company missing → not notifiable
+
+    const members = await db
+        .select({ userId: groupMembers.userId })
+        .from(groupMembers)
+        .where(eq(groupMembers.groupId, group.groupId))
+        .orderBy(groupMembers.createdAt);
+
+    return {
+        groupId: group.groupId,
+        notificationsEnabled: group.notificationsEnabled,
+        memberUserIds: members.map((m) => m.userId),
     };
 }
 
@@ -173,13 +222,20 @@ export async function createGroup(input: {
 /** Renames a group and/or edits its description; 404 if missing, 409 on a name collision. */
 export async function updateGroup(
     groupId: string,
-    input: { name?: string; description?: string | null },
+    input: {
+        name?: string;
+        description?: string | null;
+        codeViolationNotificationsEnabled?: boolean;
+    },
 ): Promise<CompanyGroup> {
     await requireGroup(groupId);
 
     const patch: Partial<typeof companyGroups.$inferInsert> = { updatedAt: new Date() };
     if (input.name !== undefined) patch.name = input.name;
     if (input.description !== undefined) patch.description = input.description;
+    if (input.codeViolationNotificationsEnabled !== undefined) {
+        patch.codeViolationNotificationsEnabled = input.codeViolationNotificationsEnabled;
+    }
 
     try {
         const [row] = await db

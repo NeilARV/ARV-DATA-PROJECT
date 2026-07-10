@@ -1045,13 +1045,15 @@ Create an operator group.
 ---
 
 ### `PATCH /api/groups/:id`
-Rename a group and/or edit its description.
+Rename a group, edit its description, and/or set its code-violation alert approval flag.
 
 **Auth**: `requireRole(["admin", "owner"])`
 
-**Body** — at least one of `name` (1–255) or `description` (string or `null` to clear).
+**Body** — at least one of `name` (1–255), `description` (string or `null` to clear), or
+`codeViolationNotificationsEnabled` (boolean; the per-group gate that lets the group receive
+code-violation emails — see `.claude/docs/features/cv.md` §6.3).
 ```json
-{ "name": "Vertigo Rev Holdings", "description": null }
+{ "name": "Vertigo Rev Holdings", "description": null, "codeViolationNotificationsEnabled": true }
 ```
 
 **Response `200`** `{ "message": "Group updated", "group": { ...companyGroup } }`

@@ -83,6 +83,9 @@ async function createGroup(label = 'Base'): Promise<CompanyGroup> {
 beforeAll(async () => {
     await cleanupSuiteData(); // clear any leftovers from a crashed prior run
     await assignRole(ADMIN_USER_ID, 'admin'); // ADMIN keeps this across tests (not the acting user)
+    // Delete-then-seed so a crashed prior run's leftover users don't collide on users_pkey.
+    await deleteTestUser(MEMBER_A_ID);
+    await deleteTestUser(MEMBER_B_ID);
     await seedTestUser(MEMBER_A_ID);
     await seedTestUser(MEMBER_B_ID);
 });
@@ -127,6 +130,27 @@ describe('Groups API — CRUD (integration)', () => {
         const res = await patch(`/api/groups/${group.id}`).send({ description: 'Updated desc' });
         expect(res.status).toBe(200);
         expect((await getGroupById(group.id))?.description).toBe('Updated desc');
+    });
+
+    it('POST + GET /api/groups — a new group defaults code-violation alerts to off', async () => {
+        const group = await createGroup('CvDefault');
+        expect((await getGroupById(group.id))?.codeViolationNotificationsEnabled).toBe(false);
+
+        const list = await get('/api/groups');
+        const listed = list.body.data.find((g: { id: string }) => g.id === group.id);
+        expect(listed.codeViolationNotificationsEnabled).toBe(false);
+    });
+
+    it('PATCH /api/groups/:id — toggles the code-violation approval flag and persists it', async () => {
+        const group = await createGroup('CvToggle');
+        const res = await patch(`/api/groups/${group.id}`).send({
+            codeViolationNotificationsEnabled: true,
+        });
+        expect(res.status).toBe(200);
+        expect((await getGroupById(group.id))?.codeViolationNotificationsEnabled).toBe(true);
+
+        const detail = await get(`/api/groups/${group.id}`);
+        expect(detail.body.group.codeViolationNotificationsEnabled).toBe(true);
     });
 
     it('PATCH /api/groups/:id — rename onto an existing name — returns 409', async () => {
