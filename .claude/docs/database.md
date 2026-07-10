@@ -24,8 +24,6 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | Enum | Values | File |
 |------|--------|------|
 | `address_type` | `registered`, `mailing`, `head_office` | companies.schema.ts |
-| `claim_status` | `pending`, `approved`, `rejected` | companies.schema.ts |
-| `claim_type` | `claim`, `dispute` | companies.schema.ts |
 | `member_role` | `owner`, `member` | companies.schema.ts |
 | `deal_type` | `wholesale`, `agent`, `sold`, `reo` | deals.schema.ts |
 | `supplemental_bill_type` | `bill`, `refund` | properties.schema.ts |
@@ -337,55 +335,9 @@ Many-to-many: companies ↔ MSAs.
 
 ---
 
-### `company_claims`
-User claims and disputes for company ownership.
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `id` | `uuid` | PK, default random |
-| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
-| `company_id` | `uuid` | NOT NULL, FK → `companies.id` (cascade) |
-| `status` | `claim_status` enum | NOT NULL, default `pending` |
-| `type` | `claim_type` enum | NOT NULL, default `claim` |
-| `user_message` | `text` | nullable — optional message from claimant on submission |
-| `admin_notes` | `text` | nullable |
-| `admin_message` | `text` | nullable — message sent to claimant on approve/reject |
-| `reviewed_by` | `uuid` | FK → `users.id` (set null), nullable |
-| `reviewed_at` | `timestamp` | nullable |
-| `created_at` | `timestamp` | NOT NULL, default now |
-| `updated_at` | `timestamp` | default now |
-
-**Indexes:**
-- `idx_company_claims_user_status` on `(user_id, status)`
-- `idx_company_claims_company_status` on `(company_id, status)`
-- `idx_company_claims_status_created` on `(status, created_at)`
-- `idx_company_claims_unique_active_user_company` (unique partial) on `(user_id, company_id)` WHERE `status != 'rejected'`
-
----
-
-### `company_members`
-Users who are members of a claimed company.
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
-| `company_id` | `uuid` | NOT NULL, FK → `companies.id` (cascade) |
-| `role` | `member_role` enum | NOT NULL, default `owner` |
-| `is_primary` | `boolean` | NOT NULL, default true |
-| `created_at` | `timestamp` | NOT NULL, default now |
-
-**PK:** `(user_id, company_id)`
-
-**Indexes:**
-- `idx_company_members_user_id` on `(user_id)`
-- `idx_company_members_company_id` on `(company_id)`
-
----
-
 ### `company_groups`
 An admin-managed umbrella tying several company records together as one operator. Companies link via
-`companies.group_id`; membership lives on the group (`group_members`), the go-forward replacement for
-`company_members`.
+`companies.group_id`; membership lives on the group (`group_members`).
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -400,15 +352,14 @@ An admin-managed umbrella tying several company records together as one operator
 ---
 
 ### `group_members`
-Group-level membership: a member is associated with every company in the group. Replaces
-`company_members` for the code-violation notifier and the "my companies" surfaces.
+Group-level membership: a member is associated with every company in the group. Drives the
+code-violation notifier and the "my companies" surfaces.
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | `group_id` | `uuid` | NOT NULL, FK → `company_groups.id` (cascade) |
 | `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
 | `role` | `member_role` enum | nullable |
-| `is_primary` | `boolean` | NOT NULL, default false |
 | `created_at` | `timestamp` | NOT NULL, default now |
 
 **PK:** `(user_id, group_id)`

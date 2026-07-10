@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // resolveOwner is the RESOLVE OWNER stage (§4.4): it finds the current owner via the most-recent
-// arms-length transaction and decides notifiability from the owner's operator group (#93, re-pointed
-// off company_members). Mock only the two DB-backed boundaries it calls — the transaction read and
+// arms-length transaction and decides notifiability from the owner's operator group (#93). Mock only
+// the two DB-backed boundaries it calls — the transaction read and
 // the group-target lookup — and let the REAL ownership logic (sortTransactionsDesc + isArmsLength
 // from orderTransactions) run, since that ordering IS what we're asserting picks the right owner.
 const txns = vi.hoisted(() => ({ getPropertyTransactions: vi.fn() }));

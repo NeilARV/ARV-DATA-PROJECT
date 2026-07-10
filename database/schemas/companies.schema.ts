@@ -15,13 +15,10 @@ import {
     jsonb,
     decimal,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 import { msas } from './msas.schema';
 import { users } from './users.schema';
 
 export const addressTypeEnum = pgEnum('address_type', ['registered', 'mailing', 'head_office']);
-export const claimStatusEnum = pgEnum('claim_status', ['pending', 'approved', 'rejected']);
-export const claimTypeEnum = pgEnum('claim_type', ['claim', 'dispute']);
 export const memberRoleEnum = pgEnum('member_role', ['owner', 'member']);
 
 export const companies = pgTable('companies', {
@@ -155,56 +152,6 @@ export const companyMsas = pgTable(
     (t) => [primaryKey({ columns: [t.companyId, t.msaId] })],
 );
 
-export const companyClaims = pgTable(
-    'company_claims',
-    {
-        id: uuid('id').defaultRandom().primaryKey(),
-        userId: uuid('user_id')
-            .notNull()
-            .references(() => users.id, { onDelete: 'cascade' }),
-        companyId: uuid('company_id')
-            .notNull()
-            .references(() => companies.id, { onDelete: 'cascade' }),
-        status: claimStatusEnum('status').notNull().default('pending'),
-        type: claimTypeEnum('type').notNull().default('claim'),
-        userMessage: text('user_message'),
-        adminNotes: text('admin_notes'),
-        adminMessage: text('admin_message'),
-        reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
-        reviewedAt: timestamp('reviewed_at'),
-        createdAt: timestamp('created_at').notNull().defaultNow(),
-        updatedAt: timestamp('updated_at').defaultNow(),
-    },
-    (t) => [
-        index('idx_company_claims_user_status').on(t.userId, t.status),
-        index('idx_company_claims_company_status').on(t.companyId, t.status),
-        index('idx_company_claims_status_created').on(t.status, t.createdAt),
-        uniqueIndex('idx_company_claims_unique_active_user_company')
-            .on(t.userId, t.companyId)
-            .where(sql`status != 'rejected'`),
-    ],
-);
-
-export const companyMembers = pgTable(
-    'company_members',
-    {
-        userId: uuid('user_id')
-            .notNull()
-            .references(() => users.id, { onDelete: 'cascade' }),
-        companyId: uuid('company_id')
-            .notNull()
-            .references(() => companies.id, { onDelete: 'cascade' }),
-        role: memberRoleEnum('role'),
-        isPrimary: boolean('is_primary').notNull().default(false),
-        createdAt: timestamp('created_at').notNull().defaultNow(),
-    },
-    (t) => [
-        primaryKey({ columns: [t.userId, t.companyId] }),
-        index('idx_company_members_user_id').on(t.userId),
-        index('idx_company_members_company_id').on(t.companyId),
-    ],
-);
-
 // An admin-managed umbrella tying several company records together as one operator.
 export const companyGroups = pgTable('company_groups', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -221,8 +168,7 @@ export const companyGroups = pgTable('company_groups', {
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-// The future replacement for company_members: membership lives on the group, so a member
-// is associated with every company in the group. isPrimary marks the user's primary group.
+// Membership lives on the group: a member is associated with every company in the group.
 export const groupMembers = pgTable(
     'group_members',
     {
@@ -233,7 +179,6 @@ export const groupMembers = pgTable(
             .notNull()
             .references(() => users.id, { onDelete: 'cascade' }),
         role: memberRoleEnum('role'),
-        isPrimary: boolean('is_primary').notNull().default(false),
         createdAt: timestamp('created_at').notNull().defaultNow(),
     },
     (t) => [

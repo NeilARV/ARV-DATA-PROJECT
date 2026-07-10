@@ -37,9 +37,9 @@ export type OwnerResolution =
  * order, so trusting it would resolve a stale owner and alert the wrong company. A row with only a
  * `buyerName` (no `buyerId`) is an individual/unlinked owner: stored, never emailed.
  *
- * Notifiability resolves through the owner's operator group (#93), not `company_members`: an
- * ungrouped company, or a group with no members, is stored but not emailed (nobody to tell). Every
- * group with members is notified — there is no per-group opt-out.
+ * Notifiability resolves through the owner's operator group (#93): an ungrouped company, or a group
+ * with no members, is stored but not emailed (nobody to tell). Every group with members is notified
+ * — there is no per-group opt-out.
  *
  * @param propertyId the matched property
  * @returns the owning company id/name and whether at least one group member can be notified

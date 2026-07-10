@@ -13,7 +13,7 @@ const MEMBER_A_ID = 'c9880000-0000-4000-8000-000000000003';
 const MEMBER_B_ID = 'c9880000-0000-4000-8000-000000000004';
 
 // Every group/company this suite creates is prefixed so teardown can prefix-delete leftovers, and
-// name collisions with other suites (e.g. the CG87 backfill fixtures) can't happen.
+// name collisions with other parallel integration suites can't happen.
 const PREFIX = 'CG88';
 
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, ADMIN_USER_ID);
@@ -44,16 +44,14 @@ async function membersOf(groupId: string): Promise<GroupMember[]> {
     return db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
 }
 
-// Direct group_members insert — the members API can't set is_primary, which the merge collision
-// tests need to assert stays untouched on the target (B) row.
+// Direct group_members insert — seeds a membership with a specific role without going through the
+// members API, so the merge collision tests can set up A/B rosters that assert B stays untouched.
 async function seedMembership(
     groupId: string,
     userId: string,
-    opts: { role?: 'owner' | 'member' | null; isPrimary?: boolean } = {},
+    opts: { role?: 'owner' | 'member' | null } = {},
 ): Promise<void> {
-    await db
-        .insert(groupMembers)
-        .values({ groupId, userId, role: opts.role ?? null, isPrimary: opts.isPrimary ?? false });
+    await db.insert(groupMembers).values({ groupId, userId, role: opts.role ?? null });
 }
 
 async function cleanupSuiteData() {
@@ -420,9 +418,9 @@ describe('Groups API — merge (integration)', () => {
         const a = await createGroup('MergeCollideA');
         const b = await createGroup('MergeCollideB');
         // MEMBER_A is in both (collision); MEMBER_B is only in A (migrates).
-        await seedMembership(b.id, MEMBER_A_ID, { role: 'owner', isPrimary: true });
-        await seedMembership(a.id, MEMBER_A_ID, { role: 'member', isPrimary: false });
-        await seedMembership(a.id, MEMBER_B_ID, { role: 'member', isPrimary: true });
+        await seedMembership(b.id, MEMBER_A_ID, { role: 'owner' });
+        await seedMembership(a.id, MEMBER_A_ID, { role: 'member' });
+        await seedMembership(a.id, MEMBER_B_ID, { role: 'member' });
 
         const res = await post(`/api/groups/${a.id}/merge`).send({ targetGroupId: b.id });
         expect(res.status).toBe(200);
@@ -431,10 +429,8 @@ describe('Groups API — merge (integration)', () => {
         const rows = await membersOf(b.id);
         const collided = rows.find((r) => r.userId === MEMBER_A_ID);
         expect(collided?.role).toBe('owner'); // B's row untouched — not overwritten by A's 'member'
-        expect(collided?.isPrimary).toBe(true);
         const migrated = rows.find((r) => r.userId === MEMBER_B_ID);
         expect(migrated?.role).toBe('member');
-        expect(migrated?.isPrimary).toBe(true);
     });
 
     it('POST /api/groups/:id/merge — deletes the source group A', async () => {
@@ -531,7 +527,6 @@ describe('Groups API — read (integration)', () => {
         expect(res.body.members[0]).toMatchObject({
             userId: MEMBER_A_ID,
             role: 'owner',
-            isPrimary: false,
         });
         // The member carries the user's identity for display.
         expect(typeof res.body.members[0].email).toBe('string');

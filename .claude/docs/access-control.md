@@ -234,11 +234,11 @@ group `SET NULL`s its companies' `group_id` (they revert to ungrouped) and casca
   members simply stop being associated with it — no `group_members` rows change.
 - **Auto-singleton**: `POST /api/groups/companies/:companyId/members` adds a member to an ungrouped
   company by first auto-creating a singleton group named after the company's **raw** DB name
-  (matching the backfill's singletons and the `UNIQUE(name)` constraint), then adding the member. If
-  the company already has a group, the member is added to that group instead.
+  (respecting the `UNIQUE(name)` constraint), then adding the member. If the company already has a
+  group, the member is added to that group instead.
 - **Merge A→B**: `POST /api/groups/:id/merge` (`:id` = source A, body `{ targetGroupId }` = B)
   unions A's companies and members into B, then deletes A. On a `(user_id, group_id)` collision the
-  existing B membership is kept (role/is_primary unchanged). Non-destructive at the company level —
+  existing B membership is kept (role unchanged). Non-destructive at the company level —
   no company row is deleted, only re-pointed to B. `400` if source === target; `404` if either group
   is missing.
 - Adding a user who is already a member of the target group → `409`; duplicate group name → `409`.

@@ -33,7 +33,6 @@ export type GroupMemberDetail = {
     lastName: string;
     email: string;
     role: GroupMemberRole | null;
-    isPrimary: boolean;
     createdAt: string;
 };
 
@@ -59,6 +58,5 @@ export type UserGroupMembership = {
     groupId: string;
     groupName: string;
     role: GroupMemberRole | null;
-    isPrimary: boolean;
     joinedAt: string;
 };

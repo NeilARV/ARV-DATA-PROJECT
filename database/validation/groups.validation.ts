@@ -20,7 +20,7 @@ export const updateGroupSchema = z
 
 export const addCompanySchema = z.object({ companyId: z.string().uuid() });
 
-// role is optional on add — the member_role column is nullable, matching legacy company_members rows.
+// role is optional on add — the member_role column is nullable, so a member may have no role.
 export const addMemberSchema = z.object({
     userId: z.string().uuid(),
     role: memberRoleSchema.optional(),
