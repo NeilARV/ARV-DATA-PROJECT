@@ -19,6 +19,7 @@
         "seed:sort-order": "tsx scripts/seed-sort-order.ts",
         "reset:one-user": "tsx scripts/reset-one-user.ts",
         "backfill:supplemental-tax": "tsx scripts/backfill-supplemental-tax.ts",
+        "backfill:company-groups": "tsx scripts/backfill-company-groups.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
