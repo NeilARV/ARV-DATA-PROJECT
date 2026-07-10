@@ -74,6 +74,8 @@ const put = (path: string, actor = ADMIN_USER_ID) =>
 beforeAll(async () => {
     await cleanupSuiteData();
     await assignRole(ADMIN_USER_ID, 'admin');
+    // Delete-then-seed so a crashed prior run's leftover user doesn't collide on users_pkey.
+    await deleteTestUser(SUBJECT_USER_ID);
     await seedTestUser(SUBJECT_USER_ID);
 });
 

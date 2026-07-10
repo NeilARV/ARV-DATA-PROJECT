@@ -83,6 +83,9 @@ async function createGroup(label = 'Base'): Promise<CompanyGroup> {
 beforeAll(async () => {
     await cleanupSuiteData(); // clear any leftovers from a crashed prior run
     await assignRole(ADMIN_USER_ID, 'admin'); // ADMIN keeps this across tests (not the acting user)
+    // Delete-then-seed so a crashed prior run's leftover users don't collide on users_pkey.
+    await deleteTestUser(MEMBER_A_ID);
+    await deleteTestUser(MEMBER_B_ID);
     await seedTestUser(MEMBER_A_ID);
     await seedTestUser(MEMBER_B_ID);
 });
