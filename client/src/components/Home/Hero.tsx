@@ -293,7 +293,8 @@ export function Hero() {
             <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:py-24">
                 <div>
                     <h1 className={heroHeading}>
-                        The exclusive platform for real estate investors
+                        The <span className="arv-underline">exclusive</span> platform for real
+                        estate investors
                     </h1>
 
                     <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">

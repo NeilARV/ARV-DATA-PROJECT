@@ -59,6 +59,28 @@ export const pageStyles = `
   /* backwards holds the from-state through the stagger delay so later pins don't flash in first. */
   animation: arv-pin-drop 450ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
+/* Hero headline accent: a cyan underline that draws in beneath the emphasized word on load.
+   scaleX keeps the draw on the compositor; the word itself stays full-contrast ink. */
+.arv-underline {
+  position: relative;
+  white-space: nowrap;
+}
+.arv-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.04em;
+  height: 0.1em;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: arv-underline-draw 700ms cubic-bezier(0.22, 1, 0.36, 1) 350ms forwards;
+}
+@keyframes arv-underline-draw {
+  to { transform: scaleX(1); }
+}
 .arv-range {
   -webkit-appearance: none;
   appearance: none;
@@ -94,6 +116,8 @@ export const pageStyles = `
   /* The hero monitor's pin entrance is decorative too; the hero also stops cycling under reduced
      motion, so it simply holds the first market's pins — this is a belt-and-braces hold. */
   .arv-pin-drop { animation: none; }
+  /* Show the headline underline fully drawn, no draw-in. */
+  .arv-underline::after { animation: none; transform: scaleX(1); }
 }
 `;
 
