@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-13",
+  "title": "Design System: ARV Finance Data App",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Insider Cyan",
+        "canonical": "hsl(192 67% 65%)",
+        "tonalRamp": ["hsl(192 67% 15%)", "hsl(192 67% 25%)", "hsl(192 67% 35%)", "hsl(192 67% 45%)", "hsl(192 67% 55%)", "hsl(192 67% 65%)", "hsl(192 67% 78%)", "hsl(192 67% 92%)"]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "hsl(220 9% 15%)",
+        "tonalRamp": ["hsl(220 9% 9%)", "hsl(220 9% 15%)", "hsl(220 9% 25%)", "hsl(220 9% 40%)", "hsl(220 13% 60%)", "hsl(220 13% 80%)", "hsl(220 13% 91%)", "hsl(220 13% 98%)"]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "hsl(220 9% 40%)",
+        "note": "Dark-mode value is hsl(220 9% 72%), tuned up from 65% for legibility. Owns DS.MUTED-FOREGROUND."
+      },
+      "chart-2": {
+        "role": "positive",
+        "displayName": "Positive Green",
+        "canonical": "hsl(142 76% 36%)",
+        "tonalRamp": ["hsl(142 76% 14%)", "hsl(142 76% 22%)", "hsl(142 76% 30%)", "hsl(142 76% 36%)", "hsl(142 70% 46%)", "hsl(142 70% 58%)", "hsl(142 65% 72%)", "hsl(142 60% 88%)"]
+      },
+      "destructive": {
+        "role": "negative",
+        "displayName": "Destructive Red",
+        "canonical": "hsl(0 84% 42%)"
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Page Title", "purpose": "Page titles and large stat displays. One of only two roles that scale responsively." },
+      "title": { "displayName": "Card / Value", "purpose": "Card headings (600) and financial values (700). The numbers go bold." },
+      "body": { "displayName": "Body", "purpose": "Primary text, spec rows, inputs, table cells. Prose caps 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Field names, links, button text, secondary headings." }
+    },
+    "shadows": [],
+    "elevation": [
+      { "name": "hover-elevate", "value": "overlay rgba(0,0,0,.03) light / rgba(255,255,255,.04) dark", "purpose": "~3% wash on hover for buttons, badges, list items. Painted on a ::after pseudo-element, not a shadow." },
+      { "name": "active-elevate-2", "value": "overlay rgba(0,0,0,.08) light / rgba(255,255,255,.09) dark", "purpose": "~8% wash on press. The product has zero box-shadows by design (DS.NO-SHADOWS)." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "150-250ms ease", "purpose": "Default for hover/active/color state changes. Motion conveys state, never decoration." },
+      { "name": "accordion", "value": "0.2s ease-out", "purpose": "Radix accordion open/close (tailwindcss-animate keyframes)." },
+      { "name": "spin-slow", "value": "1s linear infinite", "purpose": "Loading spinners." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "tablet", "value": "850px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main CTA. Confident, cyan, not loud. Uses brightness on hover/press (not the overlay) because a wash over a saturated fill reads muddy.",
+      "html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Post a deal</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));border:1px solid var(--primary-border);border-radius:6px;min-height:36px;padding:8px 16px;font:500 14px Inter,sans-serif;cursor:pointer;transition:filter .15s ease}.ds-btn-primary:hover{filter:brightness(.9)}.ds-btn-primary:active{filter:brightness(.75)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 1px hsl(var(--ring))}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Alternative action. Neutral fill, hairline outline, hover lands on the accent surface.",
+      "html": "<button class=\"ds-btn-secondary\">Request info</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;gap:8px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border:1px solid var(--secondary-border);border-radius:6px;min-height:36px;padding:8px 16px;font:500 14px Inter,sans-serif;cursor:pointer;transition:background .15s ease}.ds-btn-secondary:hover{background:hsl(var(--accent))}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 1px hsl(var(--ring))}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Low-emphasis, contextual. Transparent with a faint outline.",
+      "html": "<button class=\"ds-btn-outline\">Filters</button>",
+      "css": ".ds-btn-outline{display:inline-flex;align-items:center;gap:8px;background:transparent;color:hsl(var(--foreground));border:1px solid var(--button-outline);border-radius:6px;min-height:36px;padding:8px 16px;font:500 14px Inter,sans-serif;cursor:pointer;transition:background .15s ease}.ds-btn-outline:hover{background:hsl(var(--accent))}.ds-btn-outline:focus-visible{outline:none;box-shadow:0 0 0 1px hsl(var(--ring))}"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text field. Input border is deliberately darker than other hairlines. Focus is the Radix ring, never a hand-rolled outline.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search transactions by MSA, address, company\" />",
+      "css": ".ds-input{width:100%;background:hsl(var(--background));color:hsl(var(--foreground));border:1px solid hsl(var(--input));border-radius:6px;height:36px;padding:0 12px;font:400 14px Inter,sans-serif}.ds-input::placeholder{color:hsl(var(--muted-foreground))}.ds-input:focus-visible{outline:none;box-shadow:0 0 0 1px hsl(var(--ring))}"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Compact status/label chip. Always rounded-md, 12px semibold, never wraps.",
+      "html": "<span class=\"ds-badge\">Arms length</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border-radius:6px;padding:2px 10px;font:600 12px Inter,sans-serif;white-space:nowrap}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Panel surface. Flat at rest; deal cards take a cyan border on hover/select. No shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-label\">Estimated ARV</div><div class=\"ds-card-value\">$412,000</div></div>",
+      "css": ".ds-card{background:hsl(var(--card));border:1px solid hsl(var(--card-border));border-radius:12px;padding:16px;color:hsl(var(--card-foreground));transition:border-color .15s ease}.ds-card:hover{border-color:hsl(var(--primary))}.ds-card-label{font:400 14px Inter,sans-serif;color:hsl(var(--muted-foreground))}.ds-card-value{margin-top:2px;font:700 18px Inter,sans-serif;color:hsl(var(--foreground))}"
+    },
+    {
+      "name": "Sidebar Item",
+      "kind": "nav",
+      "refersTo": "sidebar-item",
+      "description": "Primary nav row. Active row is the one place brand cyan appears in the chrome.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\" data-active><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/><path d=\"M3 12a9 3 0 0 0 18 0\"/></svg>Data</a><a class=\"ds-nav-item\">Deals</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:2px;width:220px}.ds-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;color:hsl(var(--sidebar-foreground));font:500 14px Inter,sans-serif;cursor:pointer;text-decoration:none;transition:background .15s ease}.ds-nav-item:hover{background:hsl(var(--sidebar-accent))}.ds-nav-item[data-active]{background:hsl(var(--sidebar-accent));color:hsl(var(--sidebar-primary))}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Insider's Desk",
+    "overview": "ARV Finance is a lender, and this app is the workspace it hands its borrower-clients — wholesalers and fix-and-flip operators running deals across a handful of active MSAs. The visual system has to earn the trust of a paying client before it impresses them with data, and then do both at once: the trusted insider held together with the sharp analyst. The Insider's Desk is that room — uncluttered, credible, everything a pro needs within reach, nothing shouting for attention. Visually this reads as restraint in service of confidence: a near-white canvas (deep neutral in dark mode), a single cyan brand accent used only where it means something, and one well-tuned sans (Inter) carrying every heading, label, value, and row. Depth is quiet — no drop shadows anywhere; surfaces are flat at rest and lift only on interaction. Density is calibrated per surface: Data searches like Zillow/Redfin, Mastermind works like Slack, and all four apps are plainly the same product.",
+    "keyCharacteristics": [
+      "One accent (cyan 192 67% 65%), spent only on meaning: CTAs, active state, focus, links, primary series.",
+      "One family, Inter, at a fixed rem scale — hierarchy from weight and size, not fluid scaling.",
+      "Flat by default; depth is a hover/active overlay, never a shadow.",
+      "Neutral-cool grays throughout; warmth is deliberately absent (no cream, no beige).",
+      "Per-surface density, one coherent identity."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Insider Cyan is the only brand color, and it appears only where it carries meaning — action, selection, focus, link, primary series. Its rarity is what makes it read as authoritative.", "section": "colors" },
+      { "name": "The Cool-Neutral Rule", "body": "Grays carry a faint blue cast (hue 220), never a warm one. No cream, no beige, no sand — those are the generic-template tell this brand rejects.", "section": "colors" },
+      { "name": "The Fixed-Scale Rule", "body": "Type sizes are fixed, not fluid. Exactly two things scale with the viewport — page titles and a growing card heading. Clamp-sized headings belong to the marketing layer, never app UI.", "section": "typography" },
+      { "name": "The 12px Floor Rule", "body": "text-xs (12px) is the minimum for UI text, exceptions being avatar initials and the dense transaction list. Smaller means the container is too small.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Elevation is a response to state (hover, press, toggle), never ambient decoration.", "section": "elevation" },
+      { "name": "The Overlay-Not-Shadow Rule", "body": "Never reach for a box-shadow to separate surfaces — use the border ladder or the elevate overlay. An overflow:hidden ancestor clips the overlay; fix the clip, don't add a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do spend Insider Cyan (192 67% 65%) only on meaning — action, selection, focus, link, primary series. Neutral everything else.",
+      "Do route every secondary text through text-muted-foreground (DS.MUTED-FOREGROUND); never a hand-picked gray.",
+      "Do convey depth with the elevate overlay or the border ladder, never a shadow (DS.NO-SHADOWS).",
+      "Do hold type sizes fixed; scale only page titles and growing-card headings (DS.FIXED-TYPE-SIZE).",
+      "Do use a semantic token for every color; the only hex allowed is in the four sanctioned categorical palettes (DS.NO-HARDCODED-COLOR).",
+      "Do match density to the surface — Data can run tight like Redfin, Mastermind reads like Slack."
+    ],
+    "donts": [
+      "Don't ship the generic AI/SaaS template: no cream/beige backgrounds, no gradient hero, no identical icon-heading-text card grids, no tiny tracked-uppercase eyebrow over every section.",
+      "Don't drift toward the cluttered legacy real-estate portal: no banner-ad density, no cramped MLS-style tables.",
+      "Don't go cold enterprise/bank: no sterile corporate chrome that feels like a mortgage form. Credible, not clinical.",
+      "Don't go consumer-toy: no cartoonish illustration, no over-animated motion, no unserious flourishes.",
+      "Don't warm the neutrals. Grays stay cool (hue 220); a warm-tinted surface is off-brand.",
+      "Don't add a second font family, a box-shadow, or a fluid clamp heading to app UI."
+    ]
+  }
+}

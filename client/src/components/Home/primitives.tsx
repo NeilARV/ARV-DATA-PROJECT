@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, type LucideIcon } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 import { useTheme } from '@/hooks/use-theme';
 import darkLogoUrl from '@assets/arv-data-logo-dark.png';
@@ -7,7 +7,7 @@ import lightLogoUrl from '@assets/arv-data-logo-light.png';
 
 /**
  * Shared presentational primitives for the marketing home page. The page is split into
- * section-per-file components (Hero, Features, …); anything reused across more than one section
+ * section-per-file components (Hero, AppSections, …); anything reused across more than one section
  * lives here. All colors use semantic design tokens (bg-card, text-muted-foreground, …).
  */
 
@@ -21,6 +21,16 @@ export const btnOutline =
 
 export const btnGhost =
     'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+// ---- Shared heading scales (the page's typographic climax lives on the marketing layer only) ----
+// The hero is the display peak; every section header shares one confident scale so hierarchy reads
+// as deliberate, not drifting. Fixed clamp steps are sanctioned here (not in app UI) per DESIGN.md.
+
+export const heroHeading =
+    'text-[2.25rem] font-bold leading-[1.05] tracking-[-0.03em] text-foreground [text-wrap:balance] sm:text-5xl lg:text-[3.25rem]';
+
+export const sectionHeading =
+    'text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-foreground [text-wrap:balance] sm:text-4xl lg:text-[2.75rem]';
 
 // Page-local CSS injected via a <style> tag on the home page. Holds the marquee loop, a reveal
 // fade, and the custom range-slider styling (teal thumb) used by the deal calculator.
@@ -38,6 +48,38 @@ export const pageStyles = `
 }
 .arv-fade-in {
   animation: arv-fade-in 500ms ease-out;
+}
+/* Hero market monitor: the pins for the current MSA drop in with a short per-pin stagger each time
+   the surveyed area changes (a keyed remount from the hero's cycle replays the entrance). */
+@keyframes arv-pin-drop {
+  from { opacity: 0; transform: translateY(-10px) scale(0.7); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.arv-pin-drop {
+  /* backwards holds the from-state through the stagger delay so later pins don't flash in first. */
+  animation: arv-pin-drop 450ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* Hero headline accent: a cyan underline that draws in beneath the emphasized word on load.
+   scaleX keeps the draw on the compositor; the word itself stays full-contrast ink. */
+.arv-underline {
+  position: relative;
+  white-space: nowrap;
+}
+.arv-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.04em;
+  height: 0.1em;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: arv-underline-draw 700ms cubic-bezier(0.22, 1, 0.36, 1) 350ms forwards;
+}
+@keyframes arv-underline-draw {
+  to { transform: scaleX(1); }
 }
 .arv-range {
   -webkit-appearance: none;
@@ -69,6 +111,13 @@ export const pageStyles = `
 @media (prefers-reduced-motion: reduce) {
   .arv-marquee-track { animation: none; }
   .arv-fade-in { animation: none; }
+  /* The live-activity radar pulses (MiniMap pins, LiveDot) are decorative — hold them still. */
+  .animate-ping { animation: none; }
+  /* The hero monitor's pin entrance is decorative too; the hero also stops cycling under reduced
+     motion, so it simply holds the first market's pins — this is a belt-and-braces hold. */
+  .arv-pin-drop { animation: none; }
+  /* Show the headline underline fully drawn, no draw-in. */
+  .arv-underline::after { animation: none; transform: scaleX(1); }
 }
 `;
 
@@ -80,24 +129,12 @@ export function Logo({ className = 'h-12 w-auto' }: { className?: string }) {
     return <img src={isDark ? lightLogoUrl : darkLogoUrl} alt="ARV Data" className={className} />;
 }
 
-/** A teal-tinted pill used for tags and the hero eyebrow. */
+/** A small neutral pill used for section tags (e.g. the deal-calculator eyebrow). */
 export function Pill({ children }: { children: React.ReactNode }) {
     return (
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             {children}
         </span>
-    );
-}
-
-/** Rounded icon tile that carries each app's accent color. */
-export function IconTile({ icon: Icon, tint }: { icon: LucideIcon; tint: string }) {
-    return (
-        <div
-            className={`flex h-11 w-11 items-center justify-center rounded-xl ${tint}`}
-            aria-hidden
-        >
-            <Icon className="h-5 w-5" />
-        </div>
     );
 }
 
@@ -113,20 +150,6 @@ export function FeatureBullet({ children }: { children: React.ReactNode }) {
 /** Smooth-scrolls to a section by id; scroll-mt on the target offsets the sticky nav. */
 export function scrollToSection(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-/** "Learn more →" control that jumps to the matching detail section. */
-export function LearnMoreLink({ targetId }: { targetId: string }) {
-    return (
-        <button
-            type="button"
-            onClick={() => scrollToSection(targetId)}
-            className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary transition hover:gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-            Learn more
-            <ArrowRight className="h-4 w-4" />
-        </button>
-    );
 }
 
 /** True when the user prefers reduced motion — animations should be skipped. */
@@ -147,45 +170,15 @@ export function LiveDot() {
     );
 }
 
-/** Counts a number up from 0 to `target` on mount (eased); jumps if reduced-motion. */
-export function useCountUp(target: number, duration = 1200) {
-    const [value, setValue] = useState(0);
-    useEffect(() => {
-        if (prefersReducedMotion()) {
-            setValue(target);
-            return;
-        }
-        let raf = 0;
-        const start = performance.now();
-        const tick = (now: number) => {
-            const progress = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
-            setValue(Math.round(target * eased));
-            if (progress < 1) raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
-    }, [target, duration]);
-    return value;
-}
-
-/** A hero stat whose number animates up on load. */
-export function StatItem({ value, label }: { value: number; label: string }) {
-    const n = useCountUp(value);
-    return (
-        <div>
-            <p className="text-2xl font-bold text-foreground">{n}</p>
-            <p className="text-sm text-muted-foreground">{label}</p>
-        </div>
-    );
-}
-
 /** Reveals (fade + slide up) its children the first time they scroll into view. */
 export function Reveal({ children, className }: { children: React.ReactNode; className?: string }) {
     const ref = useRef<HTMLDivElement>(null);
     const [shown, setShown] = useState(false);
     useEffect(() => {
-        if (prefersReducedMotion()) {
+        // Reduced motion, or an environment without IntersectionObserver (older browsers, some
+        // crawlers/headless renderers): show immediately. The content must never stay gated at
+        // opacity-0 behind an observer that will never fire, or the section ships blank.
+        if (prefersReducedMotion() || typeof IntersectionObserver === 'undefined') {
             setShown(true);
             return;
         }
@@ -243,12 +236,27 @@ export function LegendDot({ color, label }: { color: string; label: string }) {
     );
 }
 
+/** A status-colored map pin position; the hero passes a per-market set that swaps as areas cycle. */
+export type MapPin = { left: string; top: string; color: string };
+
 /**
  * The Data app's signature visual: a schematic street map (roads + parks/water) with
  * status-colored teardrop pins. Shared by the hero and the Data section so the two stay visually
- * consistent. `showLegend` adds the chrome that only fits on the larger instance.
+ * consistent. `showLegend` adds the chrome that only fits on the larger instance. `pins` replaces
+ * the default static set with a caller-supplied one (the hero's per-MSA pins); bump `areaKey` to
+ * replay their staggered drop-in when the set changes.
  */
-export function MiniMap({ className, showLegend = false }: { className?: string; showLegend?: boolean }) {
+export function MiniMap({
+    className,
+    showLegend = false,
+    pins,
+    areaKey,
+}: {
+    className?: string;
+    showLegend?: boolean;
+    pins?: MapPin[];
+    areaKey?: number;
+}) {
     return (
         <div className={`relative overflow-hidden rounded-xl border border-border bg-muted ${className ?? ''}`}>
             {/* parks + water */}
@@ -261,22 +269,38 @@ export function MiniMap({ className, showLegend = false }: { className?: string;
             <div className="absolute inset-y-0 left-[68%] w-1.5 bg-background/60" />
             <div className="absolute -left-12 top-1/4 h-1.5 w-[150%] rotate-[14deg] bg-background/50" />
 
-            {/* live activity pulses — radar ping at the tip of two pins (real-time feel) */}
-            <span
-                className="absolute left-[24%] top-[42%] h-3 w-3 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full opacity-75"
-                style={{ backgroundColor: '#22C55E' }}
-            />
-            <span
-                className="absolute left-[60%] top-[60%] h-3 w-3 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full opacity-75"
-                style={{ backgroundColor: '#9333EA' }}
-            />
-
-            {/* status pins — colors match getIconForPin in PropertyMap */}
-            <MapMarker color="#22C55E" className="left-[24%] top-[42%]" />
-            <MapMarker color="#69C9E1" className="left-[46%] top-[30%]" />
-            <MapMarker color="#9333EA" className="left-[60%] top-[60%]" />
-            <MapMarker color="#FF0000" className="left-[80%] top-[44%]" />
-            <MapMarker color="#FFA500" className="left-[37%] top-[70%]" />
+            {/* Pins. The hero passes a per-market `pins` set (keyed by area so the drop-in replays);
+                elsewhere (the Data section) the default static constellation renders, with two radar
+                pings for a real-time feel. Colors match getIconForPin in PropertyMap. */}
+            {pins ? (
+                <div key={areaKey} className="contents">
+                    {pins.map((p, i) => (
+                        <div
+                            key={i}
+                            className="arv-pin-drop pointer-events-none absolute"
+                            style={{ left: p.left, top: p.top, animationDelay: `${i * 60}ms` }}
+                        >
+                            <MapMarker color={p.color} className="left-0 top-0" />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <>
+                    <span
+                        className="absolute left-[24%] top-[42%] h-3 w-3 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full opacity-75"
+                        style={{ backgroundColor: '#22C55E' }}
+                    />
+                    <span
+                        className="absolute left-[60%] top-[60%] h-3 w-3 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full opacity-75"
+                        style={{ backgroundColor: '#9333EA' }}
+                    />
+                    <MapMarker color="#22C55E" className="left-[24%] top-[42%]" />
+                    <MapMarker color="#69C9E1" className="left-[46%] top-[30%]" />
+                    <MapMarker color="#9333EA" className="left-[60%] top-[60%]" />
+                    <MapMarker color="#FF0000" className="left-[80%] top-[44%]" />
+                    <MapMarker color="#FFA500" className="left-[37%] top-[70%]" />
+                </>
+            )}
 
             {showLegend && (
                 <div className="absolute bottom-3 left-3 rounded-md border border-border bg-background/90 px-2.5 py-2 backdrop-blur">

@@ -18,22 +18,29 @@ import {
     MessageSquare,
     Phone,
     Send,
+    Star,
     Underline,
     Wrench,
 } from 'lucide-react';
 
-import { FeatureBullet, IconTile, MiniMap, Reveal, btnPrimary } from '@/components/Home/primitives';
+import {
+    FeatureBullet,
+    MiniMap,
+    Reveal,
+    btnPrimary,
+    scrollToSection,
+    sectionHeading,
+} from '@/components/Home/primitives';
 
 /**
- * Standard alternating explainer block (eyebrow → title → copy → bullets → CTA, paired with a
- * visual). Each app's "Learn more" in the bento grid scrolls here; the CTA opens the matching app.
+ * Standard alternating explainer block (app marker → title → copy → bullets → CTA, paired with a
+ * visual). Each app's jump-link in the lead-in scrolls here; the CTA opens the matching app. The
+ * marker is a neutral icon + name — deliberately not a colored per-section kicker.
  */
 function FeatureSection({
     id,
-    icon,
-    eyebrow,
-    accentText,
-    accentTile,
+    icon: Icon,
+    app,
     title,
     description,
     bullets,
@@ -44,9 +51,7 @@ function FeatureSection({
 }: {
     id: string;
     icon: LucideIcon;
-    eyebrow: string;
-    accentText: string;
-    accentTile: string;
+    app: string;
     title: string;
     description: string;
     bullets: string[];
@@ -61,17 +66,13 @@ function FeatureSection({
             <div className="mx-auto max-w-7xl px-6 py-20">
                 <Reveal className="grid items-center gap-12 lg:grid-cols-2">
                     <div className={reverse ? 'lg:order-2' : ''}>
-                        <div className="inline-flex items-center gap-3">
-                            <IconTile icon={icon} tint={accentTile} />
-                            <span
-                                className={`text-sm font-semibold uppercase tracking-wide ${accentText}`}
-                            >
-                                {eyebrow}
+                        <div className="inline-flex items-center gap-2.5">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-foreground">
+                                <Icon className="h-4 w-4" />
                             </span>
+                            <span className="text-sm font-semibold text-foreground">{app}</span>
                         </div>
-                        <h2 className="mt-5 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
-                            {title}
-                        </h2>
+                        <h2 className={`mt-5 ${sectionHeading}`}>{title}</h2>
                         <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                             {description}
                         </p>
@@ -393,8 +394,9 @@ function DealVisual() {
             <div className="relative h-48 bg-muted">
                 <Home className="absolute inset-0 m-auto h-10 w-10 text-muted-foreground/30" />
                 <div className="absolute left-3 top-3 flex items-center gap-1.5">
-                    <span className="inline-flex items-center rounded-md bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
-                        ★ ARV Exclusive
+                    <span className="inline-flex items-center gap-1 rounded-md bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
+                        <Star className="h-3 w-3 fill-current" />
+                        ARV Exclusive
                     </span>
                     {/* the documented "Wholesale" deal-type brand color (#9333EA) */}
                     <span className="inline-flex items-center rounded-md bg-[#9333EA] px-3 py-0.5 text-xs font-semibold text-primary-foreground">
@@ -447,8 +449,14 @@ function DealVisual() {
                     </div>
                 </div>
 
-                {/* single clear CTA */}
-                <button type="button" className={`${btnPrimary} mt-4 w-full`}>
+                {/* single clear CTA — decorative in this mock, so kept out of the tab order and
+                    hidden from assistive tech (it performs no action here). */}
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-hidden
+                    className={`${btnPrimary} mt-4 w-full`}
+                >
                     <Phone className="h-4 w-4" />
                     Request More Info
                 </button>
@@ -610,15 +618,82 @@ function MastermindVisual() {
     );
 }
 
+const PLATFORM_APPS: { name: string; id: string; icon: LucideIcon; desc: string }[] = [
+    {
+        name: 'Data',
+        id: 'data',
+        icon: BarChart3,
+        desc: 'SFR transactions, companies, and code violations across every market.',
+    },
+    {
+        name: 'Deals',
+        id: 'deals',
+        icon: Handshake,
+        desc: 'Post and browse wholesale, agent, sold, and REO deals.',
+    },
+    {
+        name: 'Vendors',
+        id: 'vendors',
+        icon: Wrench,
+        desc: 'A community-vetted directory of contractors, lenders, and service providers.',
+    },
+    {
+        name: 'Mastermind',
+        id: 'mastermind',
+        icon: MessageSquare,
+        desc: 'A real-time, Slack-style community of fellow ARV clients.',
+    },
+];
+
+/**
+ * Lead-in that heads the four app deep-dives — the single overview into them (replacing the old
+ * duplicate card-grid section). Each card scrolls to its matching section. `id="platform"` is the
+ * target of the hero's "Explore the platform" CTA.
+ */
+function PlatformIntro() {
+    return (
+        <section id="platform" className="mx-auto max-w-7xl scroll-mt-20 px-6 pb-16 pt-20">
+            <div className="mx-auto max-w-2xl text-center">
+                <h2 className={sectionHeading}>Four tools. One platform.</h2>
+                <p className="mx-auto mt-4 text-base text-muted-foreground">
+                    Each ARV Finance membership unlocks four connected tools, built for the way
+                    investors actually work.
+                </p>
+            </div>
+
+            <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {PLATFORM_APPS.map((app) => (
+                    <button
+                        key={app.id}
+                        type="button"
+                        onClick={() => scrollToSection(app.id)}
+                        className="group flex flex-col rounded-xl border border-card-border bg-card p-5 text-left transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                        <div className="flex items-center justify-between">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <app.icon className="h-5 w-5" />
+                            </span>
+                            <ArrowRight className="h-4 w-4 -translate-x-1 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
+                        </div>
+                        <h3 className="mt-4 text-base font-semibold text-foreground">{app.name}</h3>
+                        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                            {app.desc}
+                        </p>
+                    </button>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 export function AppSections() {
     return (
         <>
+            <PlatformIntro />
             <FeatureSection
                 id="data"
                 icon={BarChart3}
-                eyebrow="Data"
-                accentText="text-primary"
-                accentTile="bg-primary/10 text-primary"
+                app="Data"
                 title="Every transaction, the way you want to see it"
                 description="Browse single-family transaction data across nine major markets in four states. Filter by company, status, price, and location — then switch views without losing your place."
                 bullets={[
@@ -627,16 +702,14 @@ export function AppSections() {
                     'Buyers Feed — track who is actively acquiring',
                     'Wholesale Feed — surface off-market opportunities first',
                 ]}
-                cta="Open the data app"
+                cta="Open the Data app"
                 ctaTarget="/data"
                 visual={<DataVisual />}
             />
             <FeatureSection
                 id="deals"
                 icon={Handshake}
-                eyebrow="Deals"
-                accentText="text-chart-4"
-                accentTile="bg-chart-4/15 text-chart-4"
+                app="Deals"
                 title="Exclusive deals, straight from the source"
                 description="ARV clients post wholesale, agent, sold, and REO deals for the community. Find your next acquisition and act on it in just a few clicks."
                 bullets={[
@@ -653,9 +726,7 @@ export function AppSections() {
             <FeatureSection
                 id="vendors"
                 icon={Wrench}
-                eyebrow="Vendors"
-                accentText="text-chart-2"
-                accentTile="bg-chart-2/15 text-chart-2"
+                app="Vendors"
                 title="Build your team with vendors you can trust"
                 description="A community-driven directory of contractors, lenders, and service providers — organized by trade so you can staff your next project fast."
                 bullets={[
@@ -671,9 +742,7 @@ export function AppSections() {
             <FeatureSection
                 id="mastermind"
                 icon={MessageSquare}
-                eyebrow="Mastermind"
-                accentText="text-chart-3"
-                accentTile="bg-chart-3/15 text-chart-3"
+                app="Mastermind"
                 title="A community that moves as fast as you do"
                 description="A real-time, Slack-style space built into the platform. Share wins, ask questions, and stay close to the deals — all in topic-based channels."
                 bullets={[
@@ -682,7 +751,7 @@ export function AppSections() {
                     'Pin important threads and resources',
                     'In-app notifications keep you in the loop',
                 ]}
-                cta="Enter the mastermind"
+                cta="Enter the Mastermind"
                 ctaTarget="/mastermind"
                 reverse
                 visual={<MastermindVisual />}

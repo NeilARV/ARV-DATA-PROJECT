@@ -3,7 +3,6 @@ import { pageStyles } from '@/components/Home/primitives';
 import { Hero } from '@/components/Home/Hero';
 import { MarketsMarquee } from '@/components/Home/MarketsMarquee';
 import { ArvRevealSlider } from '@/components/Home/ArvRevealSlider';
-import { Features } from '@/components/Home/Features';
 import { AppSections } from '@/components/Home/AppSections';
 // Temporarily hidden — see the commented <DealCalculator /> below.
 // import { DealCalculator } from '@/components/Home/DealCalculator';
@@ -25,7 +24,6 @@ export default function Home() {
                 <Hero />
                 <MarketsMarquee />
                 <ArvRevealSlider />
-                <Features />
                 <AppSections />
                 {/* Temporarily hidden — "Underwrite a deal in seconds" deal calculator */}
                 {/* <DealCalculator /> */}

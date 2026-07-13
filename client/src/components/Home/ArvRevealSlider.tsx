@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Home, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 
-import { Pill, Reveal } from '@/components/Home/primitives';
+import { Reveal, sectionHeading } from '@/components/Home/primitives';
 
 /** Drag-to-reveal "Before → After Repair Value" comparison — the heart of ARV. */
 export function ArvRevealSlider() {
@@ -21,13 +21,7 @@ export function ArvRevealSlider() {
         <section className="mx-auto max-w-7xl px-6 py-20">
             <Reveal>
                 <div className="mx-auto max-w-2xl text-center">
-                    <Pill>
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
-                        What ARV means
-                    </Pill>
-                    <h2 className="mt-5 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
-                        See the After Repair Value
-                    </h2>
+                    <h2 className={sectionHeading}>See the After Repair Value</h2>
                     <p className="mt-4 text-base text-muted-foreground">
                         Drag the handle to watch a deal go from its as-is purchase price to its full
                         repaired value.
@@ -42,6 +36,7 @@ export function ArvRevealSlider() {
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(pos)}
+                    aria-valuetext={`${Math.round(pos)}% revealed toward the After Repair Value`}
                     onPointerDown={(e) => {
                         draggingRef.current = true;
                         e.currentTarget.setPointerCapture(e.pointerId);
@@ -57,16 +52,38 @@ export function ArvRevealSlider() {
                         draggingRef.current = false;
                     }}
                     onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') setPos((p) => Math.max(0, p - 4));
-                        if (e.key === 'ArrowRight') setPos((p) => Math.min(100, p + 4));
+                        // preventDefault so the arrow keys nudge the handle instead of scrolling the page.
+                        const STEP = 4;
+                        switch (e.key) {
+                            case 'ArrowLeft':
+                            case 'ArrowDown':
+                                e.preventDefault();
+                                setPos((p) => Math.max(0, p - STEP));
+                                break;
+                            case 'ArrowRight':
+                            case 'ArrowUp':
+                                e.preventDefault();
+                                setPos((p) => Math.min(100, p + STEP));
+                                break;
+                            case 'Home':
+                                e.preventDefault();
+                                setPos(0);
+                                break;
+                            case 'End':
+                                e.preventDefault();
+                                setPos(100);
+                                break;
+                        }
                     }}
-                    className="relative mx-auto mt-10 h-72 max-w-3xl cursor-ew-resize select-none overflow-hidden rounded-2xl border border-card-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    // touch-pan-y: let the browser keep vertical page scroll while we own the
+                    // horizontal drag, so the handle tracks the finger instead of scrolling the page.
+                    className="relative mx-auto mt-10 h-72 max-w-3xl cursor-ew-resize touch-pan-y select-none overflow-hidden rounded-2xl border border-card-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                     {/* AFTER layer — full base */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-primary/10">
                         <Home className="h-12 w-12 text-primary" />
                         <span className="inline-flex items-center rounded-md bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
-                            After Repair
+                            After
                         </span>
                         <p className="mt-1 text-sm text-muted-foreground">After Repair Value</p>
                         <p className="text-2xl font-bold text-foreground">$489,000</p>
