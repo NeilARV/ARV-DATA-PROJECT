@@ -1,9 +1,8 @@
 import { useLocation } from 'wouter';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 import {
     MiniMap,
-    Pill,
     StatItem,
     btnOutline,
     btnPrimary,
@@ -65,12 +64,7 @@ export function Hero() {
 
             <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:py-24">
                 <div>
-                    <Pill>
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
-                        Now live across 9 markets
-                    </Pill>
-
-                    <h1 className="mt-5 text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                    <h1 className="text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
                         The exclusive market platform for{' '}
                         <span className="text-primary">real estate investors and wholesalers</span>
                     </h1>

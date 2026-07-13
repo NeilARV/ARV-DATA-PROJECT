@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Home, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 
-import { Pill, Reveal } from '@/components/Home/primitives';
+import { Reveal } from '@/components/Home/primitives';
 
 /** Drag-to-reveal "Before → After Repair Value" comparison — the heart of ARV. */
 export function ArvRevealSlider() {
@@ -21,11 +21,7 @@ export function ArvRevealSlider() {
         <section className="mx-auto max-w-7xl px-6 py-20">
             <Reveal>
                 <div className="mx-auto max-w-2xl text-center">
-                    <Pill>
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
-                        What ARV means
-                    </Pill>
-                    <h2 className="mt-5 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
                         See the After Repair Value
                     </h2>
                     <p className="mt-4 text-base text-muted-foreground">

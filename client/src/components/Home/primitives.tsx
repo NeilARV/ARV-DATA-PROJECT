@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, type LucideIcon } from 'lucide-react';
+import { Check, type LucideIcon } from 'lucide-react';
 
 import { useTheme } from '@/hooks/use-theme';
 import darkLogoUrl from '@assets/arv-data-logo-dark.png';
@@ -113,20 +113,6 @@ export function FeatureBullet({ children }: { children: React.ReactNode }) {
 /** Smooth-scrolls to a section by id; scroll-mt on the target offsets the sticky nav. */
 export function scrollToSection(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-/** "Learn more →" control that jumps to the matching detail section. */
-export function LearnMoreLink({ targetId }: { targetId: string }) {
-    return (
-        <button
-            type="button"
-            onClick={() => scrollToSection(targetId)}
-            className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary transition hover:gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-            Learn more
-            <ArrowRight className="h-4 w-4" />
-        </button>
-    );
 }
 
 /** True when the user prefers reduced motion — animations should be skipped. */

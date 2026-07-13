@@ -15,8 +15,8 @@ export function ClosingCTA() {
                         Ready to find your next deal?
                     </h2>
                     <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
-                        Join investors using ARV Finance to source, analyze, and close across six
-                        major markets.
+                        Join investors using ARV Finance to source, analyze, and close their next
+                        deal.
                     </p>
                     <div className="mt-8 flex flex-wrap justify-center gap-3">
                         <button

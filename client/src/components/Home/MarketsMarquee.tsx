@@ -21,9 +21,7 @@ export function MarketsMarquee() {
                 {/* label on top */}
                 <div className="mb-5 flex items-center justify-center gap-2">
                     <LiveDot />
-                    <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                        Live data in
-                    </span>
+                    <span className="text-sm font-medium text-muted-foreground">Live market data</span>
                 </div>
 
                 {/* revolving marquee — duplicated track loops seamlessly, pauses on hover */}

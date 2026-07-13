@@ -63,11 +63,7 @@ function FeatureSection({
                     <div className={reverse ? 'lg:order-2' : ''}>
                         <div className="inline-flex items-center gap-3">
                             <IconTile icon={icon} tint={accentTile} />
-                            <span
-                                className={`text-sm font-semibold uppercase tracking-wide ${accentText}`}
-                            >
-                                {eyebrow}
-                            </span>
+                            <span className={`text-sm font-semibold ${accentText}`}>{eyebrow}</span>
                         </div>
                         <h2 className="mt-5 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
                             {title}

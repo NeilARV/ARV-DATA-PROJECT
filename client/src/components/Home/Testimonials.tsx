@@ -1,20 +1,13 @@
 import { Star } from 'lucide-react';
 
-import { Pill, Reveal } from '@/components/Home/primitives';
+import { Reveal } from '@/components/Home/primitives';
 
 /** Single customer testimonial. */
 export function Testimonials() {
     return (
         <section className="mx-auto max-w-3xl px-6 py-20 text-center">
             <Reveal>
-                <div className="flex justify-center">
-                    <Pill>
-                        <Star className="h-3.5 w-3.5 text-primary" />
-                        Loved by investors
-                    </Pill>
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-card-border bg-card p-8">
+                <div className="rounded-2xl border border-card-border bg-card p-8">
                     <div className="flex justify-center gap-0.5 text-primary">
                         {Array.from({ length: 5 }).map((_, i) => (
                             <Star key={i} className="h-4 w-4 fill-current" />
