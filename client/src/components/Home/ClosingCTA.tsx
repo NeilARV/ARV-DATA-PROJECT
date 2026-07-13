@@ -1,20 +1,19 @@
 import { useLocation } from 'wouter';
 import { ArrowRight } from 'lucide-react';
 
-import { Reveal, btnPrimary, sectionHeading } from '@/components/Home/primitives';
+import { Reveal, btnPrimary, btnOutline, sectionHeading } from '@/components/Home/primitives';
 
 export function ClosingCTA() {
     const [, setLocation] = useLocation();
 
-    // The closing panel inverts against the page in both themes (bg-foreground / text-background),
-    // giving the page a single committed tonal moment instead of a decorative glow blob.
+    // The closing panel stays in the page's own tonal register (light in light mode, dark in dark
+    // mode) and earns its "moment" from the brand instead: a soft Insider Cyan wash and hairline
+    // frame carry it, so it reads as the one committed cyan surface — no jarring inversion.
     return (
         <Reveal className="mx-auto max-w-7xl px-6 pb-20">
-            <div className="overflow-hidden rounded-2xl bg-foreground px-6 py-16 text-center sm:py-20">
-                <h2 className={`${sectionHeading} !text-background`}>
-                    Ready to find your next deal?
-                </h2>
-                <p className="mx-auto mt-4 max-w-xl text-base text-background/70">
+            <div className="overflow-hidden rounded-2xl border border-primary/25 bg-primary/[0.06] px-6 py-16 text-center sm:py-20 dark:bg-primary/[0.1]">
+                <h2 className={sectionHeading}>Ready to find your next deal?</h2>
+                <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
                     Join the investors who source, analyze, and close more deals with ARV Finance.
                 </p>
                 <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -29,7 +28,7 @@ export function ClosingCTA() {
                     <button
                         type="button"
                         onClick={() => setLocation('/contact')}
-                        className="inline-flex items-center justify-center gap-2 rounded-md border border-background/25 bg-transparent px-5 py-2.5 text-sm font-medium text-background transition hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/40"
+                        className={btnOutline}
                     >
                         Talk to our team
                     </button>
