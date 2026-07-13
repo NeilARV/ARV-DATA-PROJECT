@@ -73,7 +73,7 @@ export function Hero() {
                         <span className="underline decoration-primary decoration-[3px] underline-offset-[8px] sm:decoration-4">
                             exclusive
                         </span>{' '}
-                        market platform for real estate investors and wholesalers
+                        platform for real estate investors
                     </h1>
 
                     <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">

@@ -27,7 +27,7 @@ export const btnGhost =
 // as deliberate, not drifting. Fixed clamp steps are sanctioned here (not in app UI) per DESIGN.md.
 
 export const heroHeading =
-    'text-[2.5rem] font-bold leading-[1.03] tracking-[-0.03em] text-foreground [text-wrap:balance] sm:text-6xl lg:text-[4.25rem]';
+    'text-[2.25rem] font-bold leading-[1.05] tracking-[-0.03em] text-foreground [text-wrap:balance] sm:text-5xl lg:text-[3.25rem]';
 
 export const sectionHeading =
     'text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-foreground [text-wrap:balance] sm:text-4xl lg:text-[2.75rem]';
