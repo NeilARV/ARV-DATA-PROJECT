@@ -1,6 +1,6 @@
 import { ArrowRight, BarChart3, Handshake, type LucideIcon, MessageSquare, Wrench } from 'lucide-react';
 
-import { IconTile, Reveal, scrollToSection } from '@/components/Home/primitives';
+import { IconTile, Reveal, scrollToSection, sectionHeading } from '@/components/Home/primitives';
 
 const apps: {
     icon: LucideIcon;
@@ -20,7 +20,7 @@ const apps: {
         icon: Handshake,
         tint: 'bg-chart-4/15 text-chart-4',
         name: 'Deals',
-        tagline: 'Post and browse exclusive wholesale, agent, sold, and REO deals.',
+        tagline: 'Post and browse wholesale, agent, sold, and REO deals.',
         targetId: 'deals',
     },
     {
@@ -47,11 +47,9 @@ export function Features() {
     return (
         <section id="features" className="mx-auto max-w-7xl px-6 py-20">
             <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
-                    Four tools. One membership.
-                </h2>
+                <h2 className={sectionHeading}>Four tools. One membership.</h2>
                 <p className="mt-4 text-base text-muted-foreground">
-                    Each ARV Finance membership unlocks four connected products, built for the way
+                    Each ARV Finance membership unlocks four connected tools, built for the way
                     investors actually work.
                 </p>
             </div>

@@ -1,11 +1,15 @@
 import { useLocation } from 'wouter';
 import { ArrowRight } from 'lucide-react';
 
+import { MapPin } from 'lucide-react';
+
 import {
+    LiveDot,
     MiniMap,
     StatItem,
     btnOutline,
     btnPrimary,
+    heroHeading,
     scrollToSection,
 } from '@/components/Home/primitives';
 
@@ -13,13 +17,15 @@ import {
 function HeroMock() {
     return (
         <div className="relative rounded-2xl border border-card-border bg-card p-4">
-            {/* window chrome */}
-            <div className="mb-4 flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-muted" />
-                <span className="h-2.5 w-2.5 rounded-full bg-muted" />
-                <span className="h-2.5 w-2.5 rounded-full bg-muted" />
-                <span className="ml-3 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    Denver, CO · 142 transactions
+            {/* product top-bar: reads as the real Data app header, not generic window chrome */}
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    Denver, CO
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <LiveDot />
+                    142 transactions
                 </span>
             </div>
 
@@ -59,20 +65,20 @@ export function Hero() {
 
     return (
         <section className="relative overflow-hidden">
-            {/* decorative brand glow */}
-            <div className="pointer-events-none absolute -top-32 left-1/2 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-
             <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:py-24">
                 <div>
-                    <h1 className="text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-                        The exclusive market platform for{' '}
-                        <span className="text-primary">real estate investors and wholesalers</span>
+                    <h1 className={heroHeading}>
+                        The{' '}
+                        <span className="underline decoration-primary decoration-[3px] underline-offset-[8px] sm:decoration-4">
+                            exclusive
+                        </span>{' '}
+                        market platform for real estate investors and wholesalers
                     </h1>
 
-                    <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
-                        View daily flip transactions, double closes, vendor directory, deal
-                        marketplace and private mastermind community. Exclusive for ARV clients and
-                        partners.
+                    <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
+                        Daily flip transactions and double closes, a vetted vendor directory, a
+                        members-only deal marketplace, and a private mastermind — one platform,
+                        built for ARV clients and partners.
                     </p>
 
                     <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -89,7 +95,7 @@ export function Hero() {
                             onClick={() => setLocation('/deals')}
                             className={btnOutline}
                         >
-                            View live deals
+                            Browse live deals
                         </button>
                     </div>
 

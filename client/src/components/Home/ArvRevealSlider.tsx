@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 
-import { Reveal } from '@/components/Home/primitives';
+import { Reveal, sectionHeading } from '@/components/Home/primitives';
 
 /** Drag-to-reveal "Before → After Repair Value" comparison — the heart of ARV. */
 export function ArvRevealSlider() {
@@ -21,9 +21,7 @@ export function ArvRevealSlider() {
         <section className="mx-auto max-w-7xl px-6 py-20">
             <Reveal>
                 <div className="mx-auto max-w-2xl text-center">
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
-                        See the After Repair Value
-                    </h2>
+                    <h2 className={sectionHeading}>See the After Repair Value</h2>
                     <p className="mt-4 text-base text-muted-foreground">
                         Drag the handle to watch a deal go from its as-is purchase price to its full
                         repaired value.
@@ -62,7 +60,7 @@ export function ArvRevealSlider() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-primary/10">
                         <Home className="h-12 w-12 text-primary" />
                         <span className="inline-flex items-center rounded-md bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
-                            After Repair
+                            After
                         </span>
                         <p className="mt-1 text-sm text-muted-foreground">After Repair Value</p>
                         <p className="text-2xl font-bold text-foreground">$489,000</p>

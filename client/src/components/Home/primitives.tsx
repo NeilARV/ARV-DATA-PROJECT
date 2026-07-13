@@ -22,6 +22,16 @@ export const btnOutline =
 export const btnGhost =
     'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+// ---- Shared heading scales (the page's typographic climax lives on the marketing layer only) ----
+// The hero is the display peak; every section header shares one confident scale so hierarchy reads
+// as deliberate, not drifting. Fixed clamp steps are sanctioned here (not in app UI) per DESIGN.md.
+
+export const heroHeading =
+    'text-[2.5rem] font-bold leading-[1.03] tracking-[-0.03em] text-foreground [text-wrap:balance] sm:text-6xl lg:text-[4.25rem]';
+
+export const sectionHeading =
+    'text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-foreground [text-wrap:balance] sm:text-4xl lg:text-[2.75rem]';
+
 // Page-local CSS injected via a <style> tag on the home page. Holds the marquee loop, a reveal
 // fade, and the custom range-slider styling (teal thumb) used by the deal calculator.
 export const pageStyles = `
@@ -160,7 +170,7 @@ export function StatItem({ value, label }: { value: number; label: string }) {
     const n = useCountUp(value);
     return (
         <div>
-            <p className="text-2xl font-bold text-foreground">{n}</p>
+            <p className="text-3xl font-bold tracking-tight text-foreground">{n}</p>
             <p className="text-sm text-muted-foreground">{label}</p>
         </div>
     );

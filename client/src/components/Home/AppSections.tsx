@@ -22,7 +22,14 @@ import {
     Wrench,
 } from 'lucide-react';
 
-import { FeatureBullet, IconTile, MiniMap, Reveal, btnPrimary } from '@/components/Home/primitives';
+import {
+    FeatureBullet,
+    IconTile,
+    MiniMap,
+    Reveal,
+    btnPrimary,
+    sectionHeading,
+} from '@/components/Home/primitives';
 
 /**
  * Standard alternating explainer block (eyebrow → title → copy → bullets → CTA, paired with a
@@ -65,9 +72,7 @@ function FeatureSection({
                             <IconTile icon={icon} tint={accentTile} />
                             <span className={`text-sm font-semibold ${accentText}`}>{eyebrow}</span>
                         </div>
-                        <h2 className="mt-5 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">
-                            {title}
-                        </h2>
+                        <h2 className={`mt-5 ${sectionHeading}`}>{title}</h2>
                         <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                             {description}
                         </p>
@@ -623,7 +628,7 @@ export function AppSections() {
                     'Buyers Feed — track who is actively acquiring',
                     'Wholesale Feed — surface off-market opportunities first',
                 ]}
-                cta="Open the data app"
+                cta="Open the Data app"
                 ctaTarget="/data"
                 visual={<DataVisual />}
             />
@@ -678,7 +683,7 @@ export function AppSections() {
                     'Pin important threads and resources',
                     'In-app notifications keep you in the loop',
                 ]}
-                cta="Enter the mastermind"
+                cta="Enter the Mastermind"
                 ctaTarget="/mastermind"
                 reverse
                 visual={<MastermindVisual />}
