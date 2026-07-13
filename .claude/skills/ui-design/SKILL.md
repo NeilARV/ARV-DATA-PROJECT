@@ -17,6 +17,14 @@ classes live in `client/src/styles/deal.components.css`. This skill is the refer
 those files mean and when to reach for each value — it is not a copy of them. When they disagree,
 the code is right and this skill is stale; say so.
 
+For the *why* behind the visual system — the brand identity ("The Insider's Desk"), the "trusted
+insider + sharp analyst" personality, the per-surface references, and the do's/don'ts that carry
+`PRODUCT.md`'s anti-references — see the root `DESIGN.md`. Division of labor: `DESIGN.md` owns
+identity and strategic intent; this skill owns which token to use when (the `DS.*` rules +
+`check-hex.sh`); `index.css` + `tailwind.config.ts` own the values. All three defer to the code as
+the source of truth, so `DESIGN.md` cites `DS.*` rules rather than restating them and speaks in the
+source's own HSL rather than asserting hex — nothing to drift.
+
 ## The five invariants
 
 These apply to every frontend change. Everything else is lookup.

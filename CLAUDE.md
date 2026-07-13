@@ -121,6 +121,15 @@ Default to a **feature branch** off updated `main` (`git switch -c feat/<name>`)
 
 Before finishing any task, `npm run check` must pass (enforced by the `Stop` hook).
 
+## Design context
+
+Two root docs carry the product's design intent (maintained with the `impeccable` skill — `/impeccable`):
+
+- **`PRODUCT.md`** — the strategic brief: register (**product**, with a one-page marketing layer on `Home`), users (ARV's borrower-clients — mostly wholesalers & fix-and-flip operators), positioning, the "trusted insider + sharp analyst" personality, and anti-references (generic AI/SaaS template, cluttered legacy portal, cold enterprise/bank, consumer-toy).
+- **`DESIGN.md`** — the visual identity ("The Insider's Desk"): palette, type, elevation, components, do's/don'ts. Its frontmatter mirrors `client/src/index.css` in the source's own HSL.
+
+Division of labor for anything visual: `DESIGN.md` owns identity and intent; the **`ui-design` skill** owns which token to use when (the `DS.*` rules + `check-hex.sh`); `client/src/index.css` + `tailwind.config.ts` own the values and win when any doc disagrees.
+
 ## References
 
 - `.claude/docs/apps.md` — all four apps, in depth
