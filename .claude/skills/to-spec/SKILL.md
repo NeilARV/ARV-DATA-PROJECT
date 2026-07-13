@@ -16,7 +16,9 @@ The issue tracker and triage label vocabulary are configured in `.claude/skills/
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the spec using the template below, then publish it to the project issue tracker. Label it with **one category role** (`bug` / `enhancement` / `accessibility`) and the **`ready-for-agent`** state role — the spec is fully specified, so no `needs-triage` pass is needed. Resolve the canonical roles to this repo's actual label strings via `.claude/skills/project-setup/triage-labels.md`.
+
+4. **Group the epic for at-a-glance visibility.** On a real tracker (GitHub, Linear, …), when this spec is an epic that will be broken into tickets via `/to-tickets`, also create a **milestone** named for the body of work and a **shared grouping label** (a short kebab slug of the epic, e.g. `monorepo-restructure`) in a neutral **gray** — it's organizational, not categorical, so keep it visually subordinate to the category and status labels. Apply both to the spec issue. Aim for a **milestone → category → status** reading: the milestone is its own chip, and the category label sorts before the status label. The native sub-issue link alone isn't visible from the issues list — the milestone (a progress page plus a per-row chip) and the label (a per-row chip plus one-click filter) are what make the grouping obvious at a glance. `/to-tickets` reuses this same milestone and label on every ticket it spawns, so create them with names that will read well on the tickets too. Skip this for local-markdown trackers (no milestones).
 
 <spec-template>
 

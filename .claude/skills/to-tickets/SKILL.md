@@ -60,9 +60,11 @@ Iterate until the user approves the breakdown.
 Publish the approved tickets. **How** depends on the tracker `/project-setup` configured — the tickets are the same either way, only the shape of the blocking edges changes:
 
 - **Local files** → write one `tickets.md` in the repo root, all tickets in dependency order (blockers first), each with its "Blocked by" listing the titles it depends on. Use the file template below.
-- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
+- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Label each issue with **one category role** (`bug` / `enhancement` / `accessibility`) and the **`ready-for-agent`** state role unless instructed otherwise — the tickets are fully specified and agent-grabbable by construction, so no `needs-triage` pass is needed. Resolve the canonical roles to this repo's actual label strings via `.claude/skills/project-setup/triage-labels.md`.
 
-Do NOT close or modify any parent issue.
+**Group the batch visibly (real trackers).** The native sub-issue / blocking edges express structure but are invisible from the issues list, so the tickets don't obviously read as belonging to one epic. Fix that with two at-a-glance groupers: a **milestone** named for the body of work and a **shared grouping label** (a short kebab slug, e.g. `monorepo-restructure`) in a neutral **gray**, subordinate to the category and status labels. Reuse the ones the parent spec issue already carries if it has them (from `/to-spec`); otherwise create them. Aim for a **milestone → category → status** reading. Apply **both** to every ticket **and** to the parent spec issue, so parent and tickets sit together — the milestone gives a progress page and a per-row chip, the label gives a filterable per-row chip. Skip for local-markdown trackers (no milestones).
+
+Do NOT close, retitle, or edit the body or state of any parent issue. The **only** permitted change to the parent is adding the shared grouping milestone and label above, so it sits with its tickets.
 
 <tickets-file-template>
 
@@ -73,6 +75,8 @@ A one-line summary of what these tickets build. Reference the source spec if the
 Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
 
 ## <Ticket title>
+
+**Why:** why this slice matters — the motivation for the change, or for a bug the current broken behaviour and its impact. One or two sentences; skip if the title makes it self-evident.
 
 **What to build:** the end-to-end behaviour this ticket makes work, from the user's perspective — not a layer-by-layer implementation list.
 
@@ -92,6 +96,10 @@ Work the **frontier**: any ticket whose blockers are all done. For a purely line
 ## Parent
 
 A reference to the parent issue on the tracker (if the source was an existing issue, otherwise omit this section).
+
+## Why
+
+Why this slice matters — the motivation for the change, or for a bug the current broken behaviour (what's wrong) and its impact. Keep it short; skip only if the title makes it self-evident.
 
 ## What to build
 

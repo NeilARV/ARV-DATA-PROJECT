@@ -27,6 +27,7 @@ Two **category** roles:
 
 - `bug` — something is broken
 - `enhancement` — new feature or improvement
+- `accessibility` — improves quality of life
 
 Five **state** roles:
 
