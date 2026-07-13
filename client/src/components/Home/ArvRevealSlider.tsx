@@ -75,7 +75,9 @@ export function ArvRevealSlider() {
                                 break;
                         }
                     }}
-                    className="relative mx-auto mt-10 h-72 max-w-3xl cursor-ew-resize select-none overflow-hidden rounded-2xl border border-card-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    // touch-pan-y: let the browser keep vertical page scroll while we own the
+                    // horizontal drag, so the handle tracks the finger instead of scrolling the page.
+                    className="relative mx-auto mt-10 h-72 max-w-3xl cursor-ew-resize touch-pan-y select-none overflow-hidden rounded-2xl border border-card-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                     {/* AFTER layer — full base */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-primary/10">

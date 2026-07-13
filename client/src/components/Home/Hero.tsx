@@ -16,7 +16,8 @@ import {
 /** A purely decorative, data-free dashboard mock that sells the Data app. */
 function HeroMock() {
     return (
-        <div className="relative rounded-2xl border border-card-border bg-card p-4">
+        // aria-hidden: the figures here are illustrative, not real market data — never read aloud.
+        <div aria-hidden className="relative rounded-2xl border border-card-border bg-card p-4">
             {/* product top-bar: reads as the real Data app header, not generic window chrome */}
             <div className="mb-4 flex items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground">

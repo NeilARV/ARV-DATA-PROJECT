@@ -18,6 +18,7 @@ import {
     MessageSquare,
     Phone,
     Send,
+    Star,
     Underline,
     Wrench,
 } from 'lucide-react';
@@ -394,8 +395,9 @@ function DealVisual() {
             <div className="relative h-48 bg-muted">
                 <Home className="absolute inset-0 m-auto h-10 w-10 text-muted-foreground/30" />
                 <div className="absolute left-3 top-3 flex items-center gap-1.5">
-                    <span className="inline-flex items-center rounded-md bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
-                        ★ ARV Exclusive
+                    <span className="inline-flex items-center gap-1 rounded-md bg-white px-2.5 py-0.5 text-xs font-semibold text-black">
+                        <Star className="h-3 w-3 fill-current" />
+                        ARV Exclusive
                     </span>
                     {/* the documented "Wholesale" deal-type brand color (#9333EA) */}
                     <span className="inline-flex items-center rounded-md bg-[#9333EA] px-3 py-0.5 text-xs font-semibold text-primary-foreground">
@@ -448,8 +450,14 @@ function DealVisual() {
                     </div>
                 </div>
 
-                {/* single clear CTA */}
-                <button type="button" className={`${btnPrimary} mt-4 w-full`}>
+                {/* single clear CTA — decorative in this mock, so kept out of the tab order and
+                    hidden from assistive tech (it performs no action here). */}
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-hidden
+                    className={`${btnPrimary} mt-4 w-full`}
+                >
                     <Phone className="h-4 w-4" />
                     Request More Info
                 </button>

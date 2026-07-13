@@ -15,7 +15,7 @@ export function Testimonials() {
                 </div>
 
                 <blockquote className="mx-auto mt-8 max-w-3xl text-2xl font-semibold leading-[1.3] tracking-[-0.02em] text-foreground [text-wrap:balance] sm:text-3xl lg:text-4xl">
-                    “I use the ARV Platform to stay on the cutting edge of the San Diego market. I'm
+                    “I use the ARV Platform to stay on the cutting edge of the San Diego market. I’m
                     on it every day.”
                 </blockquote>
 
