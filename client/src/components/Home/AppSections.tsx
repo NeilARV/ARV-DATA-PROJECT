@@ -636,8 +636,8 @@ export function AppSections() {
                 id="deals"
                 icon={Handshake}
                 eyebrow="Deals"
-                accentText="text-chart-4"
-                accentTile="bg-chart-4/15 text-chart-4"
+                accentText="text-primary"
+                accentTile="bg-primary/10 text-primary"
                 title="Exclusive deals, straight from the source"
                 description="ARV clients post wholesale, agent, sold, and REO deals for the community. Find your next acquisition and act on it in just a few clicks."
                 bullets={[
@@ -655,8 +655,8 @@ export function AppSections() {
                 id="vendors"
                 icon={Wrench}
                 eyebrow="Vendors"
-                accentText="text-chart-2"
-                accentTile="bg-chart-2/15 text-chart-2"
+                accentText="text-primary"
+                accentTile="bg-primary/10 text-primary"
                 title="Build your team with vendors you can trust"
                 description="A community-driven directory of contractors, lenders, and service providers — organized by trade so you can staff your next project fast."
                 bullets={[
@@ -673,8 +673,8 @@ export function AppSections() {
                 id="mastermind"
                 icon={MessageSquare}
                 eyebrow="Mastermind"
-                accentText="text-chart-3"
-                accentTile="bg-chart-3/15 text-chart-3"
+                accentText="text-primary"
+                accentTile="bg-primary/10 text-primary"
                 title="A community that moves as fast as you do"
                 description="A real-time, Slack-style space built into the platform. Share wins, ask questions, and stay close to the deals — all in topic-based channels."
                 bullets={[

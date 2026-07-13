@@ -1,5 +1,6 @@
 import { Star } from 'lucide-react';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Reveal } from '@/components/Home/primitives';
 
 /** Single customer testimonial, set as a full-width editorial pull-quote. */
@@ -19,11 +20,18 @@ export function Testimonials() {
                 </blockquote>
 
                 <div className="mt-8 flex items-center justify-center gap-3">
-                    <img
-                        src="/testimonials/range-home-buyers.jpg"
-                        alt="Cade Silva"
-                        className="h-11 w-11 rounded-full object-cover"
-                    />
+                    {/* Radix Avatar degrades to the initials fallback if the photo fails to load. */}
+                    <Avatar className="h-11 w-11">
+                        <AvatarImage
+                            src="/testimonials/range-home-buyers.jpg"
+                            alt="Cade Silva"
+                            className="object-cover"
+                            loading="lazy"
+                        />
+                        <AvatarFallback className="text-sm font-semibold text-muted-foreground">
+                            CS
+                        </AvatarFallback>
+                    </Avatar>
                     <div className="text-left">
                         <p className="text-sm font-semibold text-foreground">Cade Silva</p>
                         <p className="text-xs text-muted-foreground">Range Home Buyers</p>

@@ -79,6 +79,8 @@ export const pageStyles = `
 @media (prefers-reduced-motion: reduce) {
   .arv-marquee-track { animation: none; }
   .arv-fade-in { animation: none; }
+  /* The live-activity radar pulses (MiniMap pins, LiveDot) are decorative — hold them still. */
+  .animate-ping { animation: none; }
 }
 `;
 
@@ -181,7 +183,10 @@ export function Reveal({ children, className }: { children: React.ReactNode; cla
     const ref = useRef<HTMLDivElement>(null);
     const [shown, setShown] = useState(false);
     useEffect(() => {
-        if (prefersReducedMotion()) {
+        // Reduced motion, or an environment without IntersectionObserver (older browsers, some
+        // crawlers/headless renderers): show immediately. The content must never stay gated at
+        // opacity-0 behind an observer that will never fire, or the section ships blank.
+        if (prefersReducedMotion() || typeof IntersectionObserver === 'undefined') {
             setShown(true);
             return;
         }

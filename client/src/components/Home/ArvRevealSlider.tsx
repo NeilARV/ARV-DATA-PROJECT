@@ -36,6 +36,7 @@ export function ArvRevealSlider() {
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(pos)}
+                    aria-valuetext={`${Math.round(pos)}% revealed toward the After Repair Value`}
                     onPointerDown={(e) => {
                         draggingRef.current = true;
                         e.currentTarget.setPointerCapture(e.pointerId);
@@ -51,8 +52,28 @@ export function ArvRevealSlider() {
                         draggingRef.current = false;
                     }}
                     onKeyDown={(e) => {
-                        if (e.key === 'ArrowLeft') setPos((p) => Math.max(0, p - 4));
-                        if (e.key === 'ArrowRight') setPos((p) => Math.min(100, p + 4));
+                        // preventDefault so the arrow keys nudge the handle instead of scrolling the page.
+                        const STEP = 4;
+                        switch (e.key) {
+                            case 'ArrowLeft':
+                            case 'ArrowDown':
+                                e.preventDefault();
+                                setPos((p) => Math.max(0, p - STEP));
+                                break;
+                            case 'ArrowRight':
+                            case 'ArrowUp':
+                                e.preventDefault();
+                                setPos((p) => Math.min(100, p + STEP));
+                                break;
+                            case 'Home':
+                                e.preventDefault();
+                                setPos(0);
+                                break;
+                            case 'End':
+                                e.preventDefault();
+                                setPos(100);
+                                break;
+                        }
                     }}
                     className="relative mx-auto mt-10 h-72 max-w-3xl cursor-ew-resize select-none overflow-hidden rounded-2xl border border-card-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
