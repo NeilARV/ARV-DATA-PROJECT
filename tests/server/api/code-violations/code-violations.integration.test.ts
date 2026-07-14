@@ -12,8 +12,8 @@ vi.mock('server/controllers/code-violations/code-violations.controllers', () => 
     getCodeViolationUpload: vi.fn((_req, res) => res.status(200).json({ upload: {} })),
 }));
 
-const ACTING_USER_ID = '00000000-0000-0000-0000-0000000000c1';
-const OTHER_USER_ID = '00000000-0000-0000-0000-0000000000c2';
+const ACTING_USER_ID = '00000000-0000-0000-0000-0000000000f1';
+const OTHER_USER_ID = '00000000-0000-0000-0000-0000000000f2';
 const DUMMY_UPLOAD_ID = '11111111-1111-1111-1111-1111111111c1';
 
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, OTHER_USER_ID);
