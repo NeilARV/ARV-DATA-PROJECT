@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import AdminLogin from '@/components/AdminLogin';
+import { PageLoader } from '@/components/PageLoader';
 import { useAuth } from '@/hooks/use-auth';
 import {
     AlertDialog,
@@ -14,7 +15,6 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-    Loader2,
     AlertTriangle,
     ArrowLeft,
     Users,
@@ -110,11 +110,7 @@ export default function Admin() {
     };
 
     if (isVerifying || isLoadingUser) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-        );
+        return <PageLoader />;
     }
 
     // Show AdminLogin only if user is not authenticated

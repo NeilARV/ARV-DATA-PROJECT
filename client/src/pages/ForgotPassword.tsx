@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, MailCheck } from 'lucide-react';
+import { MailCheck } from 'lucide-react';
 
 import { AuthPageShell } from '@/components/auth/AuthPageShell';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/SubmitButton';
 
 import { apiRequest } from '@/lib/queryClient';
 import { forgotPasswordSchema, type ForgotPasswordData } from '@database/validation/users.validation';
@@ -82,21 +83,14 @@ export default function ForgotPassword() {
                         )}
                     />
 
-                    <Button
-                        type="submit"
+                    <SubmitButton
                         className="w-full"
-                        disabled={forgotMutation.isPending}
+                        loading={forgotMutation.isPending}
+                        loadingText="Sending..."
                         data-testid="button-forgot-submit"
                     >
-                        {forgotMutation.isPending ? (
-                            <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Sending...
-                            </>
-                        ) : (
-                            'Send temporary password'
-                        )}
-                    </Button>
+                        Send temporary password
+                    </SubmitButton>
                 </form>
             </Form>
 

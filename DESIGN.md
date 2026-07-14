@@ -59,6 +59,20 @@ typography:
     fontSize: "0.875rem"
     fontWeight: 500
     lineHeight: "1.25rem"
+  # Marketing layer only (components/Home). Responsive-clamped headings, sanctioned here and nowhere
+  # else; fontSize below is the lg-step ceiling — see Typography § Marketing Home Layer for the steps.
+  marketing-display:
+    fontFamily: "Inter, sans-serif"
+    fontSize: "3.25rem"
+    fontWeight: 700
+    lineHeight: "1.05"
+    letterSpacing: "-0.03em"
+  marketing-section:
+    fontFamily: "Inter, sans-serif"
+    fontSize: "2.75rem"
+    fontWeight: 700
+    lineHeight: "1.08"
+    letterSpacing: "-0.025em"
 rounded:
   sm: "3px"
   md: "6px"
@@ -97,6 +111,23 @@ components:
     textColor: "{colors.foreground}"
     rounded: "{rounded.md}"
     padding: "2px 10px"
+  # Marketing layer only (components/Home/ui/buttons.ts). INTERIM: duplicates the shared Button with
+  # the home look (larger padding, ring-2 focus, borderless, no elevate overlay). Consolidate later.
+  button-marketing-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.primary-foreground}"
+    rounded: "{rounded.md}"
+    padding: "10px 20px"
+  button-marketing-outline:
+    backgroundColor: "{colors.background}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.md}"
+    padding: "10px 20px"
+  pill:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.muted-foreground}"
+    rounded: "{rounded.2xl}"
+    padding: "4px 12px"
 ---
 
 # Design System: ARV Finance Data App
@@ -125,6 +156,7 @@ The system explicitly rejects four looks, drawn straight from the product's anti
 - Flat by default; depth is a hover/active overlay, never a shadow.
 - Neutral-cool grays throughout; warmth is deliberately absent (no cream, no beige).
 - Per-surface density, one coherent identity.
+- A single bounded exception: the one-page marketing layer (`components/Home`) may use clamped display headings and choreographed entrance motion — still Inter, still one accent, still flat and cool.
 
 ## 2. Colors
 
@@ -165,8 +197,15 @@ Five-series ramp led by the brand: `chart-1` cyan (primary/brand), `chart-2` gre
 - **Label** (`500`, `0.875rem`/14px): field names, links, secondary headings, button text.
 - **Caption** (`400`, `0.75rem`/12px): timestamps, sub-labels, badge text (`600`).
 
+### Marketing Home Layer (the sanctioned exception)
+The one-page marketing surface (`components/Home`) is the *only* place responsive-clamped display type is allowed. Two shared scales, both `font-bold` with `text-wrap:balance` and negative tracking, both well under the 6rem shout ceiling:
+- **Marketing display** (Hero, local to `Hero.tsx`): `text-[2.25rem]` → `sm:text-5xl` → `lg:text-[3.25rem]`, `leading-[1.05]`, `tracking-[-0.03em]`. Ceiling ~52px.
+- **Marketing section heading** (`Home/ui/typography.ts` `sectionHeading`): `text-[2rem]` → `sm:text-4xl` → `lg:text-[2.75rem]`, `leading-[1.08]`, `tracking-[-0.025em]`. Ceiling ~44px. Every marketing section header shares this one scale so the page's hierarchy reads deliberate, not drifting.
+
 ### Named Rules
 **The Fixed-Scale Rule.** Type sizes are fixed, not fluid. Exactly two things scale with the viewport — page titles and a card heading when its card grows. Scaling everything in lockstep changes no real proportion; it only pays reflow for the illusion of hierarchy. Clamp-sized headings belong to the marketing layer, never to app UI.
+
+**The Marketing-Exception Rule.** Clamped display type and choreographed entrance motion are permitted on `components/Home` and forbidden everywhere else. The exception is bounded, not a second design language: still Inter, still one cyan accent, still cool neutrals, still flat. If a clamp heading or a scroll reveal shows up outside `components/Home`, it's a bug.
 
 **The 12px Floor Rule.** `text-xs` (12px) is the minimum for UI text. The only exceptions are avatar initials (sized to their circle) and the dense transaction list. Anywhere else, a smaller size means the container is too small — fix the container.
 
@@ -201,6 +240,17 @@ Shared primitives live in `client/src/components/ui/` and are documented in `ui-
 ### Navigation (Sidebar)
 - **Style:** `bg-sidebar` (a cooler second neutral plane), 1px `sidebar-border`, item padding `px-3 py-2`, `text-sm`. **Active item:** `bg-sidebar-accent text-sidebar-primary font-medium` — the one place the brand cyan appears in chrome. **Mobile:** collapses to a drawer at `lg` (1024px), the primary breakpoint.
 
+### Marketing Home Layer (`components/Home`)
+The marketing surface has its own small primitive set, page-local and separate from the shared `ui/` library. Every one of them still spends only semantic tokens — no hardcoded color — and stays flat and cool. Character and where they live:
+
+- **Marketing buttons** (`Home/ui/buttons.ts` — **INTERIM**): three class-string variants — `btnPrimary` (borderless `bg-primary`, `px-5 py-2.5`, `hover:brightness-90` / `active:brightness-75`), `btnOutline` (hairline `border-border`, `hover:bg-accent`), `btnGhost` (muted, `hover:bg-accent`). They deliberately duplicate the shared `<Button>` with a heavier home look (larger padding, `ring-2` focus, no elevate overlay). This is scaffolding: fold them back into `components/ui/button.tsx` once that look goes app-wide, then delete the file.
+- **`Pill`** — a neutral eyebrow tag: `rounded-full` `bg-card` with a `border`, `text-xs font-medium text-muted-foreground`. Section tags only; not the tracked-uppercase eyebrow this brand bans.
+- **`FeatureBullet`** — a `Check` icon in `text-primary` beside `text-sm text-muted-foreground` copy. The one sanctioned spot cyan decorates a list marker.
+- **`LiveDot`** — a `bg-status-online` dot with a pulsing `animate-ping` halo; signals real-time activity.
+- **`Reveal`** — wraps children in a scroll-triggered fade+slide (`IntersectionObserver`, `duration-700 ease-out`). It reveals an already-rendered default: under reduced motion or without `IntersectionObserver` it shows immediately, so the section never ships blank behind an observer that won't fire.
+
+**Motion set** (`styles/home.components.css`, page-local): `arv-marquee` (28s markets ticker), `arv-fade-in`, `arv-pin-drop` (staggered hero map-pin entrance), `arv-underline` (a cyan underline that draws in under the hero's accent word), and the `arv-range` slider skin. Each has a `prefers-reduced-motion: reduce` hold that stills it. Gated through `prefersReducedMotion()` (`utils/motion.ts`); section anchoring via `scrollToSection()` (`utils/scroll.ts`).
+
 ## 6. Do's and Don'ts
 
 Concrete guardrails. The Don'ts carry the product's anti-references by name so the visual line matches the strategic one.
@@ -212,6 +262,8 @@ Concrete guardrails. The Don'ts carry the product's anti-references by name so t
 - **Do** hold type sizes fixed; scale only page titles and growing-card headings (`DS.FIXED-TYPE-SIZE`).
 - **Do** use a semantic token for every color; the only hex allowed is in the four sanctioned categorical palettes (`DS.NO-HARDCODED-COLOR`).
 - **Do** match density to the surface — Data can run tight like Redfin, Mastermind reads like Slack.
+- **Do** keep the marketing layer's clamp headings and entrance motion inside `components/Home`, every animation paired with a `prefers-reduced-motion` hold. (The Marketing-Exception Rule.)
+- **Do** treat `Home/ui/buttons.ts` as interim scaffolding — reach for the shared `<Button>` in app UI, and consolidate the marketing variants back into it rather than growing a second button system.
 
 ### Don't:
 - **Don't** ship the **generic AI/SaaS template**: no cream/beige backgrounds, no gradient hero, no identical icon-heading-text card grids, no tiny tracked-uppercase eyebrow over every section.

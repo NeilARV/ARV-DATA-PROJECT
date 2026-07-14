@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
-import { Loader2, Database } from 'lucide-react';
+import { Database } from 'lucide-react';
 import { MarketingHeader } from '@/components/MarketingHeader';
+import { PageLoader } from '@/components/PageLoader';
 import FilterHeader from '@/components/data/FilterHeader';
 import CompanyDirectory from '@/components/data/CompanyDirectory';
 import PropertyMap from '@/components/data/property/PropertyMap';
@@ -180,11 +181,7 @@ export default function Data() {
     // This eliminates the double-fetch that occurs when useDataNav later pushes
     // ?county=UserCounty and triggers a setFilters → re-fetch cycle.
     if (authLoading && !urlCounty) {
-        return (
-            <div className="h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-        );
+        return <PageLoader className="h-screen" />;
     }
 
     const defaultCounty = urlCounty ?? user?.county ?? 'San Diego';

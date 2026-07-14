@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-13",
+  "generatedAt": "2026-07-14",
   "title": "Design System: ARV Finance Data App",
   "extensions": {
     "colorMeta": {
@@ -38,7 +38,9 @@
       "display": { "displayName": "Page Title", "purpose": "Page titles and large stat displays. One of only two roles that scale responsively." },
       "title": { "displayName": "Card / Value", "purpose": "Card headings (600) and financial values (700). The numbers go bold." },
       "body": { "displayName": "Body", "purpose": "Primary text, spec rows, inputs, table cells. Prose caps 65-75ch." },
-      "label": { "displayName": "Label", "purpose": "Field names, links, button text, secondary headings." }
+      "label": { "displayName": "Label", "purpose": "Field names, links, button text, secondary headings." },
+      "marketing-display": { "displayName": "Marketing Display", "purpose": "Hero headline on the one-page marketing surface (components/Home) only. Responsive-clamped, text-[2.25rem]→lg:text-[3.25rem], the sole place fluid display type is allowed." },
+      "marketing-section": { "displayName": "Marketing Section", "purpose": "Shared section-heading scale across marketing Home sections (Home/ui/typography.ts). Responsive-clamped, text-[2rem]→lg:text-[2.75rem]." }
     },
     "shadows": [],
     "elevation": [
@@ -48,7 +50,11 @@
     "motion": [
       { "name": "state-transition", "value": "150-250ms ease", "purpose": "Default for hover/active/color state changes. Motion conveys state, never decoration." },
       { "name": "accordion", "value": "0.2s ease-out", "purpose": "Radix accordion open/close (tailwindcss-animate keyframes)." },
-      { "name": "spin-slow", "value": "1s linear infinite", "purpose": "Loading spinners." }
+      { "name": "spin-slow", "value": "1s linear infinite", "purpose": "Loading spinners." },
+      { "name": "arv-marquee", "value": "28s linear infinite", "purpose": "Marketing only (Home). Markets ticker; halts under prefers-reduced-motion." },
+      { "name": "arv-pin-drop", "value": "450ms cubic-bezier(.22,1,.36,1) backwards", "purpose": "Marketing only. Staggered hero map-pin entrance on MSA change; held under reduced motion." },
+      { "name": "arv-underline", "value": "700ms cubic-bezier(.22,1,.36,1) 350ms forwards", "purpose": "Marketing only. Cyan underline draws in beneath the hero's accent word; shown fully drawn under reduced motion." },
+      { "name": "reveal", "value": "700ms ease-out (IntersectionObserver)", "purpose": "Marketing only. Fade+slide on scroll-into-view; shows immediately under reduced motion or without IntersectionObserver so sections never ship blank." }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
@@ -115,6 +121,22 @@
       "description": "Primary nav row. Active row is the one place brand cyan appears in the chrome.",
       "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\" data-active><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/><path d=\"M3 12a9 3 0 0 0 18 0\"/></svg>Data</a><a class=\"ds-nav-item\">Deals</a></nav>",
       "css": ".ds-nav{display:flex;flex-direction:column;gap:2px;width:220px}.ds-nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;color:hsl(var(--sidebar-foreground));font:500 14px Inter,sans-serif;cursor:pointer;text-decoration:none;transition:background .15s ease}.ds-nav-item:hover{background:hsl(var(--sidebar-accent))}.ds-nav-item[data-active]{background:hsl(var(--sidebar-accent));color:hsl(var(--sidebar-primary))}"
+    },
+    {
+      "name": "Marketing Primary Button",
+      "kind": "button",
+      "refersTo": "button-marketing-primary",
+      "description": "INTERIM marketing-only CTA (Home/ui/buttons.ts). Heavier than the app Button — larger padding, ring-2 focus, borderless. Consolidate back into components/ui/button.tsx later.",
+      "html": "<button class=\"ds-btn-mkt\">Get access</button>",
+      "css": ".ds-btn-mkt{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));border:none;border-radius:6px;padding:10px 20px;font:500 14px Inter,sans-serif;cursor:pointer;transition:filter .15s ease}.ds-btn-mkt:hover{filter:brightness(.9)}.ds-btn-mkt:active{filter:brightness(.75)}.ds-btn-mkt:focus-visible{outline:none;box-shadow:0 0 0 2px hsl(var(--ring))}"
+    },
+    {
+      "name": "Pill",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "Marketing-only neutral eyebrow tag (Home/ui/Pill.tsx). Rounded-full, bordered, muted — a section tag, not the banned tracked-uppercase eyebrow.",
+      "html": "<span class=\"ds-pill\">Deal calculator</span>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;gap:6px;background:hsl(var(--card));color:hsl(var(--muted-foreground));border:1px solid hsl(var(--border));border-radius:9999px;padding:4px 12px;font:500 12px Inter,sans-serif}"
     }
   ],
   "narrative": {
@@ -125,13 +147,15 @@
       "One family, Inter, at a fixed rem scale — hierarchy from weight and size, not fluid scaling.",
       "Flat by default; depth is a hover/active overlay, never a shadow.",
       "Neutral-cool grays throughout; warmth is deliberately absent (no cream, no beige).",
-      "Per-surface density, one coherent identity."
+      "Per-surface density, one coherent identity.",
+      "A single bounded exception: the one-page marketing layer (components/Home) may use clamped display headings and choreographed entrance motion — still Inter, still one accent, still flat and cool."
     ],
     "rules": [
       { "name": "The One Accent Rule", "body": "Insider Cyan is the only brand color, and it appears only where it carries meaning — action, selection, focus, link, primary series. Its rarity is what makes it read as authoritative.", "section": "colors" },
       { "name": "The Cool-Neutral Rule", "body": "Grays carry a faint blue cast (hue 220), never a warm one. No cream, no beige, no sand — those are the generic-template tell this brand rejects.", "section": "colors" },
       { "name": "The Fixed-Scale Rule", "body": "Type sizes are fixed, not fluid. Exactly two things scale with the viewport — page titles and a growing card heading. Clamp-sized headings belong to the marketing layer, never app UI.", "section": "typography" },
       { "name": "The 12px Floor Rule", "body": "text-xs (12px) is the minimum for UI text, exceptions being avatar initials and the dense transaction list. Smaller means the container is too small.", "section": "typography" },
+      { "name": "The Marketing-Exception Rule", "body": "Clamped display type and choreographed entrance motion are permitted on components/Home and forbidden everywhere else. The exception is bounded, not a second design language: still Inter, still one cyan accent, still cool neutrals, still flat. A clamp heading or scroll reveal outside components/Home is a bug.", "section": "typography" },
       { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Elevation is a response to state (hover, press, toggle), never ambient decoration.", "section": "elevation" },
       { "name": "The Overlay-Not-Shadow Rule", "body": "Never reach for a box-shadow to separate surfaces — use the border ladder or the elevate overlay. An overflow:hidden ancestor clips the overlay; fix the clip, don't add a shadow.", "section": "elevation" }
     ],
@@ -141,7 +165,9 @@
       "Do convey depth with the elevate overlay or the border ladder, never a shadow (DS.NO-SHADOWS).",
       "Do hold type sizes fixed; scale only page titles and growing-card headings (DS.FIXED-TYPE-SIZE).",
       "Do use a semantic token for every color; the only hex allowed is in the four sanctioned categorical palettes (DS.NO-HARDCODED-COLOR).",
-      "Do match density to the surface — Data can run tight like Redfin, Mastermind reads like Slack."
+      "Do match density to the surface — Data can run tight like Redfin, Mastermind reads like Slack.",
+      "Do keep the marketing layer's clamp headings and entrance motion inside components/Home, every animation paired with a prefers-reduced-motion hold (The Marketing-Exception Rule).",
+      "Do treat Home/ui/buttons.ts as interim scaffolding — reach for the shared Button in app UI, and consolidate the marketing variants back into it rather than growing a second button system."
     ],
     "donts": [
       "Don't ship the generic AI/SaaS template: no cream/beige backgrounds, no gradient hero, no identical icon-heading-text card grids, no tiny tracked-uppercase eyebrow over every section.",

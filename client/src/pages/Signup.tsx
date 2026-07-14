@@ -1,11 +1,10 @@
-import { useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
 
 import { AuthPageShell } from '@/components/auth/AuthPageShell';
 import { SignupForm } from '@/components/auth/SignupForm';
 
-import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useRedirectWhenAuthenticated } from '@/hooks/useRedirectWhenAuthenticated';
 
 import { getRedirectTarget } from '@/utils/authRedirect';
 
@@ -13,13 +12,10 @@ export default function Signup() {
     const [, setLocation] = useLocation();
     const search = useSearch();
     const { toast } = useToast();
-    const { isAuthenticated } = useAuth();
 
     const redirectTarget = getRedirectTarget(search);
 
-    useEffect(() => {
-        if (isAuthenticated) setLocation(redirectTarget);
-    }, [isAuthenticated, redirectTarget, setLocation]);
+    useRedirectWhenAuthenticated(redirectTarget);
 
     return (
         <AuthPageShell

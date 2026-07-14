@@ -23,14 +23,13 @@ import {
     Wrench,
 } from 'lucide-react';
 
-import {
-    FeatureBullet,
-    MiniMap,
-    Reveal,
-    btnPrimary,
-    scrollToSection,
-    sectionHeading,
-} from '@/components/Home/primitives';
+import { PIN_COLORS } from '@/constants/mapPins.constants';
+import { FeatureBullet } from '@/components/Home/ui/FeatureBullet';
+import { MiniMap } from '@/components/Home/ui/MiniMap';
+import { Reveal } from '@/components/Home/ui/Reveal';
+import { sectionHeading } from '@/components/Home/ui/typography';
+import { btnPrimary } from '@/components/Home/ui/buttons';
+import { scrollToSection } from '@/utils/scroll';
 
 /**
  * Standard alternating explainer block (app marker → title → copy → bullets → CTA, paired with a
@@ -97,18 +96,20 @@ function FeatureSection({
     );
 }
 
-const STATUS_BADGE_BG: Record<string, string> = {
-    Renovating: 'bg-[#69C9E1]',
-    Wholesale: 'bg-[#9333EA]',
-    Sold: 'bg-[#FF0000]',
-    'On Market': 'bg-[#22C55E]',
+const STATUS_BADGE_COLOR: Record<string, string> = {
+    Renovating: PIN_COLORS.inRenovation,
+    Wholesale: PIN_COLORS.wholesale,
+    Sold: PIN_COLORS.sold,
+    'On Market': PIN_COLORS.onMarket,
 };
 
 /** Property status pill — mirrors the colored Badge variants on PropertyContent. */
 function StatusBadge({ label }: { label: string }) {
+    const color = STATUS_BADGE_COLOR[label];
     return (
         <span
-            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold text-primary-foreground ${STATUS_BADGE_BG[label] ?? 'bg-muted'}`}
+            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold text-primary-foreground ${color ? '' : 'bg-muted'}`}
+            style={color ? { backgroundColor: color } : undefined}
         >
             {label}
         </span>
@@ -202,11 +203,11 @@ function GridPreview() {
 /** Table view preview — dense, sortable-looking rows with status dots. */
 function TablePreview() {
     const rows = [
-        { dot: '#69C9E1', address: '1420 Pearl St', city: 'Denver', price: '$420,000' },
-        { dot: '#FF0000', address: '88 Larimer Ave', city: 'Denver', price: '$512,000' },
-        { dot: '#22C55E', address: '305 Federal Blvd', city: 'Denver', price: '$398,000' },
-        { dot: '#9333EA', address: '77 Speer Blvd', city: 'Denver', price: '$540,000' },
-        { dot: '#69C9E1', address: '210 Wynkoop St', city: 'Denver', price: '$465,000' },
+        { dot: PIN_COLORS.inRenovation, address: '1420 Pearl St', city: 'Denver', price: '$420,000' },
+        { dot: PIN_COLORS.sold, address: '88 Larimer Ave', city: 'Denver', price: '$512,000' },
+        { dot: PIN_COLORS.onMarket, address: '305 Federal Blvd', city: 'Denver', price: '$398,000' },
+        { dot: PIN_COLORS.wholesale, address: '77 Speer Blvd', city: 'Denver', price: '$540,000' },
+        { dot: PIN_COLORS.inRenovation, address: '210 Wynkoop St', city: 'Denver', price: '$465,000' },
     ];
     return (
         <div className="h-72 overflow-hidden rounded-xl border border-border bg-card">
@@ -398,8 +399,10 @@ function DealVisual() {
                         <Star className="h-3 w-3 fill-current" />
                         ARV Exclusive
                     </span>
-                    {/* the documented "Wholesale" deal-type brand color (#9333EA) */}
-                    <span className="inline-flex items-center rounded-md bg-[#9333EA] px-3 py-0.5 text-xs font-semibold text-primary-foreground">
+                    <span
+                        className="inline-flex items-center rounded-md px-3 py-0.5 text-xs font-semibold text-primary-foreground"
+                        style={{ backgroundColor: PIN_COLORS.wholesale }}
+                    >
                         Wholesale
                     </span>
                 </div>
