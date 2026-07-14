@@ -53,7 +53,7 @@ export default function DealsColumn({
                     </span>
                 </h3>
                 {isEmpty ? (
-                    <DealsEmptyState size="sm" message={`No ${title.toLowerCase()}`} />
+                    <DealsEmptyState title={`No ${title.toLowerCase()}`} className="py-10" />
                 ) : (
                     <div className="space-y-4">{children}</div>
                 )}

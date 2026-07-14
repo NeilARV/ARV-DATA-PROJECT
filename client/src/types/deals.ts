@@ -7,12 +7,25 @@ export type LocationFilter =
     | { type: 'city'; value: string; state: string }
     | { type: 'zip'; value: string };
 
-// One deal column's view-model (New or Sold): its loaded deals plus pagination state.
-// Bundled so DealsGrid takes one object per column instead of parallel new*/sold* props.
+// One deal column's view-model (legacy two-column grid): loaded deals plus pagination state.
+// Superseded by the unified feed; retained until the old DealsGrid/DealsColumn are removed.
 export type DealColumn = {
     deals: Deal[];
     count: number;
     hasMore: boolean;
     isLoadingMore: boolean;
     onLoadMore: () => void;
+};
+
+// What the current viewer may do with a specific deal — computed per-deal from role + ownership,
+// so the row/detail stay presentational and the preview can supply its own caps.
+export type DealCaps = {
+    canEdit: boolean;
+    canDelete: boolean;
+    canRequestContact: boolean;
+    canSubmitOffer: boolean;
+    /** Viewer posted this deal — may see received offers and top potential buyers. */
+    isOwner: boolean;
+    /** Admin / owner / RM — sees the poster + internal-notes footer. */
+    canViewPoster: boolean;
 };

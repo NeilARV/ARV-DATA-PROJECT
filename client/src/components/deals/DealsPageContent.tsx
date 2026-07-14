@@ -206,9 +206,8 @@ export default function DealsPageContent() {
             ) : newDeals.length + soldDeals.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
                     <DealsEmptyState
-                        size="lg"
-                        message={tab === 'mine' ? 'No deals posted yet' : 'No deals found'}
-                        subMessage={
+                        title={tab === 'mine' ? 'No deals posted yet' : 'No deals found'}
+                        message={
                             locationFilter
                                 ? `No deals match the selected location. Try a different filter.`
                                 : tab === 'mine'
