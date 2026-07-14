@@ -205,6 +205,22 @@ Many-to-many: users ↔ MSAs they subscribe to.
 
 ---
 
+### `user_county_subscriptions`
+County-grained subscriptions (issue #113), added alongside the still-live `user_msa_subscriptions`. `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`) so per-MSA email queries stay a single-column filter.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `county` | `text` | NOT NULL |
+| `state` | `text` | NOT NULL |
+| `msa_id` | `integer` | NOT NULL, FK → `msas.id` (cascade) |
+| `created_at` | `timestamp` | NOT NULL, default now |
+| `updated_at` | `timestamp` | default now |
+
+**PK:** `(user_id, county, state)`
+
+---
+
 ## Companies
 
 ### `companies`
