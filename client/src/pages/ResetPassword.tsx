@@ -4,7 +4,6 @@ import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2 } from 'lucide-react';
 
 import { AuthPageShell } from '@/components/auth/AuthPageShell';
 import {
@@ -16,7 +15,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/SubmitButton';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -127,21 +126,14 @@ export default function ResetPassword() {
                         )}
                     />
 
-                    <Button
-                        type="submit"
+                    <SubmitButton
                         className="w-full"
-                        disabled={resetMutation.isPending}
+                        loading={resetMutation.isPending}
+                        loadingText="Updating..."
                         data-testid="button-reset-submit"
                     >
-                        {resetMutation.isPending ? (
-                            <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Updating...
-                            </>
-                        ) : (
-                            'Update Password'
-                        )}
-                    </Button>
+                        Update Password
+                    </SubmitButton>
                 </form>
             </Form>
         </AuthPageShell>

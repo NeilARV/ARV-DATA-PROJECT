@@ -4,6 +4,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Brain, Loader2 } from 'lucide-react';
 
 import { MarketingHeader } from '@/components/MarketingHeader';
+import { MobileTabBar } from '@/components/MobileTabBar';
+import { PageLoader } from '@/components/PageLoader';
 import { ChannelSidebar } from '@/components/mastermind/ChannelSidebar';
 import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
 import { ChannelPinBar } from '@/components/mastermind/ChannelPinBar';
@@ -300,11 +302,7 @@ export default function Mastermind() {
     // ── Gate states ────────────────────────────────────────────────────────────
 
     if (isLoading || isAdminStatusLoading) {
-        return (
-            <div className="min-h-dvh flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-        );
+        return <PageLoader className="min-h-dvh" />;
     }
 
     // Unauthenticated and authenticated-no-access both land here (canAccessMastermind covers both).
@@ -327,29 +325,14 @@ export default function Mastermind() {
         <div className="h-dvh flex flex-col">
             <MarketingHeader />
 
-            {/* Mobile tab bar — hidden on md+ */}
-            <div className="md:hidden flex-shrink-0 flex border-b border-border bg-background">
-                <button
-                    onClick={() => setMobileTab('channels')}
-                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileTab === 'channels'
-                            ? 'text-primary border-b-2 border-primary -mb-px'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    Channels
-                </button>
-                <button
-                    onClick={() => setMobileTab('chat')}
-                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileTab === 'chat'
-                            ? 'text-primary border-b-2 border-primary -mb-px'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    {chatTabLabel}
-                </button>
-            </div>
+            <MobileTabBar
+                tabs={[
+                    { value: 'channels', label: 'Channels' },
+                    { value: 'chat', label: chatTabLabel },
+                ]}
+                value={mobileTab}
+                onChange={setMobileTab}
+            />
 
             <div className="flex-1 flex overflow-hidden min-h-0">
                 {/* Channel sidebar — full-screen on mobile (tab-controlled), fixed width on md+ */}

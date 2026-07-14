@@ -1,9 +1,10 @@
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { PageLoader } from '@/components/PageLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, User, UserCircle, Building2, Mail, Shield } from 'lucide-react';
+import { ArrowLeft, User, UserCircle, Building2, Mail, Shield } from 'lucide-react';
 import AccountInfoTab from '@/components/profile/AccountInfoTab';
 import MyCompaniesTab from '@/components/profile/MyCompaniesTab';
 import EmailPreferencesTab from '@/components/profile/EmailPreferencesTab';
@@ -14,11 +15,7 @@ export default function Profile() {
     const { user, isLoading } = useAuth();
 
     if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-        );
+        return <PageLoader />;
     }
 
     if (!user) {

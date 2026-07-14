@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { FlaskConical, Loader2 } from 'lucide-react';
+import { FlaskConical } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import AppDialog from '@/components/modals/Dialog';
+import { PageLoader } from '@/components/PageLoader';
 import DealsToolbar, { type DealTypeFilter } from '@/components/deals/DealsToolbar';
 import DealsBrowser from '@/components/deals/DealsBrowser';
 import AddDealDialog from '@/components/deals/AddDealDialog';
@@ -48,11 +49,7 @@ export default function DealsPreview() {
     }, [verifying, allowed, isAuthenticated, search, setLocation]);
 
     if (verifying) {
-        return (
-            <div className="flex h-dvh items-center justify-center bg-background">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-        );
+        return <PageLoader className="h-dvh bg-background" />;
     }
     if (!allowed) return null; // redirecting to /login
 

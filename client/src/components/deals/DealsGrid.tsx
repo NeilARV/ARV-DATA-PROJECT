@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import DealCard from '@/components/deals/DealCard2';
 import DealsColumn from '@/components/deals/DealsColumn';
+import { MobileTabBar } from '@/components/MobileTabBar';
 import { useAccessGate } from '@/hooks/useAccessGate';
 import type { DealColumn } from '@/types/deals';
 import type { Deal } from '@shared/types/deals';
@@ -106,29 +107,15 @@ export default function DealsGrid({
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            {/* Mobile tab bar — hidden on md+ */}
-            <div className="2xl:hidden flex-shrink-0 flex border-b border-border bg-background">
-                <button
-                    onClick={() => switchMobileColumn('new')}
-                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileColumn === 'new'
-                            ? 'text-primary border-b-2 border-primary -mb-px'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    New Deals ({newColumn.count})
-                </button>
-                <button
-                    onClick={() => switchMobileColumn('sold')}
-                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileColumn === 'sold'
-                            ? 'text-primary border-b-2 border-primary -mb-px'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    Sold Deals ({soldColumn.count})
-                </button>
-            </div>
+            <MobileTabBar
+                tabs={[
+                    { value: 'new', label: `New Deals (${newColumn.count})` },
+                    { value: 'sold', label: `Sold Deals (${soldColumn.count})` },
+                ]}
+                value={mobileColumn}
+                onChange={switchMobileColumn}
+                hideAt="2xl"
+            />
 
             {/* Columns */}
             <div className="flex flex-1 overflow-hidden min-h-0">

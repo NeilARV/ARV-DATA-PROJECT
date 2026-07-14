@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Store } from 'lucide-react';
 import { MarketingHeader } from '@/components/MarketingHeader';
+import { MobileTabBar } from '@/components/MobileTabBar';
 import { ActivityFeed } from '@/components/vendors/ActivityFeed';
 import { BrowseByCategory } from '@/components/vendors/BrowseByCategory';
 import { AppAccessGate } from '@/components/auth/AppAccessGate';
@@ -15,30 +16,15 @@ export default function Vendors() {
             <MarketingHeader />
 
             <AppAccessGate redirectWhenUnauthenticated="/vendors" icon={Store}>
-                {/* Mobile tab bar — hidden on md+ */}
                 <div className="h-full flex flex-col">
-                    <div className="md:hidden flex-shrink-0 flex border-b border-border bg-background">
-                        <button
-                            onClick={() => setMobileTab('browse')}
-                            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                                mobileTab === 'browse'
-                                    ? 'text-primary border-b-2 border-primary -mb-px'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                        >
-                            Browse
-                        </button>
-                        <button
-                            onClick={() => setMobileTab('feed')}
-                            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                                mobileTab === 'feed'
-                                    ? 'text-primary border-b-2 border-primary -mb-px'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                        >
-                            Activity Feed
-                        </button>
-                    </div>
+                    <MobileTabBar
+                        tabs={[
+                            { value: 'browse', label: 'Browse' },
+                            { value: 'feed', label: 'Activity Feed' },
+                        ]}
+                        value={mobileTab}
+                        onChange={setMobileTab}
+                    />
 
                     <div className="flex-1 flex overflow-hidden min-h-0">
                         {/* Activity Feed — full-width on mobile (tab-controlled), fixed sidebar on md+ */}
