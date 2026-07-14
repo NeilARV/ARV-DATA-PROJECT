@@ -4,3 +4,4 @@ export * from './sync';
 export * from './properties';
 export * from './mastermind';
 export * from './code-violations';
+export * from './countySubscriptions';
