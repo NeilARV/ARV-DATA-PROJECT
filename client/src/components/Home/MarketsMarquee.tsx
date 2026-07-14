@@ -1,6 +1,6 @@
 import { MapPin } from 'lucide-react';
 
-import { LiveDot } from '@/components/Home/primitives';
+import { LiveDot } from '@/components/Home/ui/LiveDot';
 
 const markets = [
     'Denver',

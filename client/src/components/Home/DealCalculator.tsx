@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Calculator } from 'lucide-react';
 
-import { Pill, Reveal } from '@/components/Home/primitives';
+import { Pill } from '@/components/Home/ui/Pill';
+import { Reveal } from '@/components/Home/ui/Reveal';
 
 function formatUSD(n: number) {
     return `$${Math.round(n).toLocaleString()}`;

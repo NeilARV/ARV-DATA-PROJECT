@@ -1,5 +1,4 @@
 import { MarketingHeader } from '@/components/MarketingHeader';
-import { pageStyles } from '@/components/Home/primitives';
 import { Hero } from '@/components/Home/Hero';
 import { MarketsMarquee } from '@/components/Home/MarketsMarquee';
 import { ArvRevealSlider } from '@/components/Home/ArvRevealSlider';
@@ -18,7 +17,6 @@ import { Footer } from '@/components/Home/Footer';
 export default function Home() {
     return (
         <div className="min-h-screen bg-background font-sans text-foreground antialiased">
-            <style>{pageStyles}</style>
             <MarketingHeader />
             <main className="overflow-x-clip">
                 <Hero />

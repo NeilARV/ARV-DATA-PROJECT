@@ -17,7 +17,9 @@ import {
 } from 'lucide-react';
 
 import { NotificationBell } from '@/components/mastermind/NotificationBell';
-import { Logo, btnGhost, btnPrimary, scrollToSection } from '@/components/Home/primitives';
+import { Logo } from '@/components/Logo';
+import { scrollToSection } from '@/utils/scroll';
+import { btnGhost, btnPrimary } from '@/components/Home/ui/buttons';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 import { useToast } from '@/hooks/use-toast';

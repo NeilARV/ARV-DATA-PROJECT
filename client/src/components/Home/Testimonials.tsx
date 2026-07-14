@@ -1,7 +1,7 @@
 import { Star } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Reveal } from '@/components/Home/primitives';
+import { Reveal } from '@/components/Home/ui/Reveal';
 
 /** Single customer testimonial, set as a full-width editorial pull-quote. */
 export function Testimonials() {

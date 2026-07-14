@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 
-import { Reveal, sectionHeading } from '@/components/Home/primitives';
+import { Reveal } from '@/components/Home/ui/Reveal';
+import { sectionHeading } from '@/components/Home/ui/typography';
 
 /** Drag-to-reveal "Before → After Repair Value" comparison — the heart of ARV. */
 export function ArvRevealSlider() {

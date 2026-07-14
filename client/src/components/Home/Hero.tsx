@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { ArrowRight, MapPin } from 'lucide-react';
 
-import {
-    type MapPin as MarketPin,
-    LiveDot,
-    MiniMap,
-    btnOutline,
-    btnPrimary,
-    heroHeading,
-    prefersReducedMotion,
-    scrollToSection,
-} from '@/components/Home/primitives';
+import { PIN_COLORS } from '@/constants/mapPins.constants';
+import { type MarketPin, MiniMap } from '@/components/Home/ui/MiniMap';
+import { LiveDot } from '@/components/Home/ui/LiveDot';
+import { btnOutline, btnPrimary } from '@/components/Home/ui/buttons';
+import { prefersReducedMotion } from '@/utils/motion';
+import { scrollToSection } from '@/utils/scroll';
+
+// The hero is the display peak — a larger, one-off scale that sits above the shared sectionHeading.
+// Fixed clamp steps are sanctioned on the marketing layer only, per DESIGN.md.
+const heroHeading =
+    'text-[2.25rem] font-bold leading-[1.05] tracking-[-0.03em] text-foreground [text-wrap:balance] sm:text-5xl lg:text-[3.25rem]';
 
 /**
  * The markets the hero monitor surveys — illustrative, not live data. The terminal dwells on one
@@ -35,11 +36,11 @@ const AREAS: Area[] = [
         spread: 17.1,
         bars: [52, 64, 58, 74, 66, 80, 88, 60, 70],
         pins: [
-            { left: '26%', top: '40%', color: '#22C55E' },
-            { left: '48%', top: '28%', color: '#69C9E1' },
-            { left: '62%', top: '54%', color: '#9333EA' },
-            { left: '78%', top: '40%', color: '#FF0000' },
-            { left: '38%', top: '66%', color: '#FFA500' },
+            { left: '26%', top: '40%', color: PIN_COLORS.onMarket },
+            { left: '48%', top: '28%', color: PIN_COLORS.inRenovation },
+            { left: '62%', top: '54%', color: PIN_COLORS.wholesale },
+            { left: '78%', top: '40%', color: PIN_COLORS.sold },
+            { left: '38%', top: '66%', color: PIN_COLORS.selected },
         ],
     },
     {
@@ -49,12 +50,12 @@ const AREAS: Area[] = [
         spread: 16.2,
         bars: [60, 72, 68, 84, 76, 90, 96, 72, 82],
         pins: [
-            { left: '20%', top: '34%', color: '#22C55E' },
-            { left: '36%', top: '26%', color: '#69C9E1' },
-            { left: '52%', top: '44%', color: '#FF0000' },
-            { left: '66%', top: '30%', color: '#9333EA' },
-            { left: '74%', top: '58%', color: '#22C55E' },
-            { left: '44%', top: '68%', color: '#FFA500' },
+            { left: '20%', top: '34%', color: PIN_COLORS.onMarket },
+            { left: '36%', top: '26%', color: PIN_COLORS.inRenovation },
+            { left: '52%', top: '44%', color: PIN_COLORS.sold },
+            { left: '66%', top: '30%', color: PIN_COLORS.wholesale },
+            { left: '74%', top: '58%', color: PIN_COLORS.onMarket },
+            { left: '44%', top: '68%', color: PIN_COLORS.selected },
         ],
     },
     {
@@ -64,10 +65,10 @@ const AREAS: Area[] = [
         spread: 18.4,
         bars: [40, 58, 50, 72, 54, 66, 84, 46, 62],
         pins: [
-            { left: '30%', top: '38%', color: '#69C9E1' },
-            { left: '54%', top: '30%', color: '#22C55E' },
-            { left: '68%', top: '56%', color: '#FFA500' },
-            { left: '42%', top: '64%', color: '#9333EA' },
+            { left: '30%', top: '38%', color: PIN_COLORS.inRenovation },
+            { left: '54%', top: '30%', color: PIN_COLORS.onMarket },
+            { left: '68%', top: '56%', color: PIN_COLORS.selected },
+            { left: '42%', top: '64%', color: PIN_COLORS.wholesale },
         ],
     },
     {
@@ -77,11 +78,11 @@ const AREAS: Area[] = [
         spread: 15.4,
         bars: [48, 60, 72, 64, 80, 58, 70, 54, 68],
         pins: [
-            { left: '24%', top: '44%', color: '#9333EA' },
-            { left: '44%', top: '32%', color: '#22C55E' },
-            { left: '58%', top: '50%', color: '#69C9E1' },
-            { left: '72%', top: '38%', color: '#FF0000' },
-            { left: '40%', top: '68%', color: '#22C55E' },
+            { left: '24%', top: '44%', color: PIN_COLORS.wholesale },
+            { left: '44%', top: '32%', color: PIN_COLORS.onMarket },
+            { left: '58%', top: '50%', color: PIN_COLORS.inRenovation },
+            { left: '72%', top: '38%', color: PIN_COLORS.sold },
+            { left: '40%', top: '68%', color: PIN_COLORS.onMarket },
         ],
     },
     {
@@ -91,11 +92,11 @@ const AREAS: Area[] = [
         spread: 20.1,
         bars: [56, 50, 66, 58, 74, 62, 80, 68, 54],
         pins: [
-            { left: '28%', top: '36%', color: '#FFA500' },
-            { left: '46%', top: '52%', color: '#22C55E' },
-            { left: '62%', top: '30%', color: '#69C9E1' },
-            { left: '76%', top: '50%', color: '#9333EA' },
-            { left: '36%', top: '68%', color: '#FF0000' },
+            { left: '28%', top: '36%', color: PIN_COLORS.selected },
+            { left: '46%', top: '52%', color: PIN_COLORS.onMarket },
+            { left: '62%', top: '30%', color: PIN_COLORS.inRenovation },
+            { left: '76%', top: '50%', color: PIN_COLORS.wholesale },
+            { left: '36%', top: '68%', color: PIN_COLORS.sold },
         ],
     },
     {
@@ -105,11 +106,11 @@ const AREAS: Area[] = [
         spread: 21.2,
         bars: [44, 62, 54, 70, 60, 76, 66, 50, 72],
         pins: [
-            { left: '22%', top: '42%', color: '#22C55E' },
-            { left: '40%', top: '30%', color: '#FFA500' },
-            { left: '56%', top: '48%', color: '#22C55E' },
-            { left: '70%', top: '34%', color: '#69C9E1' },
-            { left: '50%', top: '66%', color: '#9333EA' },
+            { left: '22%', top: '42%', color: PIN_COLORS.onMarket },
+            { left: '40%', top: '30%', color: PIN_COLORS.selected },
+            { left: '56%', top: '48%', color: PIN_COLORS.onMarket },
+            { left: '70%', top: '34%', color: PIN_COLORS.inRenovation },
+            { left: '50%', top: '66%', color: PIN_COLORS.wholesale },
         ],
     },
     {
@@ -119,10 +120,10 @@ const AREAS: Area[] = [
         spread: 17.8,
         bars: [50, 66, 58, 78, 64, 72, 86, 56, 68],
         pins: [
-            { left: '32%', top: '34%', color: '#69C9E1' },
-            { left: '52%', top: '46%', color: '#9333EA' },
-            { left: '66%', top: '30%', color: '#22C55E' },
-            { left: '44%', top: '64%', color: '#FFA500' },
+            { left: '32%', top: '34%', color: PIN_COLORS.inRenovation },
+            { left: '52%', top: '46%', color: PIN_COLORS.wholesale },
+            { left: '66%', top: '30%', color: PIN_COLORS.onMarket },
+            { left: '44%', top: '64%', color: PIN_COLORS.selected },
         ],
     },
     {
@@ -132,9 +133,9 @@ const AREAS: Area[] = [
         spread: 22.4,
         bars: [34, 48, 42, 58, 46, 54, 64, 40, 50],
         pins: [
-            { left: '34%', top: '40%', color: '#22C55E' },
-            { left: '56%', top: '52%', color: '#FFA500' },
-            { left: '46%', top: '30%', color: '#69C9E1' },
+            { left: '34%', top: '40%', color: PIN_COLORS.onMarket },
+            { left: '56%', top: '52%', color: PIN_COLORS.selected },
+            { left: '46%', top: '30%', color: PIN_COLORS.inRenovation },
         ],
     },
     {
@@ -144,11 +145,11 @@ const AREAS: Area[] = [
         spread: 19.3,
         bars: [46, 60, 56, 72, 64, 70, 82, 58, 66],
         pins: [
-            { left: '26%', top: '38%', color: '#FF0000' },
-            { left: '44%', top: '28%', color: '#22C55E' },
-            { left: '60%', top: '50%', color: '#69C9E1' },
-            { left: '74%', top: '42%', color: '#9333EA' },
-            { left: '40%', top: '66%', color: '#22C55E' },
+            { left: '26%', top: '38%', color: PIN_COLORS.sold },
+            { left: '44%', top: '28%', color: PIN_COLORS.onMarket },
+            { left: '60%', top: '50%', color: PIN_COLORS.inRenovation },
+            { left: '74%', top: '42%', color: PIN_COLORS.wholesale },
+            { left: '40%', top: '66%', color: PIN_COLORS.onMarket },
         ],
     },
 ];

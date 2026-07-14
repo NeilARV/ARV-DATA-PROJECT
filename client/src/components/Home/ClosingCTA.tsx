@@ -1,7 +1,9 @@
 import { useLocation } from 'wouter';
 import { ArrowRight } from 'lucide-react';
 
-import { Reveal, btnPrimary, btnOutline, sectionHeading } from '@/components/Home/primitives';
+import { Reveal } from '@/components/Home/ui/Reveal';
+import { sectionHeading } from '@/components/Home/ui/typography';
+import { btnPrimary, btnOutline } from '@/components/Home/ui/buttons';
 
 export function ClosingCTA() {
     const [, setLocation] = useLocation();

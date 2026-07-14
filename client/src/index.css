@@ -2,6 +2,7 @@
 @import './styles/profile.components.css';
 @import './styles/shared.components.css';
 @import './styles/mastermind.components.css';
+@import './styles/home.components.css';
 
 @tailwind base;
 @tailwind components;

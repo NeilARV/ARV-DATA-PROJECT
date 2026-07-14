@@ -1,6 +1,6 @@
 import { useLocation } from 'wouter';
 
-import { Logo } from '@/components/Home/primitives';
+import { Logo } from '@/components/Logo';
 
 // Footer link groups. `to` is an internal route; items without one are placeholders (no page yet).
 const groups: { title: string; items: { label: string; to?: string }[] }[] = [
