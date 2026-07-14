@@ -16,6 +16,6 @@ Run typechecking regularly, single test files regularly, and the full test suite
 
 Once done, use /code-review to review the work.
 
-Commit your work to the current branch at each coherent checkpoint, then stop to request my approval to continue. Err toward more commits. **Never commit broken code** — every commit should typecheck and pass its relevant tests, so each is independently revertable and reviewable.
+Commit your work to the current branch at each coherent checkpoint, then stop to request my approval to continue. Error toward more commits. **Never commit broken code** — every commit should typecheck and pass its relevant tests, so each is independently revertable and reviewable.
 
 Give each commit a clear, concise message. Start it with the issue number if it exists (ie. `Issue #23 | Prevent duplicate password reset tokens`).
