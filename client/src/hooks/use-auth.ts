@@ -1,6 +1,11 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import type { Roles, SubscriptionTier, RelationshipManager } from '@shared/types/users';
+import type {
+    Roles,
+    SubscriptionTier,
+    RelationshipManager,
+    CountySubscription,
+} from '@shared/types/users';
 import type { PropertyStatus } from '@shared/types/properties';
 
 export type DataAppStatus = PropertyStatus;
@@ -32,6 +37,8 @@ export interface AuthUser {
     county?: string | null;
     state?: string | null;
     profileImageUrl?: string | null;
+    countySubscriptions?: CountySubscription[];
+    // Legacy whole-MSA view derived server-side from countySubscriptions; superseded by #115.
     msaSubscriptions?: string[];
     relationshipManager?: RelationshipManager | null;
     notificationPreferences?: NotificationPreferences | null;

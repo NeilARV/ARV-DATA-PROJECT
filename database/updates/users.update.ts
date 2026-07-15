@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { countySubscriptionSelectionSchema } from '../validation/countySubscriptions.validation';
 
 const SUBSCRIPTION_TIERS = ['basic', 'pro', 'premium'] as const;
 
@@ -33,6 +34,9 @@ export const updateUserProfileSchema = z
         email: z.string().email('Invalid email address').optional(),
         phone: z.string().min(1, 'Phone is required').optional(),
         notifications: z.boolean().optional(),
+        // County subscriptions are the replace-list going forward (issue #114); msaSubscriptions is
+        // the legacy whole-MSA form, still accepted until the profile UI moves onto counties (#115).
+        countySubscriptions: z.array(countySubscriptionSelectionSchema).optional(),
         msaSubscriptions: z.array(z.string()).optional(),
         county: z.string().nullable().optional(),
         state: z.string().max(2).nullable().optional(),

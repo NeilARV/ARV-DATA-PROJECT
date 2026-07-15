@@ -7,8 +7,20 @@ import {
 } from '@database/validation/users.validation';
 import { updateUserProfileSchema, updateNotificationPreferencesSchema } from '@database/updates';
 import { EmailVerificationServices, SessionServices, UserServices } from 'server/services/auth';
+import {
+    getUserCountySubscriptions,
+    replaceUserCountySubscriptions,
+    msaNamesToCountySelections,
+} from 'server/services/subscriptions/countySubscriptions.services';
+import type { CountySubscription } from '@shared/types/users';
 import { generateTempPassword } from 'server/utils/generateTempPassword';
 import { sendTempPasswordEmail } from 'server/services/postmark/passwordReset.services';
+
+/** Distinct parent-MSA names covered by the user's county subscriptions — the legacy
+ *  `msaSubscriptions` field, derived so the current profile UI keeps working until issue #115. */
+function deriveMsaSubscriptionNames(countySubscriptions: CountySubscription[]): string[] {
+    return Array.from(new Set(countySubscriptions.map((c) => c.msaName)));
+}
 
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -82,16 +94,18 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
             return;
         }
 
-        const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
-            UserServices.getUserMsaSubscriptionNames(user.id),
-            UserServices.getRelationshipManagerForUser(user.id),
-            UserServices.getUserNotificationPreferences(user.id),
-        ]);
+        const [countySubscriptions, relationshipManager, notificationPreferences] =
+            await Promise.all([
+                getUserCountySubscriptions(user.id),
+                UserServices.getRelationshipManagerForUser(user.id),
+                UserServices.getUserNotificationPreferences(user.id),
+            ]);
         const { passwordHash: _, ...userWithoutPassword } = user;
         res.json({
             user: {
                 ...userWithoutPassword,
-                msaSubscriptions,
+                countySubscriptions,
+                msaSubscriptions: deriveMsaSubscriptionNames(countySubscriptions),
                 relationshipManager,
                 notificationPreferences,
             },
@@ -124,11 +138,14 @@ export async function updateProfile(
             return;
         }
 
-        const updateData = validation.data;
+        // Subscriptions are replaced separately (county table), not part of the users-row update.
+        // countySubscriptions is the authoritative field (issue #114); legacy msaSubscriptions is
+        // still honored — translated to whole-MSA county rows — until the profile UI moves (#115).
+        const { countySubscriptions, msaSubscriptions, ...profileData } = validation.data;
 
         // Check if email is being updated and if it's already taken by another user
-        if (updateData.email) {
-            const [existingUser] = await UserServices.getUserByEmail(updateData.email);
+        if (profileData.email) {
+            const [existingUser] = await UserServices.getUserByEmail(profileData.email);
             if (existingUser && existingUser.id !== req.session.userId) {
                 res.status(409).json({ message: 'An account with this email already exists' });
                 return;
@@ -136,7 +153,7 @@ export async function updateProfile(
         }
 
         // Update user profile (only allow updating own profile)
-        const result = await UserServices.updateUser(req.session.userId, updateData);
+        const result = await UserServices.updateUser(req.session.userId, profileData);
 
         if (!result) {
             res.status(404).json({ message: 'User not found' });
@@ -145,16 +162,27 @@ export async function updateProfile(
 
         const { user: updatedUser, hasEmailChanged } = result;
 
-        const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
-            UserServices.getUserMsaSubscriptionNames(updatedUser.id),
-            UserServices.getRelationshipManagerForUser(updatedUser.id),
-            UserServices.getUserNotificationPreferences(updatedUser.id),
-        ]);
+        if (countySubscriptions !== undefined) {
+            await replaceUserCountySubscriptions(updatedUser.id, countySubscriptions);
+        } else if (msaSubscriptions !== undefined) {
+            await replaceUserCountySubscriptions(
+                updatedUser.id,
+                msaNamesToCountySelections(msaSubscriptions),
+            );
+        }
+
+        const [refreshedCountySubscriptions, relationshipManager, notificationPreferences] =
+            await Promise.all([
+                getUserCountySubscriptions(updatedUser.id),
+                UserServices.getRelationshipManagerForUser(updatedUser.id),
+                UserServices.getUserNotificationPreferences(updatedUser.id),
+            ]);
         res.json({
             success: true,
             user: {
                 ...updatedUser,
-                msaSubscriptions,
+                countySubscriptions: refreshedCountySubscriptions,
+                msaSubscriptions: deriveMsaSubscriptionNames(refreshedCountySubscriptions),
                 relationshipManager,
                 notificationPreferences,
             },

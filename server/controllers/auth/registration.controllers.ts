@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { insertUserSchema } from '@database/inserts';
 import { UserServices, EmailVerificationServices } from 'server/services/auth';
-import { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
+import { seedHomeCountySubscription } from 'server/services/subscriptions/countySubscriptions.services';
 import { normalizeEmail } from 'server/utils/normalizeEmail';
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -78,14 +78,9 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             dealTypeFilter: ['wholesale', 'agent', 'sold', 'reo'],
         });
 
+        // Seed the home county only — no auto-flood of the whole (multi-county) MSA (issue #114).
         if (normalizedCounty) {
-            const msaName = getMsaNameFromCounty(normalizedCounty);
-            if (msaName) {
-                const msaId = await UserServices.getMsaIdByName(msaName);
-                if (msaId != null) {
-                    await UserServices.addUserMsaSubscription(newUser.id, msaId);
-                }
-            }
+            await seedHomeCountySubscription(newUser.id, normalizedCounty);
         }
 
         req.session.userId = newUser.id;

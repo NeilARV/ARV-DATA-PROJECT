@@ -10,3 +10,10 @@ export const countySubscriptionSchema = z.object({
 });
 
 export type CountySubscriptionInput = z.infer<typeof countySubscriptionSchema>;
+
+// The API-facing `(county, state)` a client sends when replacing its subscriptions (issue #114).
+// msaId is intentionally absent — the server derives the parent MSA from the county (COUNTY_TO_MSA,
+// issue #112), so clients never carry the county↔MSA mapping.
+export const countySubscriptionSelectionSchema = countySubscriptionSchema.omit({ msaId: true });
+
+export type CountySubscriptionSelection = z.infer<typeof countySubscriptionSelectionSchema>;

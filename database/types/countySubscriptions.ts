@@ -4,4 +4,7 @@ import { insertUserCountySubscriptionSchema } from '../inserts/countySubscriptio
 
 export type UserCountySubscription = typeof userCountySubscriptions.$inferSelect;
 export type InsertUserCountySubscription = z.infer<typeof insertUserCountySubscriptionSchema>;
-export type { CountySubscriptionInput } from '../validation/countySubscriptions.validation';
+export type {
+    CountySubscriptionInput,
+    CountySubscriptionSelection,
+} from '../validation/countySubscriptions.validation';
