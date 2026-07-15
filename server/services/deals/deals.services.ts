@@ -183,6 +183,8 @@ type GetDealsFilters = {
     zipCode?: string;
     // Column selector: 'new' = every non-sold type, 'sold' = sold only. Omit for all types.
     status?: 'new' | 'sold';
+    // Narrows to a single deal type (including 'sold'). Omit for all types.
+    type?: DealType;
     // 1-based page + page size (offset pagination). Defaults: page 1, limit 10.
     page?: number;
     limit?: number;
@@ -197,7 +199,7 @@ const DEFAULT_DEALS_LIMIT = 10;
  * Enriches each deal with comparable-sale links, a relative street-view URL, and — for the
  * caller's own deals — an offer count. Top buyers and the street-view image itself are fetched
  * lazily by their own endpoints, not here.
- * @param filters location/status filters plus page/limit; `callerId` scopes offer counts.
+ * @param filters location/status/type filters plus page/limit; `callerId` scopes offer counts.
  * @returns one page: `{ deals, total, hasMore, page, limit }` for the matching column.
  */
 export async function getDeals(filters: GetDealsFilters) {
@@ -210,6 +212,7 @@ export async function getDeals(filters: GetDealsFilters) {
         state: filterState,
         zipCode: filterZipCode,
         status: filterStatus,
+        type: filterType,
         callerId: filterCallerId,
     } = filters;
 
@@ -244,6 +247,7 @@ export async function getDeals(filters: GetDealsFilters) {
     if (filterZipCode) conditions.push(eq(deals.zipCode, filterZipCode));
     if (filterStatus === 'sold') conditions.push(eq(deals.type, 'sold'));
     else if (filterStatus === 'new') conditions.push(ne(deals.type, 'sold'));
+    if (filterType) conditions.push(eq(deals.type, filterType));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Total matching rows for the column header (cheap COUNT, all filters on `deals`). A single-deal
