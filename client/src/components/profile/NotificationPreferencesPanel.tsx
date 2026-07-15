@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { Edit, Save, X } from 'lucide-react';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { CountySubscriptionAccordion } from '@/components/profile/CountySubscriptionAccordion';
-import { Edit, Save, X } from 'lucide-react';
+
+import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, NotificationPreferences, DealTypeFilter } from '@/hooks/use-auth';
+
+import { queryClient, apiRequest } from '@/lib/queryClient';
 import type { CountySubscriptionSelection } from '@database/validation/countySubscriptions.validation';
 
 const DEFAULT_PREFS: Omit<NotificationPreferences, 'userId' | 'createdAt' | 'updatedAt'> = {
@@ -106,8 +109,6 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                 // Re-seed from the persisted list — the server canonicalizes (dedupe/order), so
                 // the next edit session starts from what was actually saved.
                 setCountySelections(toCountySelections(profileData.user.countySubscriptions));
-                // profileData.user carries the persisted countySubscriptions (and the derived
-                // legacy msaSubscriptions), so no hand-patched subscription fields here.
                 queryClient.setQueryData(
                     ['/api/auth/me'],
                     (old: { user: AuthUser } | undefined) => ({

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import {
     Accordion,
     AccordionContent,
@@ -6,6 +7,7 @@ import {
     AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
+
 import { getTrackedCounties } from '@shared/constants/countyToMsa';
 import type { CountySubscriptionSelection } from '@database/validation/countySubscriptions.validation';
 
