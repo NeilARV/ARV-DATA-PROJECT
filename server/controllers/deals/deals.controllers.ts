@@ -21,6 +21,7 @@ import { createDealBidNotification } from 'server/services/notifications/notific
 import { broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { requestDealInfoSchema, submitOfferSchema } from '@database/validation/deals.validation';
+import { isDealType } from '@shared/types/deals';
 import { isUuid } from 'server/utils/uuid';
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
@@ -57,13 +58,7 @@ export async function getDealsController(req: Request, res: Response): Promise<v
             req.query.status === 'new' || req.query.status === 'sold'
                 ? req.query.status
                 : undefined;
-        const type =
-            req.query.type === 'wholesale' ||
-            req.query.type === 'agent' ||
-            req.query.type === 'reo' ||
-            req.query.type === 'sold'
-                ? req.query.type
-                : undefined;
+        const type = isDealType(req.query.type) ? req.query.type : undefined;
 
         const parsedPage = parseInt(String(req.query.page), 10);
         const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;

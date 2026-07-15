@@ -6,6 +6,7 @@ import type {
     CreateDealInput,
     UpdateDealInput,
 } from '@shared/types/deals';
+import { isDealType } from '@shared/types/deals';
 import { deals, dealLinks, dealBids } from '@database/schemas/deals.schema';
 import {
     users,
@@ -484,10 +485,7 @@ export async function createDeal(input: CreateDealInput) {
         }
     }
 
-    const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
-    const resolvedDealType = (validDealTypes as readonly string[]).includes(dealType ?? '')
-        ? (dealType as 'wholesale' | 'agent' | 'sold' | 'reo')
-        : ('agent' as const);
+    const resolvedDealType: DealType = isDealType(dealType) ? dealType : 'agent';
 
     // MSA is derived from the location; the client-provided msaId is only a fallback for
     // addresses that don't resolve to a tracked market.
@@ -961,8 +959,6 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         };
     }
 
-    const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
-
     const [updated] = await db
         .update(deals)
         .set({
@@ -988,11 +984,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
                         ? Number(estimatedBudget)
                         : null
                     : undefined,
-            type:
-                dealType !== undefined &&
-                validDealTypes.includes(dealType as (typeof validDealTypes)[number])
-                    ? (dealType as (typeof validDealTypes)[number])
-                    : undefined,
+            type: isDealType(dealType) ? dealType : undefined,
             notes: notes !== undefined ? (notes ?? null) : undefined,
             adminNotes: adminNotes !== undefined ? (adminNotes ?? null) : undefined,
             photosUrl: photosUrl !== undefined ? (photosUrl ?? null) : undefined,

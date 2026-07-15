@@ -1,4 +1,10 @@
-export type DealType = 'wholesale' | 'agent' | 'sold' | 'reo';
+export const DEAL_TYPES = ['wholesale', 'agent', 'sold', 'reo'] as const;
+export type DealType = (typeof DEAL_TYPES)[number];
+
+/** Narrows an untrusted value (query param, request body) to the deal-type union. */
+export function isDealType(value: unknown): value is DealType {
+    return typeof value === 'string' && (DEAL_TYPES as readonly string[]).includes(value);
+}
 export type DealTab = 'all' | 'mine';
 
 // Top buyers for a deal's zip — fetched on demand via GET /api/deals/:id/top-buyers
