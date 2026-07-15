@@ -7,6 +7,7 @@ import type { MapBounds } from 'server/services/properties/maps.services';
 function toMapFilters(q: MapQuery) {
     return {
         county: q.county,
+        msa: q.msa,
         statusFilter: q.status,
         dateRange: q.dateRange,
         companyId: q.companyId,

@@ -98,11 +98,20 @@ export async function postProperty(req: Request, res: Response) {
 
 export async function getPropertySuggestionsHandler(req: Request, res: Response) {
     try {
-        const { search, county } = req.query;
+        const { search, county, msa } = req.query;
         if (!search || search.toString().trim().length < 2) {
             return res.status(200).json([]);
         }
-        const results = await getPropertySuggestions(search.toString(), county?.toString());
+        const countyParam = county
+            ? Array.isArray(county)
+                ? county.map((c) => c.toString())
+                : county.toString()
+            : undefined;
+        const results = await getPropertySuggestions(
+            search.toString(),
+            countyParam,
+            msa?.toString(),
+        );
         return res.status(200).json(results);
     } catch (error) {
         console.error('Error fetching property suggestions:', error);

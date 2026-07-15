@@ -5,6 +5,7 @@ import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
 import type { PgSelect } from 'drizzle-orm/pg-core';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
+import { countyScopeCondition } from 'server/utils/countyFilter';
 import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 
 interface MapPropertyData {
@@ -52,7 +53,9 @@ export interface RegionCount {
 
 /** Shared filters that resolve which properties qualify (county/status/date/company/location). */
 interface MapFilters {
-    county?: string;
+    county?: string | string[];
+    /** Restricts county matching to this MSA's tracked counties (see countyScopeCondition). */
+    msa?: string;
     statusFilter?: string | string[];
     dateRange?: string;
     companyId?: string;
@@ -109,6 +112,7 @@ function buildMapIdConditions(
 } {
     const {
         county,
+        msa,
         statusFilter,
         dateRange,
         companyId,
@@ -127,14 +131,8 @@ function buildMapIdConditions(
 
     const conditions: SQL[] = [];
 
-    if (county) {
-        const normalizedCounty = county.trim().toLowerCase();
-        const countyCondition = or(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-        );
-        if (countyCondition) conditions.push(countyCondition);
-    }
+    const countyCondition = countyScopeCondition(county, msa);
+    if (countyCondition) conditions.push(countyCondition);
 
     if (zipcode && zipcode.trim() !== '') {
         conditions.push(sql`${addresses.zipCode} = ${zipcode.trim()}`);

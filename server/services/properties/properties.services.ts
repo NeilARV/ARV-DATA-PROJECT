@@ -11,6 +11,7 @@ import { companyContacts } from '@database/schemas/companies.schema';
 import { trimCompanyName } from 'server/utils/normalization';
 import { calculateSpread, getAssignorFromTxs } from 'server/utils/orderTransactions';
 import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
+import { countyScopeCondition } from 'server/utils/countyFilter';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -25,7 +26,8 @@ const DEFAULT_PAGE_SIZE = 10;
 interface GetPropertiesFilters {
     zipcode?: string;
     city?: string;
-    county?: string;
+    county?: string | string[];
+    msa?: string; // Restricts county matching to this MSA's tracked counties (see countyScopeCondition)
     minPrice?: string;
     maxPrice?: string;
     bedrooms?: string;
@@ -98,6 +100,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         zipcode,
         city,
         county,
+        msa,
         minPrice,
         maxPrice,
         bedrooms,
@@ -271,15 +274,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    // County filter
-    if (county) {
-        const normalizedCounty = county.toString().trim().toLowerCase();
-        const countyClause = or(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-        );
-        if (countyClause) conditions.push(countyClause);
-    }
+    // County filter — `county IN (...)`, restricted to the msa's counties when msa is present
+    const countyClause = countyScopeCondition(county, msa);
+    if (countyClause) conditions.push(countyClause);
 
     // Zipcode filter
     if (zipcode) {
