@@ -357,10 +357,13 @@ price change on PATCH → fires notification email; validates POST `userId` matc
 - **`requestDealInfo(...)`** — on-behalf-of mode → email to client (onBehalfOfEmail), CC
   poster's RM; normal mode → email to poster, CC requester's RM or default contact. Includes
   deal details, requester contact, message, deep link.
-- **`sendDealNotification(...)`** — fetches MSA subscribers with deal notifications enabled,
-  extends with companion-MSA subscribers, filters by deal-type preference, excludes the poster
-  (except neil@arvfinance.com), adds whitelist recipients (primary + companion MSAs, dedup by
-  email), sends Postmark templates `new-deal` / `deal-sold` / `price-update`.
+- **`sendDealNotification(...)`** — resolves its audience through `resolveDealRecipients`
+  (`server/services/email/recipientResolver.ts`): county-subscription match on the deal's
+  county, MSA-wide fallback when the county is null/untracked, companion-city fan-out, with
+  the master/deal toggles, per-user deal-type filter, and poster exclusion (except
+  neil@arvfinance.com) applied inside the resolver. Adds whitelist recipients (MSA-level, every
+  MSA in play, dedup by email), sends Postmark templates `new-deal` / `deal-sold` /
+  `price-update`.
 
 ## Deal Creation & Editing — Form Behavior
 - **Property details always required:** beds, baths, sqft, property type — no external auto-fill.
@@ -376,20 +379,19 @@ price change on PATCH → fires notification email; validates POST `userId` matc
 
 ## Companion MSA Notifications
 Some cities near MSA boundaries interest a neighboring market. The static map
-`COMPANION_NOTIFICATION_MSAS` in `deals.services.ts` defines overrides:
+`COMPANION_CITY_MSA` in `server/constants/companionCities.constants.ts` defines the pairs:
 ```ts
-const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
-    'temecula|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
-    'murrieta|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+export const COMPANION_CITY_MSA: Record<string, string> = {
+    'temecula|ca': 'San Diego-Chula Vista-Carlsbad, CA',
+    'murrieta|ca': 'San Diego-Chula Vista-Carlsbad, CA',
 };
 ```
-- The deal's `msaId` is **never changed** (Temecula stays in the Riverside MSA for data
-  integrity). At notification time, a `city|state` key is checked against the map.
-- For each companion MSA, it looks up the MSA ID and runs the same subscriber query
-  (`userMsaSubscriptions` + `userNotificationPreferences`). All lists merge before dedup (the
-  `seen` Set by user ID handles cross-MSA duplicates). Whitelist recipients fetched for primary
-  + companion MSAs, deduped by email. The "no subscribers" early-return checks the **merged**
-  list, so an empty primary MSA doesn't block companion subscribers.
+- The same map drives **both** consumers: create-time MSA resolution (`resolveMsaId` tier 0 —
+  a Temecula deal is posted under the San Diego MSA) and notification fan-out
+  (`resolveDealRecipients` — a companion-city deal reaches every county subscriber across
+  primary ∪ companion MSAs, bypassing the exact-county match).
+- Whitelist recipients are fetched for every MSA in play, deduped by email, and receive the
+  notification even when no county subscriber matches (the whitelist stays MSA-level).
 - **Adding a companion city:** add one `"city|state"` (lowercase) entry — no migration needed.
 
 ## Database Schema (`database/schemas/deals.schema.ts`)

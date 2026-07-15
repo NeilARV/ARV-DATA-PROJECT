@@ -4,7 +4,7 @@
 
 Users have granular control over which email feeds they receive and for which markets. The system is built on two independent axes:
 
-- **MSA subscriptions** ("where") — which Metropolitan Statistical Areas the user wants to hear about. MSA is the subscription unit.
+- **County subscriptions** ("where") — which counties (grouped under their MSA) the user wants to hear about. County is the subscription unit since issues #113–#116 (`user_county_subscriptions`); MSA remains the delivery/grouping unit, and the daily property email still resolves its candidate pool per MSA.
 - **App subscriptions** ("what type") — which of the four email feeds the user is subscribed to.
 
 The intersection of both determines what a user receives. A user subscribed to **San Diego** and **Deals** gets deal notifications for San Diego. Subscribe them to **Vendors** too and they get vendor notifications for San Diego. Unsubscribe from San Diego and neither fires for that market, even if both app toggles remain on.
@@ -49,7 +49,7 @@ userNotificationPreferences = {
 
 All four conditions must be true for an email to be sent:
 
-1. **MSA subscription present** — `user_msa_subscriptions` has a row for this user + MSA
+1. **Subscription present** — for deal emails, `user_county_subscriptions` matches the deal's county (whole-MSA fallback when the county is null/untracked; companion cities fan out across primary ∪ companion MSAs — see `resolveDealRecipients`). The daily property email still matches per MSA.
 2. **Master toggle on** — `users.notifications = true`
 3. **App toggle on** — e.g. `dataAppEnabled = true`
 4. **Content passes filter** — if a filter is configured and non-empty, the content type must be in the filter
@@ -73,9 +73,9 @@ Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per
 
 ### 2. Deals — Deal Notifications
 
-- **Trigger**: Event-driven — fires when a deal is posted to an MSA the user is subscribed to
+- **Trigger**: Event-driven — fires when a deal is posted in a county the user is subscribed to
 - **Content**: Single deal card (address, price, specs, type)
-- **Recipients**: All users subscribed to that MSA with `dealNotificationsEnabled = true` and master notifications on; the poster is excluded
+- **Recipients**: Resolved by `resolveDealRecipients` (`server/services/email/recipientResolver.ts`): subscribers of the deal's county, falling back to the deal's whole MSA when the county is null/untracked, with companion-city deals fanning out across primary ∪ companion MSAs; requires `dealNotificationsEnabled = true` and master notifications on; the poster is excluded (except neil@arvfinance.com)
 - **Deal type filter** (`dealTypeFilter: text[]`):
   - Values: `'wholesale' | 'agent' | 'sold' | 'reo'`
   - Empty array = receive all deal types (default)
@@ -118,7 +118,7 @@ All evaluated property IDs are marked in `sent_property_ids` regardless of outco
 
 ### Deal Type Filtering
 
-In `sendDealNotification` (`deals.services.ts`):
+In `resolveDealRecipients` (`server/services/email/recipientResolver.ts`), consumed by `sendDealNotification`:
 
 1. Master toggle + `dealNotificationsEnabled` checked at the DB query level
 2. After deduplication (poster excluded), `dealTypeFilter` applied per user in memory
@@ -209,7 +209,9 @@ The panel makes two parallel API calls on save:
 | `server/controllers/auth/registration.controllers.ts` | Auto-creates prefs row on signup |
 | `server/routes/auth.routes.ts` | Route: `PATCH /me/notifications` |
 | `server/jobs/email/processes/emailUpdates.ts` | Data App per-user status filtering |
-| `server/services/deals/deals.services.ts` | Deal notification `dealNotificationsEnabled` + `dealTypeFilter` |
+| `server/services/email/recipientResolver.ts` | County-aware deal recipient resolution (the single "who receives this deal" seam) |
+| `server/constants/companionCities.constants.ts` | Companion-city pairs shared by create-time MSA resolution + notification fan-out |
+| `server/services/deals/deals.services.ts` | `sendDealNotification` — builds + sends the deal email to the resolved recipients |
 | `client/src/hooks/use-auth.ts` | `AuthUser`, `NotificationPreferences`, `DataAppStatus`, `DealTypeFilter` types |
 | `client/src/components/profile/NotificationPreferencesPanel.tsx` | Profile page preferences UI |
 | `client/src/pages/Profile.tsx` | Renders `NotificationPreferencesPanel` |
@@ -228,30 +230,33 @@ The panel makes two parallel API calls on save:
 
 ---
 
-## Planned: RecipientResolver Pattern (Phase 2)
+## RecipientResolver Pattern
 
-Build a shared `resolveRecipients` module at `server/services/email/recipientResolver.ts`. Each email app gets its own resolver function that returns eligible recipients + their filter context for a given MSA. Email jobs call the resolver and focus only on content building and sending.
+The shared resolver module lives at `server/services/email/recipientResolver.ts`. Email jobs call the resolver and focus only on content building and sending.
 
-**Why**: `emailUpdates.ts`, `deals.services.ts`, future `analyticsJob.ts`, and future `vendorJob.ts` all need the same subscriber resolution logic: master toggle check, app toggle check, MSA subscription presence. Duplicating this JOIN across each job creates drift.
-
-**Planned shape:**
+**Implemented — deal email (issue #116):**
 ```ts
-interface RecipientContext {
-    userId: string;
-    email: string;
-    firstName: string;
-    rmEmail?: string;
-    dataAppStatusFilter: string[];
-    dealTypeFilter: string[];
+interface DealRecipientQuery {
+    msaId: number;
+    dealType: DealType;
+    county: string | null;
+    city: string | null;
+    state: string | null;
+    posterUserId: string;
 }
 
-async function resolveDataAppRecipients(msaId: number): Promise<RecipientContext[]>
-async function resolveDealRecipients(msaId: number): Promise<RecipientContext[]>
-async function resolveVendorRecipients(msaId: number): Promise<RecipientContext[]>
-async function resolveAnalyticsRecipients(msaId: number): Promise<RecipientContext[]>
+// recipients are unique by user; msaIds = every MSA in play (primary first, companion after),
+// which the caller uses to fan MSA-level extras (the whitelist) out.
+async function resolveDealRecipients(
+    query: DealRecipientQuery,
+): Promise<{ recipients: { userId: string; email: string }[]; msaIds: number[] }>
 ```
 
-**Status**: Phase 2. Will be implemented when a second email app type is ready to ship, to avoid building the abstraction before there's a second real consumer.
+- Exact-county match against `user_county_subscriptions`; **MSA safety net** — a null/untracked deal county falls back to every subscriber of the deal's whole MSA so a data gap never drops a deal; **companion cities** (Temecula/Murrieta) fan out to all subscribers of any county in primary ∪ companion MSAs, preserving the pre-county Temecula → San Diego behavior.
+- Companion pairs live in `COMPANION_CITY_MSA` (`server/constants/companionCities.constants.ts`) — the same source `resolveMsaId`'s create-time tier-0 override reads.
+- Applies the master kill-switch, `dealNotificationsEnabled`, the per-user `dealTypeFilter`, and poster exclusion inside the resolver; integration-tested at `tests/server/services/email/recipientResolver.integration.test.ts`.
+
+**Future**: the daily `emailUpdates` job still resolves its own per-MSA recipients; `resolveDataAppRecipients`, `resolveVendorRecipients`, and `resolveAnalyticsRecipients` remain to be built when those jobs re-point or ship.
 
 ---
 
@@ -273,6 +278,13 @@ async function resolveAnalyticsRecipients(msaId: number): Promise<RecipientConte
 - "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
 - `user_msa_subscriptions` table stays unchanged — no county column needed
 - County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 4 — County-Aware Deal Recipient Resolution (issue #116)
+*Deal emails target the deal's county instead of flooding the whole MSA.*
+
+- **`resolveDealRecipients`** (`server/services/email/recipientResolver.ts`) — the single "who receives this deal" seam: exact-county match on `user_county_subscriptions`, whole-MSA safety net for null/untracked counties, companion-city fan-out across primary ∪ companion MSAs; master toggle, deal toggle, `dealTypeFilter`, and poster exclusion applied inside
+- **`sendDealNotification`** — inline subscriber resolution deleted; now routes through the resolver and only builds/sends the email. The whitelist stays MSA-level (fetched for every MSA in play) and now sends even when zero county subscribers match
+- **Companion-city pairs consolidated** into `COMPANION_CITY_MSA` (`server/constants/companionCities.constants.ts`), consumed by both `resolveMsaId` (create-time tier-0 override) and the resolver — the duplicate maps in `resolveMsa.ts` and `deals.services.ts` are gone
 
 ### Patch 3 — Phase 1 Full Implementation
 *All foundation components built and wired together.*
