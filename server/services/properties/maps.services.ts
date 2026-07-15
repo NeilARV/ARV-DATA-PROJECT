@@ -1,7 +1,7 @@
 import { db } from 'server/storage';
 import { properties, addresses, structures, lastSales } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
-import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
+import { eq, sql, and, inArray, type SQL } from 'drizzle-orm';
 import type { PgSelect } from 'drizzle-orm/pg-core';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';

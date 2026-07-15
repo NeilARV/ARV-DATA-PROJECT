@@ -17,6 +17,7 @@ import type { z } from 'zod';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { formatContactName } from '@shared/utils/formatContactName';
 import { clampLimit } from 'server/utils/clampLimit';
+import { countyScopeCondition } from 'server/utils/countyFilter';
 import { normalizeDateToYMD } from 'server/utils/normalization';
 
 export const CONTACTS_PAGE_SIZE = 50;
@@ -40,6 +41,25 @@ function buildContactName(contact: PrimaryContact | null | undefined): string | 
     if (!contact) return null;
     const raw = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null;
     return formatContactName(raw);
+}
+
+/** EXISTS clause matching companies tagged (company_counties) with any of the counties; null when none given. */
+function companyCountiesExists(
+    county: string | string[] | undefined,
+): ReturnType<typeof sql> | null {
+    const counties = (Array.isArray(county) ? county : county ? [county] : [])
+        .map((c) => c.trim().toLowerCase())
+        .filter((c) => c !== '');
+    if (counties.length === 0) return null;
+    const list = sql.join(
+        counties.map((c) => sql`${c}`),
+        sql`, `,
+    );
+    return sql`EXISTS (
+        SELECT 1 FROM company_counties cc
+        WHERE cc.company_id = ${companies.id}
+        AND LOWER(cc.county) IN (${list})
+    )`;
 }
 
 async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, PrimaryContact>> {
@@ -67,19 +87,15 @@ interface CompanySuggestion {
 
 export async function getCompanySuggestions(
     search: string,
-    county?: string,
+    county?: string | string[],
 ): Promise<CompanySuggestion[]> {
     const searchTerm = `%${search.trim().toLowerCase()}%`;
     const conditions: ReturnType<typeof sql>[] = [
         sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`,
     ];
 
-    if (county) {
-        const normalizedCounty = county.trim().toLowerCase();
-        conditions.push(
-            sql`EXISTS (SELECT 1 FROM company_counties cc WHERE cc.company_id = ${companies.id} AND LOWER(cc.county) = ${normalizedCounty})`,
-        );
-    }
+    const countiesClause = companyCountiesExists(county);
+    if (countiesClause) conditions.push(countiesClause);
 
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
@@ -107,7 +123,7 @@ export async function getCompanySuggestions(
 // ─── Contacts list ────────────────────────────────────────────────────────────
 
 interface GetContactsParams {
-    county?: string;
+    county?: string | string[];
     page?: string;
     limit?: string;
     sort?: string;
@@ -137,16 +153,8 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const searchTerm = typeof search === 'string' ? search.trim() : '';
 
     const conditions: ReturnType<typeof sql>[] = [];
-    if (county) {
-        const normalizedCounty = county.trim().toLowerCase();
-        conditions.push(
-            sql`EXISTS (
-                SELECT 1 FROM company_counties cc
-                WHERE cc.company_id = ${companies.id}
-                AND LOWER(cc.county) = ${normalizedCounty}
-            )`,
-        );
-    }
+    const countiesClause = companyCountiesExists(county);
+    if (countiesClause) conditions.push(countiesClause);
 
     if (searchTerm.length >= 2) {
         const searchPattern = `%${searchTerm.toLowerCase()}%`;
@@ -165,7 +173,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         );
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const normalizedCountyForProps = county ? county.trim().toLowerCase() : null;
+    const propsCountyCondition = countyScopeCondition(county, undefined);
     const now = new Date();
     const ytdStartStr = `${now.getFullYear()}-01-01`;
     const todayStr = normalizeDateToYMD(now)!;
@@ -213,14 +221,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     // Only run the count query needed for the active sort — running all of them
     // in parallel on every load saturated the DB with full-table scans.
     const countyParts = (): ReturnType<typeof sql>[] =>
-        normalizedCountyForProps
-            ? [
-                  or(
-                      sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
-                      sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`,
-                  ) as any,
-              ]
-            : [];
+        propsCountyCondition ? [propsCountyCondition] : [];
 
     type SortRow = { id: string | null; count: number };
 
@@ -456,9 +457,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 
 // ─── Wholesale leaderboard ────────────────────────────────────────────────────
 
-export async function getWholesaleLeaderboard(county?: string) {
-    const normalizedCounty = county ? county.trim().toLowerCase() : null;
-
+export async function getWholesaleLeaderboard(county?: string | string[]) {
     // Ranks the top wholesalers — the assignors on wholesale-status sales. An assignor is the
     // middleman on a wholesale flip; assignor_id is set only on rows flagged is_assignment, so
     // filtering on it (not on a now-removed 'assignment' transaction type) is what surfaces them.
@@ -471,14 +470,8 @@ export async function getWholesaleLeaderboard(county?: string) {
             AND s.name = 'wholesale'
         )`,
     ];
-    if (normalizedCounty) {
-        wholesaleWhereParts.push(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-            ) as any,
-        );
-    }
+    const countyCondition = countyScopeCondition(county, undefined);
+    if (countyCondition) wholesaleWhereParts.push(countyCondition);
     const countRows = await db
         .select({
             assignorId: propertyTransactions.assignorId,
@@ -522,8 +515,10 @@ export async function getWholesaleLeaderboard(county?: string) {
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
-export async function getLeaderboard(county: string) {
-    const normalizedCounty = county.trim().toLowerCase();
+export async function getLeaderboard(county: string | string[]) {
+    const countyCondition = countyScopeCondition(county, undefined);
+    // The leaderboard is always county-scoped; no counties means nothing to rank.
+    if (!countyCondition) return { companies: [], zipCodes: [] };
 
     const allTransactions = await db
         .select({
@@ -536,10 +531,7 @@ export async function getLeaderboard(county: string) {
         .where(
             and(
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
-                or(
-                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-                ) as any,
+                countyCondition,
             ),
         );
 
@@ -598,7 +590,7 @@ export async function getLeaderboard(county: string) {
         .select({ zipCode: addresses.zipCode })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
-        .where(sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`);
+        .where(countyCondition);
 
     const zipCounts: Record<string, number> = {};
     propertiesWithAddresses.forEach((p: { zipCode: string | null }) => {
@@ -618,11 +610,10 @@ export async function getLeaderboard(county: string) {
 
 // ─── Get by ID ────────────────────────────────────────────────────────────────
 
-export async function getCompanyById(id: string, county?: string) {
+export async function getCompanyById(id: string, county?: string | string[]) {
     const contact = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
     if (contact.length === 0) return null;
     const result = contact[0];
-    const normalizedCounty = county ? county.trim().toLowerCase() : null;
 
     const now = new Date();
     const ytdStartStr = `${now.getFullYear()}-01-01`;
@@ -637,12 +628,7 @@ export async function getCompanyById(id: string, county?: string) {
     const chartStart = new Date(ninetyDaysAgo.getFullYear(), ninetyDaysAgo.getMonth(), 1);
     const chartStartStr = normalizeDateToYMD(chartStart)!;
 
-    const countyCondition = normalizedCounty
-        ? (or(
-              sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-              sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-          ) as any)
-        : undefined;
+    const countyCondition = countyScopeCondition(county, undefined) ?? undefined;
 
     const sellerCountQuery = db
         .select({ count: sql<number>`count(*)::int` })
@@ -678,7 +664,7 @@ export async function getCompanyById(id: string, county?: string) {
     ]);
 
     let propertyCount: number;
-    if (normalizedCounty) {
+    if (countyCondition) {
         const [propertyCountResult] = await db
             .select({ count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
             .from(propertyTransactions)
@@ -688,10 +674,7 @@ export async function getCompanyById(id: string, county?: string) {
                 and(
                     sql`${propertyTransactions.sortOrder} = 1`,
                     eq(propertyTransactions.buyerId, id),
-                    or(
-                        sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                        sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-                    ) as any,
+                    countyCondition,
                 ),
             );
         propertyCount = propertyCountResult?.count ?? 0;
