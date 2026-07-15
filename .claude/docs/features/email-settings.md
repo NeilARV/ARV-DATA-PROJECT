@@ -282,6 +282,7 @@ async function resolveDataAppRecipients(msaId: number): Promise<DataAppRecipient
 
 ### Patch 2 — MSA Subscription Model Decision
 *Resolved design question: MSA vs county vs hybrid for email subscriptions.*
+*Superseded by the county-granularity epic (#111): counties are now the subscription unit and `user_msa_subscriptions` was dropped (#118).*
 
 - Decision: **MSA is the subscription unit**. Users subscribe to entire MSAs (Denver, Miami, San Diego, LA, SF, Port St. Lucie, Seattle, Tampa). No county-level filtering within an MSA in V1.
 - Rationale: cron jobs already run per-MSA; county-within-MSA adds significant query complexity for unclear user benefit given the small active MSA set; users never need to know what an MSA is — they pick their county at signup and the registration controller maps it to the MSA automatically

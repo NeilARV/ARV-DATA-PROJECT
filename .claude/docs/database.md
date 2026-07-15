@@ -191,22 +191,8 @@ Metropolitan Statistical Areas (Denver, Miami, San Diego, LA, SF, Port St. Lucie
 
 ---
 
-### `user_msa_subscriptions`
-Many-to-many: users ↔ MSAs they subscribe to.
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
-| `msa_id` | `integer` | NOT NULL, FK → `msas.id` (cascade) |
-| `created_at` | `timestamp` | NOT NULL, default now |
-| `updated_at` | `timestamp` | default now |
-
-**PK:** `(user_id, msa_id)`
-
----
-
 ### `user_county_subscriptions`
-County-grained subscriptions (issue #113), added alongside the still-live `user_msa_subscriptions`. `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`) so per-MSA email queries stay a single-column filter.
+County-grained subscriptions (issue #113) — the subscription unit since `user_msa_subscriptions` was dropped (#118). `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`) so per-MSA email queries stay a single-column filter.
 
 | Column | Type | Constraints |
 |--------|------|-------------|

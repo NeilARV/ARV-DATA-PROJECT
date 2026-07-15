@@ -20,7 +20,6 @@
         "reset:one-user": "tsx scripts/reset-one-user.ts",
         "cv:seed-test": "tsx scripts/cv-seed-test.ts",
         "backfill:supplemental-tax": "tsx scripts/backfill-supplemental-tax.ts",
-        "backfill:county-subscriptions": "tsx scripts/backfill-county-subscriptions.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
