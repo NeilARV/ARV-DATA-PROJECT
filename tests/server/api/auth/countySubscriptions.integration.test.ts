@@ -6,7 +6,6 @@ import { createTestApp } from '../../../helpers/setup';
 import { getTestDb, seedTestUser, deleteTestUser } from '../../../helpers/db';
 import { users } from '@database/schemas/users.schema';
 import { msas, userCountySubscriptions } from '@database/schemas/msas.schema';
-import { getCountiesForMsa } from '@shared/constants/countyToMsa';
 
 // The verification email that signup / profile fire is a real Postmark send — stub it so these
 // tests never leave the process, and so a send failure can't affect the assertions below.
@@ -160,17 +159,14 @@ describe('County subscriptions on /api/auth/me (integration)', () => {
             expect(rows).toEqual([{ county: 'San Diego', state: 'CA', msaId: sdMsaId }]);
         });
 
-        it('honors the legacy msaSubscriptions form by expanding it to the MSA’s counties', async () => {
+        it('rejects the retired msaSubscriptions form (issue #118) via the strict schema', async () => {
             const res = await request(app)
                 .patch('/api/auth/me')
                 .set('x-test-user-id', SUB_USER)
                 .send({ msaSubscriptions: [DENVER_MSA] });
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(400);
 
-            const rows = await countyRowsFor(SUB_USER);
-            expect(new Set(rows.map((r) => r.county))).toEqual(
-                new Set(getCountiesForMsa(DENVER_MSA)),
-            );
+            expect(await countyRowsFor(SUB_USER)).toHaveLength(0);
         });
     });
 
@@ -204,8 +200,8 @@ describe('County subscriptions on /api/auth/me (integration)', () => {
                 msaName: SD_MSA,
             });
 
-            // Legacy field is derived from the county set (distinct parent MSAs).
-            expect(new Set(res.body.user.msaSubscriptions)).toEqual(new Set([DENVER_MSA, SD_MSA]));
+            // The retired legacy field must be gone from the response shape (issue #118).
+            expect(res.body.user).not.toHaveProperty('msaSubscriptions');
         });
     });
 });

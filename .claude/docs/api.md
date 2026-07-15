@@ -90,7 +90,9 @@ Return the currently authenticated user with enriched data. Returns `{ user: nul
     "emailVerifiedAt": "2024-01-01T00:00:00Z",
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z",
-    "msaSubscriptions": ["San Diego"],
+    "countySubscriptions": [
+      { "county": "San Diego", "state": "CA", "msaId": 3, "msaName": "San Diego-Chula Vista-Carlsbad, CA" }
+    ],
     "relationshipManager": {
       "id": "uuid",
       "firstName": "John",
@@ -135,7 +137,7 @@ Create a new user account.
 
 **Errors** `400` validation failed · `409` email already registered
 
-**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, the corresponding MSA subscription is auto-created. A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
+**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, a home-county subscription is seeded (the county only, never the whole MSA). A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
 
 ---
 
@@ -181,9 +183,12 @@ Update the authenticated user's profile fields.
   "email": "jane@example.com",
   "phone": "(555) 123-4567",
   "county": "Denver",
-  "state": "CO"
+  "state": "CO",
+  "countySubscriptions": [{ "county": "Denver", "state": "CO" }]
 }
 ```
+
+`countySubscriptions` is a replace-list: the user's subscription rows are replaced to match it exactly (empty array clears all).
 
 **Response `200`**
 ```json

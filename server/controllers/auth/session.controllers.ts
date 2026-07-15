@@ -10,17 +10,9 @@ import { EmailVerificationServices, SessionServices, UserServices } from 'server
 import {
     getUserCountySubscriptions,
     replaceUserCountySubscriptions,
-    msaNamesToCountySelections,
 } from 'server/services/subscriptions/countySubscriptions.services';
-import type { CountySubscription } from '@shared/types/users';
 import { generateTempPassword } from 'server/utils/generateTempPassword';
 import { sendTempPasswordEmail } from 'server/services/postmark/passwordReset.services';
-
-/** Distinct parent-MSA names covered by the user's county subscriptions — the legacy
- *  `msaSubscriptions` field, derived so the current profile UI keeps working until issue #115. */
-function deriveMsaSubscriptionNames(countySubscriptions: CountySubscription[]): string[] {
-    return Array.from(new Set(countySubscriptions.map((c) => c.msaName)));
-}
 
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -105,7 +97,6 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
             user: {
                 ...userWithoutPassword,
                 countySubscriptions,
-                msaSubscriptions: deriveMsaSubscriptionNames(countySubscriptions),
                 relationshipManager,
                 notificationPreferences,
             },
@@ -139,9 +130,7 @@ export async function updateProfile(
         }
 
         // Subscriptions are replaced separately (county table), not part of the users-row update.
-        // countySubscriptions is the authoritative field (issue #114); legacy msaSubscriptions is
-        // still honored — translated to whole-MSA county rows — until the profile UI moves (#115).
-        const { countySubscriptions, msaSubscriptions, ...profileData } = validation.data;
+        const { countySubscriptions, ...profileData } = validation.data;
 
         // Check if email is being updated and if it's already taken by another user
         if (profileData.email) {
@@ -164,11 +153,6 @@ export async function updateProfile(
 
         if (countySubscriptions !== undefined) {
             await replaceUserCountySubscriptions(updatedUser.id, countySubscriptions);
-        } else if (msaSubscriptions !== undefined) {
-            await replaceUserCountySubscriptions(
-                updatedUser.id,
-                msaNamesToCountySelections(msaSubscriptions),
-            );
         }
 
         const [refreshedCountySubscriptions, relationshipManager, notificationPreferences] =
@@ -182,7 +166,6 @@ export async function updateProfile(
             user: {
                 ...updatedUser,
                 countySubscriptions: refreshedCountySubscriptions,
-                msaSubscriptions: deriveMsaSubscriptionNames(refreshedCountySubscriptions),
                 relationshipManager,
                 notificationPreferences,
             },

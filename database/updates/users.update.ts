@@ -34,10 +34,8 @@ export const updateUserProfileSchema = z
         email: z.string().email('Invalid email address').optional(),
         phone: z.string().min(1, 'Phone is required').optional(),
         notifications: z.boolean().optional(),
-        // County subscriptions are the replace-list going forward (issue #114); msaSubscriptions is
-        // the legacy whole-MSA form, still accepted until the profile UI moves onto counties (#115).
+        // The county replace-list (issue #114) — the only subscription field since #118.
         countySubscriptions: z.array(countySubscriptionSelectionSchema).optional(),
-        msaSubscriptions: z.array(z.string()).optional(),
         county: z.string().nullable().optional(),
         state: z.string().max(2).nullable().optional(),
     })

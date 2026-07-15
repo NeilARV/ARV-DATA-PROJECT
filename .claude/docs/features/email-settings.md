@@ -152,11 +152,11 @@ All fields are optional. Validated by `updateNotificationPreferencesSchema` in `
 
 ### `PATCH /api/auth/me`
 
-Handles master toggle + MSA subscriptions (among other profile fields).
+Handles master toggle + county subscriptions (among other profile fields).
 
 **Relevant fields:**
 - `notifications: boolean` — master kill-switch
-- `msaSubscriptions: string[]` — replaces the user's full MSA subscription list by name
+- `countySubscriptions: { county, state }[]` — replaces the user's full county subscription list (the retired whole-MSA `msaSubscriptions` form is rejected since issue #118)
 
 ---
 

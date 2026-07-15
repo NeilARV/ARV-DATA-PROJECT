@@ -123,19 +123,6 @@ export async function replaceUserCountySubscriptions(
 }
 
 /**
- * Translates whole-MSA subscription names into `(county, state)` selections — every county in each
- * MSA. Bridges the legacy `msaSubscriptions` replace-list onto the county table during the
- * transition (issue #114), preserving today's "subscribe to the whole MSA" semantics.
- */
-export function msaNamesToCountySelections(msaNames: string[]): CountySubscriptionSelection[] {
-    return msaNames.flatMap((msaName) => {
-        const state = getStateFromMsaName(msaName);
-        if (!state) return [];
-        return getCountiesForMsa(msaName).map((county) => ({ county, state }));
-    });
-}
-
-/**
  * Seeds a single home-county subscription for a new user (issue #114) — the home county only, never
  * the whole MSA. No-op when the county is untracked, its MSA has no `msas` row, or a row already
  * exists (idempotent via the PK).
