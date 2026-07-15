@@ -29,7 +29,7 @@ export async function getUserCountySubscriptions(userId: string): Promise<County
  * Resolves API `(county, state)` selections into insertable rows, deriving each county's parent MSA
  * from COUNTY_TO_MSA (issue #112) rather than trusting the client. Untracked counties, MSAs with no
  * `msas` row, and MSA names with no parseable state are dropped; state is taken from the MSA name so
- * the written `(county, state)` always matches the backfill's canonical pair.
+ * the written `(county, state)` always matches COUNTY_TO_MSA's canonical pair.
  */
 async function resolveSelectionRows(
     userId: string,

@@ -18,7 +18,7 @@ async function applyTo(label: string, url: string | undefined): Promise<void> {
     const [{ exists }] = (await sql(
         `SELECT EXISTS (SELECT 1 FROM information_schema.tables
          WHERE table_name = 'user_msa_subscriptions') AS exists`,
-    )) as Array<{ exists: boolean }>;
+    )) as { exists: boolean }[];
     console.log(`  ${exists ? '✗' : '✓'} ${label}: table dropped = ${!exists}`);
 }
 
