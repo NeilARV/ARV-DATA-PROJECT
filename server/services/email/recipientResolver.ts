@@ -26,6 +26,15 @@ export interface ResolvedDealRecipients {
     msaIds: number[];
 }
 
+export interface DataAppRecipient {
+    userId: string;
+    email: string;
+    firstName: string;
+    dataAppStatusFilter: string[];
+    /** The user's subscribed counties within the queried MSA — the job's per-user "where" filter. */
+    counties: string[];
+}
+
 // Case-insensitive because legacy deal rows may not match COUNTY_TO_MSA's canonical casing.
 function isTrackedCountyPair(county: string, state: string): boolean {
     const c = county.trim().toLowerCase();
@@ -107,4 +116,48 @@ export async function resolveDealRecipients(
     });
 
     return { recipients, msaIds };
+}
+
+/**
+ * Resolves the daily property-digest audience for one MSA (issue #117): every user subscribed
+ * to at least one of the MSA's counties, with the master kill-switch and Data App toggle
+ * applied; one entry per user, carrying the counties the job filters that user's properties to.
+ */
+export async function resolveDataAppRecipients(msaId: number): Promise<DataAppRecipient[]> {
+    const rows = await db
+        .select({
+            userId: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            dataAppStatusFilter: userNotificationPreferences.dataAppStatusFilter,
+            county: userCountySubscriptions.county,
+        })
+        .from(userCountySubscriptions)
+        .innerJoin(users, eq(userCountySubscriptions.userId, users.id))
+        .innerJoin(userNotificationPreferences, eq(users.id, userNotificationPreferences.userId))
+        .where(
+            and(
+                eq(userCountySubscriptions.msaId, msaId),
+                eq(users.notifications, true),
+                eq(userNotificationPreferences.dataAppEnabled, true),
+            ),
+        );
+
+    // One row per subscribed county — fold into a single recipient per user.
+    const byUser = new Map<string, DataAppRecipient>();
+    for (const row of rows) {
+        const recipient = byUser.get(row.userId);
+        if (recipient) {
+            recipient.counties.push(row.county);
+            continue;
+        }
+        byUser.set(row.userId, {
+            userId: row.userId,
+            email: row.email,
+            firstName: row.firstName,
+            dataAppStatusFilter: row.dataAppStatusFilter,
+            counties: [row.county],
+        });
+    }
+    return Array.from(byUser.values());
 }

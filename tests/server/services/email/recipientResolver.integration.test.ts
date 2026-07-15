@@ -4,7 +4,9 @@ import { msas, userCountySubscriptions } from '@database/schemas/msas.schema';
 import { users, userNotificationPreferences } from '@database/schemas/users.schema';
 import {
     resolveDealRecipients,
+    resolveDataAppRecipients,
     type DealRecipientQuery,
+    type DataAppRecipient,
 } from 'server/services/email/recipientResolver';
 import { getTestDb, seedTestUser, deleteTestUser } from '../../../helpers/db';
 
@@ -27,6 +29,10 @@ const WHOLESALE_ONLY = '00000116-0000-4000-8000-000000000008';
 const POSTER = '00000116-0000-4000-8000-000000000009';
 // Never seeded — a poster with no subscription rows, so poster exclusion is a no-op.
 const OUTSIDE_POSTER = '00000116-0000-4000-8000-00000000000a';
+// Daily-digest cases (issue #117): the Data App toggle and status filter are independent of
+// the deal-side toggles above.
+const DATA_APP_OFF = '00000116-0000-4000-8000-00000000000b';
+const SOLD_STATUS_FILTER = '00000116-0000-4000-8000-00000000000c';
 
 const SEEDED_USERS = [
     ORANGE_SUB,
@@ -38,6 +44,8 @@ const SEEDED_USERS = [
     DEAL_TOGGLE_OFF,
     WHOLESALE_ONLY,
     POSTER,
+    DATA_APP_OFF,
+    SOLD_STATUS_FILTER,
 ];
 
 const LA_MSA = 'Los Angeles-Long Beach-Anaheim, CA';
@@ -96,6 +104,8 @@ beforeAll(async () => {
             { userId: DEAL_TOGGLE_OFF, dealNotificationsEnabled: false },
             { userId: WHOLESALE_ONLY, dealTypeFilter: ['wholesale'] },
             { userId: POSTER },
+            { userId: DATA_APP_OFF, dataAppEnabled: false },
+            { userId: SOLD_STATUS_FILTER, dataAppStatusFilter: ['sold'] },
         ]);
     await db.update(users).set({ notifications: false }).where(eq(users.id, MASTER_OFF));
 
@@ -111,6 +121,8 @@ beforeAll(async () => {
         { userId: WHOLESALE_ONLY, county: 'Orange', state: 'CA', msaId: laMsaId },
         { userId: POSTER, county: 'Orange', state: 'CA', msaId: laMsaId },
         { userId: POSTER, county: 'Los Angeles', state: 'CA', msaId: laMsaId },
+        { userId: DATA_APP_OFF, county: 'Orange', state: 'CA', msaId: laMsaId },
+        { userId: SOLD_STATUS_FILTER, county: 'Orange', state: 'CA', msaId: laMsaId },
     ]);
 });
 
@@ -241,5 +253,58 @@ describe('resolveDealRecipients — toggles, filters, poster', () => {
         const ids = await recipientIds(orangeDeal({ posterUserId: POSTER }));
         expect(ids).not.toContain(POSTER);
         expect(ids).toContain(ORANGE_SUB);
+    });
+});
+
+async function dataAppRecipientsById(msaId: number): Promise<Map<string, DataAppRecipient>> {
+    const recipients = await resolveDataAppRecipients(msaId);
+    return new Map(recipients.map((r) => [r.userId, r]));
+}
+
+describe('resolveDataAppRecipients — daily digest membership', () => {
+    it('county subscriber in the MSA — included, carrying their subscribed counties', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.get(ORANGE_SUB)?.counties).toEqual(['Orange']);
+        expect(byId.get(LA_SUB)?.counties).toEqual(['Los Angeles']);
+    });
+
+    it('subscriber of a different MSA only — excluded', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.has(SD_SUB)).toBe(false);
+        expect(byId.has(RIVERSIDE_SUB)).toBe(false);
+    });
+
+    it('master kill-switch off — excluded even with a matching subscription', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.has(MASTER_OFF)).toBe(false);
+    });
+
+    it('Data App toggle off — excluded even with a matching subscription', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.has(DATA_APP_OFF)).toBe(false);
+    });
+
+    it('deal toggle off — still included (app toggles are independent)', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.has(DEAL_TOGGLE_OFF)).toBe(true);
+    });
+
+    it('multi-county subscriber — one recipient row carrying every county in the MSA', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.get(POSTER)?.counties?.sort()).toEqual(['Los Angeles', 'Orange']);
+    });
+
+    it('multi-MSA subscriber — counties are scoped to the queried MSA', async () => {
+        const laById = await dataAppRecipientsById(laMsaId);
+        expect(laById.get(MULTI_MSA_SUB)?.counties).toEqual(['Orange']);
+
+        const sdById = await dataAppRecipientsById(sdMsaId);
+        expect(sdById.get(MULTI_MSA_SUB)?.counties).toEqual(['San Diego']);
+    });
+
+    it('returns each user’s dataAppStatusFilter for the job’s per-user content filter', async () => {
+        const byId = await dataAppRecipientsById(laMsaId);
+        expect(byId.get(SOLD_STATUS_FILTER)?.dataAppStatusFilter).toEqual(['sold']);
+        expect(byId.get(ORANGE_SUB)?.dataAppStatusFilter).toEqual([]);
     });
 });
