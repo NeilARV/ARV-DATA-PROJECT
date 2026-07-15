@@ -3,14 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Search, X, MapPin, Building2, Hash, Layers } from 'lucide-react';
 import { COUNTIES, MSA } from '@/constants/filters.constants';
 import { apiRequest } from '@/lib/queryClient';
+import { msaShortName } from '@/lib/county';
 import type { LocationFilter } from '@/types/deals';
 import type { DealLocations } from '@shared/types/deals';
-
-// Returns the primary city name from a full MSA string
-// e.g. "San Diego-Chula Vista-Carlsbad, CA" → "San Diego"
-export function msaShortName(msa: string): string {
-    return msa.split('-')[0].split(',')[0].trim();
-}
 
 export function filterToInputText(filter: LocationFilter): string {
     if (filter.type === 'county') return `${filter.value} County, ${filter.state}`;

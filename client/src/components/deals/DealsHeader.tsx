@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
-import DealsLocationSearch, { msaShortName } from '@/components/deals/DealsLocationSearch';
+import DealsLocationSearch from '@/components/deals/DealsLocationSearch';
+import { msaShortName } from '@/lib/county';
 import type { LocationFilter } from '@/types/deals';
 import type { DealTab } from '@shared/types/deals';
 
@@ -46,10 +47,7 @@ export default function DealsHeader({
 
                 {/* Desktop: location search + tabs + button inline */}
                 <div className="hidden 2xl:flex flex-shrink-0">
-                    <DealsLocationSearch
-                        value={locationFilter}
-                        onChange={onLocationFilterChange}
-                    />
+                    <DealsLocationSearch value={locationFilter} onChange={onLocationFilterChange} />
                 </div>
                 <div className="hidden 2xl:flex items-center justify-end gap-3 flex-1">
                     <Tabs value={tab} onValueChange={(v) => onTabChange(v as DealTab)}>
@@ -82,10 +80,7 @@ export default function DealsHeader({
             {/* Compact second row: search + tabs */}
             <div className="2xl:hidden flex items-center gap-2 px-4 pb-3">
                 <div className="flex-1 min-w-0">
-                    <DealsLocationSearch
-                        value={locationFilter}
-                        onChange={onLocationFilterChange}
-                    />
+                    <DealsLocationSearch value={locationFilter} onChange={onLocationFilterChange} />
                 </div>
                 <Tabs value={tab} onValueChange={(v) => onTabChange(v as DealTab)}>
                     <TabsList>

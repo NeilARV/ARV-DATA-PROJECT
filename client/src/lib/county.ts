@@ -12,6 +12,14 @@ import {
 } from '@/constants/filters.constants';
 export { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
 
+/**
+ * Returns the primary city name from a full MSA string
+ * (e.g. "San Diego-Chula Vista-Carlsbad, CA" → "San Diego").
+ */
+export function msaShortName(msa: string): string {
+    return msa.split('-')[0].split(',')[0].trim();
+}
+
 /** Default map center when county is not found (San Diego coordinates). */
 const DEFAULT_MAP_CENTER: [number, number] = [32.7157, -117.1611];
 

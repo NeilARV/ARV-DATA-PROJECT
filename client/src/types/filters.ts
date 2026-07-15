@@ -1,3 +1,9 @@
+/** One MSA plus the selected subset of its counties ([] = none selected → no properties). */
+export type MsaCountySelection = {
+    msa: string;
+    counties: string[];
+};
+
 export type PropertyFilters = {
     minPrice: number;
     maxPrice: number; // Use Number.MAX_SAFE_INTEGER for "no limit"
