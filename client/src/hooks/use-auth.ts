@@ -38,7 +38,8 @@ export interface AuthUser {
     state?: string | null;
     profileImageUrl?: string | null;
     countySubscriptions?: CountySubscription[];
-    // Legacy whole-MSA view derived server-side from countySubscriptions; superseded by #115.
+    // Legacy whole-MSA view derived server-side from countySubscriptions; no client consumers
+    // remain (#115) — kept while the API still returns it.
     msaSubscriptions?: string[];
     relationshipManager?: RelationshipManager | null;
     notificationPreferences?: NotificationPreferences | null;

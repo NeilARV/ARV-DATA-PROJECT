@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { CountySubscriptionAccordion } from '@/components/profile/CountySubscriptionAccordion';
 import { Edit, Save, X } from 'lucide-react';
-import { MSA } from '@/constants/filters.constants';
 import type { AuthUser, NotificationPreferences, DealTypeFilter } from '@/hooks/use-auth';
+import type { CountySubscriptionSelection } from '@database/validation/countySubscriptions.validation';
 
 const DEFAULT_PREFS: Omit<NotificationPreferences, 'userId' | 'createdAt' | 'updatedAt'> = {
     dataAppEnabled: true,
@@ -29,6 +30,12 @@ interface Props {
     user: AuthUser;
 }
 
+function toCountySelections(
+    subscriptions: AuthUser['countySubscriptions'],
+): CountySubscriptionSelection[] {
+    return (subscriptions ?? []).map(({ county, state }) => ({ county, state }));
+}
+
 export default function NotificationPreferencesPanel({ user }: Props) {
     const { toast } = useToast();
 
@@ -37,9 +44,11 @@ export default function NotificationPreferencesPanel({ user }: Props) {
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Master toggle + MSA subscriptions (go via PATCH /api/auth/me)
+    // Master toggle + county subscriptions (go via PATCH /api/auth/me)
     const [masterEnabled, setMasterEnabled] = useState(user.notifications ?? true);
-    const [msaSubscriptions, setMsaSubscriptions] = useState<string[]>(user.msaSubscriptions ?? []);
+    const [countySelections, setCountySelections] = useState<CountySubscriptionSelection[]>(() =>
+        toCountySelections(user.countySubscriptions),
+    );
 
     // Per-app toggles and filters (go via PATCH /api/auth/me/notifications)
     const [prefs, setPrefs] = useState({
@@ -52,7 +61,7 @@ export default function NotificationPreferencesPanel({ user }: Props) {
 
     function resetToSaved() {
         setMasterEnabled(user.notifications ?? true);
-        setMsaSubscriptions(user.msaSubscriptions ?? []);
+        setCountySelections(toCountySelections(user.countySubscriptions));
         setPrefs({
             dataAppEnabled: resolvedPrefs.dataAppEnabled,
             dealNotificationsEnabled: resolvedPrefs.dealNotificationsEnabled,
@@ -75,11 +84,11 @@ export default function NotificationPreferencesPanel({ user }: Props) {
     async function handleSave() {
         setIsSaving(true);
         try {
-            // Always update both: master/MSA and app preferences
+            // Always update both: master/counties and app preferences
             const [profileRes, prefsRes] = await Promise.all([
                 apiRequest('PATCH', '/api/auth/me', {
                     notifications: masterEnabled,
-                    msaSubscriptions,
+                    countySubscriptions: countySelections,
                 }),
                 apiRequest('PATCH', '/api/auth/me/notifications', prefs),
             ]);
@@ -94,6 +103,11 @@ export default function NotificationPreferencesPanel({ user }: Props) {
             ]);
 
             if (profileData.success && prefsData.success) {
+                // Re-seed from the persisted list — the server canonicalizes (dedupe/order), so
+                // the next edit session starts from what was actually saved.
+                setCountySelections(toCountySelections(profileData.user.countySubscriptions));
+                // profileData.user carries the persisted countySubscriptions (and the derived
+                // legacy msaSubscriptions), so no hand-patched subscription fields here.
                 queryClient.setQueryData(
                     ['/api/auth/me'],
                     (old: { user: AuthUser } | undefined) => ({
@@ -101,7 +115,6 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             ...(old?.user ?? {}),
                             ...profileData.user,
                             notificationPreferences: prefsData.preferences,
-                            msaSubscriptions,
                         },
                     }),
                 );
@@ -331,41 +344,22 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div>
                                 <CardTitle>Location Subscriptions</CardTitle>
                                 <CardDescription>
-                                    Select the MSAs you want to receive notifications for. Applies
-                                    to all active email feeds above.
+                                    Select the counties you want to receive notifications for — an
+                                    MSA&apos;s header checkbox selects its whole metro. Applies to
+                                    all active email feeds above.
                                 </CardDescription>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {MSA.map((msaName) => (
-                                    <div key={msaName} className="flex items-center gap-2">
-                                        <Checkbox
-                                            id={`msa-${msaName}`}
-                                            checked={
-                                                isEditing
-                                                    ? msaSubscriptions.includes(msaName)
-                                                    : (user.msaSubscriptions ?? []).includes(
-                                                          msaName,
-                                                      )
-                                            }
-                                            disabled={!isEditing}
-                                            onCheckedChange={(checked) => {
-                                                if (!isEditing) return;
-                                                setMsaSubscriptions((prev) =>
-                                                    checked
-                                                        ? [...prev, msaName]
-                                                        : prev.filter((m) => m !== msaName),
-                                                );
-                                            }}
-                                        />
-                                        <label
-                                            htmlFor={`msa-${msaName}`}
-                                            className={`profile-notification-label font-medium leading-none ${!isEditing ? 'cursor-default' : 'cursor-pointer'}`}
-                                        >
-                                            {msaName}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
+                            <CountySubscriptionAccordion
+                                selections={
+                                    isEditing
+                                        ? countySelections
+                                        : toCountySelections(user.countySubscriptions)
+                                }
+                                onSelectionsChange={(next) => {
+                                    if (isEditing) setCountySelections(next);
+                                }}
+                                disabled={!isEditing}
+                            />
                         </div>
                     </>
                 )}
