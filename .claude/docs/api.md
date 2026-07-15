@@ -1175,6 +1175,7 @@ List one page of deals for a single column (new or sold), newest first.
 | Param | Type | Description |
 |---|---|---|
 | `status` | `"new" \| "sold"` | Column selector: `new` = every non-sold type, `sold` = sold only. Omit for all types. |
+| `type` | `DealType` | Narrows to a single deal type (`wholesale`, `agent`, `reo`, or `sold`); an invalid value is ignored. Omit for all types. |
 | `page` | number | 1-based page (default `1`) |
 | `limit` | number | Page size (default `10`, max `50`) |
 | `userId` | string | Filter by deal owner |
