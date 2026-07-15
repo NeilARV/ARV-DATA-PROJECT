@@ -4,7 +4,7 @@
 
 Users have granular control over which email feeds they receive and for which markets. The system is built on two independent axes:
 
-- **County subscriptions** ("where") — which counties (grouped under their MSA) the user wants to hear about. County is the subscription unit since issues #113–#116 (`user_county_subscriptions`); MSA remains the delivery/grouping unit, and the daily property email still resolves its candidate pool per MSA.
+- **County subscriptions** ("where") — which counties (grouped under their MSA) the user wants to hear about. County is the subscription unit since issues #113–#117 (`user_county_subscriptions`); MSA remains the delivery/grouping unit — the daily property email still resolves its candidate pool per MSA, then filters it per user to their subscribed counties.
 - **App subscriptions** ("what type") — which of the four email feeds the user is subscribed to.
 
 The intersection of both determines what a user receives. A user subscribed to **San Diego** and **Deals** gets deal notifications for San Diego. Subscribe them to **Vendors** too and they get vendor notifications for San Diego. Unsubscribe from San Diego and neither fires for that market, even if both app toggles remain on.
@@ -49,7 +49,7 @@ userNotificationPreferences = {
 
 All four conditions must be true for an email to be sent:
 
-1. **Subscription present** — for deal emails, `user_county_subscriptions` matches the deal's county (whole-MSA fallback when the county is null/untracked; companion cities fan out across primary ∪ companion MSAs — see `resolveDealRecipients`). The daily property email still matches per MSA.
+1. **Subscription present** — for deal emails, `user_county_subscriptions` matches the deal's county (whole-MSA fallback when the county is null/untracked; companion cities fan out across primary ∪ companion MSAs — see `resolveDealRecipients`). The daily property email reaches every subscriber of any of the MSA's counties (`resolveDataAppRecipients`) and filters each user's properties to their subscribed counties.
 2. **Master toggle on** — `users.notifications = true`
 3. **App toggle on** — e.g. `dataAppEnabled = true`
 4. **Content passes filter** — if a filter is configured and non-empty, the content type must be in the filter
@@ -63,8 +63,8 @@ Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per
 ### 1. Data App — Daily Property Updates
 
 - **Trigger**: Scheduled cron job (once per MSA per day at a fixed server time — see `server/jobs/index.ts`)
-- **Content**: Up to 3 most recent properties with Street View images for the MSA
-- **Recipients**: All users subscribed to that MSA with `dataAppEnabled = true` and master notifications on
+- **Content**: Up to 3 most recent properties with Street View images, per user filtered to their subscribed counties within the MSA
+- **Recipients**: Resolved by `resolveDataAppRecipients` (`server/services/email/recipientResolver.ts`): every subscriber of any of the MSA's counties with `dataAppEnabled = true` and master notifications on; a user with 0 properties in their subscribed counties that day is skipped
 - **Status filter** (`dataAppStatusFilter: text[]`):
   - Values: `'in-renovation' | 'on-market' | 'wholesale' | 'sold'`
   - Empty array = all statuses (default)
@@ -107,12 +107,13 @@ This allows email jobs to use `INNER JOIN` instead of `LEFT JOIN + OR(isNull(...
 
 ### Data App Per-User Filtering
 
-`emailUpdates.ts` fetches an expanded candidate pool (up to 30 properties), pre-caches Street View availability for all candidates in a single pass, then for each user:
+`emailUpdates.ts` fetches an expanded per-MSA candidate pool (up to 30 properties), pre-caches Street View availability for all candidates in a single pass, resolves recipients via `resolveDataAppRecipients`, then for each user:
 
-1. Filters the candidate pool to their `dataAppStatusFilter` (or all statuses if empty)
-2. Picks the first 3 with cached Street View images
-3. If 0 match their filter — skips user, no email sent
-4. Builds and sends their personalized email
+1. Filters the candidate pool to their subscribed counties within the MSA (`lower(trim())` county match; a null-county property matches no one)
+2. Filters that to their `dataAppStatusFilter` (or all statuses if empty)
+3. Picks the first 3 with cached Street View images
+4. If 0 match their filters — skips user, no email sent
+5. Builds and sends their personalized email
 
 All evaluated property IDs are marked in `sent_property_ids` regardless of outcome. `sent_property_ids` is currently global per MSA (V1 limitation — see Open Questions).
 
@@ -208,8 +209,8 @@ The panel makes two parallel API calls on save:
 | `server/controllers/auth/session.controllers.ts` | `updateNotifications` handler (`PATCH /api/auth/me/notifications`) |
 | `server/controllers/auth/registration.controllers.ts` | Auto-creates prefs row on signup |
 | `server/routes/auth.routes.ts` | Route: `PATCH /me/notifications` |
-| `server/jobs/email/processes/emailUpdates.ts` | Data App per-user status filtering |
-| `server/services/email/recipientResolver.ts` | County-aware deal recipient resolution (the single "who receives this deal" seam) |
+| `server/jobs/email/processes/emailUpdates.ts` | Data App per-user county + status filtering |
+| `server/services/email/recipientResolver.ts` | County-aware recipient resolution for deal + daily property emails (the single "who receives this" seam) |
 | `server/constants/companionCities.constants.ts` | Companion-city pairs shared by create-time MSA resolution + notification fan-out |
 | `server/services/deals/deals.services.ts` | `sendDealNotification` — builds + sends the deal email to the resolved recipients |
 | `client/src/hooks/use-auth.ts` | `AuthUser`, `NotificationPreferences`, `DataAppStatus`, `DealTypeFilter` types |
@@ -256,7 +257,16 @@ async function resolveDealRecipients(
 - Companion pairs live in `COMPANION_CITY_MSA` (`server/constants/companionCities.constants.ts`) — the same source `resolveMsaId`'s create-time tier-0 override reads.
 - Applies the master kill-switch, `dealNotificationsEnabled`, the per-user `dealTypeFilter`, and poster exclusion inside the resolver; integration-tested at `tests/server/services/email/recipientResolver.integration.test.ts`.
 
-**Future**: the daily `emailUpdates` job still resolves its own per-MSA recipients; `resolveDataAppRecipients`, `resolveVendorRecipients`, and `resolveAnalyticsRecipients` remain to be built when those jobs re-point or ship.
+**Implemented — daily property email (issue #117):**
+```ts
+// One entry per user subscribed to at least one of the MSA's counties, master kill-switch and
+// dataAppEnabled applied; counties (scoped to the queried MSA) and dataAppStatusFilter are
+// returned so the job can filter each user's property set in memory.
+async function resolveDataAppRecipients(msaId: number): Promise<DataAppRecipient[]>
+// DataAppRecipient = { userId; email; firstName; dataAppStatusFilter: string[]; counties: string[] }
+```
+
+**Future**: `resolveVendorRecipients` and `resolveAnalyticsRecipients` remain to be built when those feeds ship.
 
 ---
 
@@ -278,6 +288,14 @@ async function resolveDealRecipients(
 - "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
 - `user_msa_subscriptions` table stays unchanged — no county column needed
 - County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 5 — Daily Property Email County Filtering (issue #117)
+*The daily digest reaches county subscribers with only their counties' properties.*
+
+- **`resolveDataAppRecipients`** (`server/services/email/recipientResolver.ts`) — daily-digest membership for one MSA: every subscriber of any of its counties, master kill-switch + `dataAppEnabled` applied in the query; one entry per user carrying their subscribed counties and `dataAppStatusFilter`
+- **`sendEmailUpdatesForMsa`** — inline `user_msa_subscriptions` join deleted; recipients route through the resolver, and each user's candidate pool is filtered to their subscribed counties (`lower(trim())` match) before the existing status filter; 0 matches → user skipped that day
+- The whitelist path is unchanged: MSA-level, unfiltered default set
+- Job-level integration test at `tests/server/jobs/emailUpdates.integration.test.ts` (Postmark + Street View mocked at the edge)
 
 ### Patch 4 — County-Aware Deal Recipient Resolution (issue #116)
 *Deal emails target the deal's county instead of flooding the whole MSA.*
