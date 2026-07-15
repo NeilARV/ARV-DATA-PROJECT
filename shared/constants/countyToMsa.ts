@@ -88,3 +88,24 @@ export function getTrackedCounties(): { county: string; state: string; msaName: 
         msaName,
     }));
 }
+
+/** The tracked MSAs with their two-letter states, each once, in map-encounter order. */
+export function getTrackedMsas(): { msaName: string; state: string }[] {
+    const seen = new Set<string>();
+    const msas: { msaName: string; state: string }[] = [];
+    for (const msaName of Object.values(COUNTY_TO_MSA)) {
+        if (seen.has(msaName)) continue;
+        seen.add(msaName);
+        msas.push({ msaName, state: getStateFromMsaName(msaName) ?? '' });
+    }
+    return msas;
+}
+
+/**
+ * The subset of `counties` that belong to the MSA, matched case-insensitively.
+ * @returns canonical-cased county names, deduped, in `COUNTY_TO_MSA` map order
+ */
+export function filterCountiesToMsa(msaName: string, counties: string[]): string[] {
+    const requested = new Set(counties.map((county) => county.trim().toLowerCase()));
+    return getCountiesForMsa(msaName).filter((county) => requested.has(county.toLowerCase()));
+}

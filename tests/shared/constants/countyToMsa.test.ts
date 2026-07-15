@@ -5,6 +5,8 @@ import {
     getCountiesForMsa,
     getStateFromMsaName,
     getTrackedCounties,
+    getTrackedMsas,
+    filterCountiesToMsa,
 } from '@shared/constants/countyToMsa';
 import { COUNTIES } from '@/constants/filters.constants';
 
@@ -70,6 +72,51 @@ describe('getTrackedCounties', () => {
         for (const { county, state } of getTrackedCounties()) {
             expect(state, `state for ${county}`).toMatch(/^[A-Z]{2}$/);
         }
+    });
+});
+
+describe('getTrackedMsas', () => {
+    it('returns each tracked MSA exactly once, in map-encounter order', () => {
+        expect(getTrackedMsas().map((m) => m.msaName)).toEqual(TRACKED_MSAS);
+    });
+
+    it("carries each MSA's two-letter state", () => {
+        for (const { msaName, state } of getTrackedMsas()) {
+            expect(state, `state for ${msaName}`).toBe(getStateFromMsaName(msaName));
+        }
+    });
+});
+
+describe('filterCountiesToMsa', () => {
+    const DENVER_MSA = 'Denver-Aurora-Centennial, CO';
+
+    it('keeps counties that belong to the MSA', () => {
+        expect(filterCountiesToMsa(DENVER_MSA, ['Denver', 'Adams'])).toEqual(['Denver', 'Adams']);
+    });
+
+    it('drops counties from another MSA — a selection can never cross the MSA', () => {
+        expect(filterCountiesToMsa(DENVER_MSA, ['Denver', 'San Diego', 'Orange'])).toEqual([
+            'Denver',
+        ]);
+    });
+
+    it('matches case-insensitively and returns canonical casing', () => {
+        expect(filterCountiesToMsa(DENVER_MSA, ['denver', ' ADAMS '])).toEqual(['Denver', 'Adams']);
+    });
+
+    it('dedupes and returns counties in COUNTY_TO_MSA map order regardless of input order', () => {
+        expect(filterCountiesToMsa(DENVER_MSA, ['Adams', 'Denver', 'adams'])).toEqual([
+            'Denver',
+            'Adams',
+        ]);
+    });
+
+    it.each([
+        ['an untracked MSA', 'Nowhere, ZZ', ['Denver']],
+        ['an untracked county', DENVER_MSA, ['Nowhere']],
+        ['an empty list', DENVER_MSA, []],
+    ])('returns an empty array for %s', (_label, msa, counties) => {
+        expect(filterCountiesToMsa(msa, counties)).toEqual([]);
     });
 });
 
