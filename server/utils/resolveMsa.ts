@@ -1,6 +1,7 @@
 import { db } from 'server/storage';
 import { msas } from '@database/schemas/msas.schema';
 import { properties, addresses } from '@database/schemas/properties.schema';
+import { getCompanionMsaName } from 'server/constants/companionCities.constants';
 import { eq, ilike, and, sql } from 'drizzle-orm';
 
 // ── Static zip-prefix → MSA name for our 6 tracked markets ───────────────────
@@ -52,19 +53,6 @@ function zipToStaticMsaName(zip: string): string | null {
     return null;
 }
 
-// Boundary cities that physically sit in one county but whose deals are surfaced to a
-// different MSA's audience. Temecula/Murrieta are in Riverside County but close enough to
-// San Diego that the business announces those deals to the San Diego market. Key: "city|state".
-const CITY_MSA_OVERRIDE: Record<string, string> = {
-    'temecula|ca': 'San Diego-Chula Vista-Carlsbad, CA',
-    'murrieta|ca': 'San Diego-Chula Vista-Carlsbad, CA',
-};
-
-function overrideMsaName(city?: string | null, state?: string | null): string | null {
-    if (!city || !state) return null;
-    return CITY_MSA_OVERRIDE[`${city.trim().toLowerCase()}|${state.trim().toLowerCase()}`] ?? null;
-}
-
 /**
  * Resolves the internal msas.id for a given city/state/zip combination.
  *
@@ -82,7 +70,7 @@ export async function resolveMsaId(
     zipCode?: string | null,
 ): Promise<number | null> {
     // ── Tier 0: boundary-city override ────────────────────────────────────────
-    const overrideName = overrideMsaName(city, state);
+    const overrideName = getCompanionMsaName(city, state);
     if (overrideName) {
         const [msaRow] = await db
             .select({ id: msas.id })
