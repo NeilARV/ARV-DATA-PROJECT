@@ -1,12 +1,25 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { msas, userCountySubscriptions } from '@database/schemas/msas.schema';
-import { users, userNotificationPreferences } from '@database/schemas/users.schema';
+import { eq, inArray } from 'drizzle-orm';
+import {
+    msas,
+    userCountySubscriptions,
+    emailSubscriptionListCounties,
+} from '@database/schemas/msas.schema';
+import {
+    users,
+    userNotificationPreferences,
+    emailSubscriptionList,
+} from '@database/schemas/users.schema';
 import {
     resolveDealRecipients,
     resolveDataAppRecipients,
+    resolveWhitelistDealRecipients,
+    resolveWhitelistDataAppRecipients,
     type DealRecipientQuery,
     type DataAppRecipient,
+    type WhitelistDealRecipientQuery,
+    type WhitelistRecipient,
+    type WhitelistDataAppRecipient,
 } from 'server/services/email/recipientResolver';
 import { getTestDb, seedTestUser, deleteTestUser } from '../../../helpers/db';
 
@@ -33,6 +46,8 @@ const OUTSIDE_POSTER = '00000116-0000-4000-8000-00000000000a';
 // the deal-side toggles above.
 const DATA_APP_OFF = '00000116-0000-4000-8000-00000000000b';
 const SOLD_STATUS_FILTER = '00000116-0000-4000-8000-00000000000c';
+// Relationship manager referenced by a whitelist entry (issue #133).
+const RM_USER = '00000116-0000-4000-8000-00000000000d';
 
 const SEEDED_USERS = [
     ORANGE_SUB,
@@ -46,6 +61,33 @@ const SEEDED_USERS = [
     POSTER,
     DATA_APP_OFF,
     SOLD_STATUS_FILTER,
+    RM_USER,
+];
+
+function emailOf(userId: string): string {
+    return `${userId}@integration.test.internal`; // seedTestUser's email convention
+}
+
+// Whitelist entries (issue #133) — emails unique to this file; none may exist in users except
+// WL_REGISTERED, which deliberately collides with ORANGE_SUB to prove double-send prevention.
+const WL_ORANGE = 'wl-133-orange@integration.test.internal';
+const WL_LA = 'wl-133-la@integration.test.internal';
+const WL_SD = 'wl-133-sd@integration.test.internal';
+const WL_RIVERSIDE = 'wl-133-riverside@integration.test.internal';
+const WL_MULTI_MSA = 'wl-133-multi-msa@integration.test.internal';
+const WL_TWO_COUNTY = 'wl-133-two-county@integration.test.internal';
+const WL_WITH_RM = 'wl-133-with-rm@integration.test.internal';
+const WL_REGISTERED = emailOf(ORANGE_SUB);
+
+const SEEDED_WHITELIST_EMAILS = [
+    WL_ORANGE,
+    WL_LA,
+    WL_SD,
+    WL_RIVERSIDE,
+    WL_MULTI_MSA,
+    WL_TWO_COUNTY,
+    WL_WITH_RM,
+    WL_REGISTERED,
 ];
 
 const LA_MSA = 'Los Angeles-Long Beach-Anaheim, CA';
@@ -124,10 +166,82 @@ beforeAll(async () => {
         { userId: DATA_APP_OFF, county: 'Orange', state: 'CA', msaId: laMsaId },
         { userId: SOLD_STATUS_FILTER, county: 'Orange', state: 'CA', msaId: laMsaId },
     ]);
+
+    // Whitelist entries (issue #133). County rows from an aborted previous run cascade with
+    // the parent delete.
+    await db
+        .delete(emailSubscriptionList)
+        .where(inArray(emailSubscriptionList.email, SEEDED_WHITELIST_EMAILS));
+    const entries = await db
+        .insert(emailSubscriptionList)
+        .values([
+            { email: WL_ORANGE },
+            { email: WL_LA },
+            { email: WL_SD },
+            { email: WL_RIVERSIDE },
+            { email: WL_MULTI_MSA },
+            { email: WL_TWO_COUNTY },
+            { email: WL_WITH_RM, relationshipManagerId: RM_USER },
+            { email: WL_REGISTERED },
+        ])
+        .returning({ id: emailSubscriptionList.id, email: emailSubscriptionList.email });
+    const listIdByEmail = new Map(entries.map((e) => [e.email, e.id]));
+    const listId = (email: string): number => {
+        const id = listIdByEmail.get(email);
+        if (id == null) throw new Error(`whitelist entry not seeded: ${email}`);
+        return id;
+    };
+
+    await db.insert(emailSubscriptionListCounties).values([
+        { subscriptionListId: listId(WL_ORANGE), county: 'Orange', state: 'CA', msaId: laMsaId },
+        { subscriptionListId: listId(WL_LA), county: 'Los Angeles', state: 'CA', msaId: laMsaId },
+        { subscriptionListId: listId(WL_SD), county: 'San Diego', state: 'CA', msaId: sdMsaId },
+        {
+            subscriptionListId: listId(WL_RIVERSIDE),
+            county: 'Riverside',
+            state: 'CA',
+            msaId: riversideMsaId,
+        },
+        {
+            subscriptionListId: listId(WL_MULTI_MSA),
+            county: 'Orange',
+            state: 'CA',
+            msaId: laMsaId,
+        },
+        {
+            subscriptionListId: listId(WL_MULTI_MSA),
+            county: 'San Diego',
+            state: 'CA',
+            msaId: sdMsaId,
+        },
+        {
+            subscriptionListId: listId(WL_TWO_COUNTY),
+            county: 'Orange',
+            state: 'CA',
+            msaId: laMsaId,
+        },
+        {
+            subscriptionListId: listId(WL_TWO_COUNTY),
+            county: 'Los Angeles',
+            state: 'CA',
+            msaId: laMsaId,
+        },
+        { subscriptionListId: listId(WL_WITH_RM), county: 'Orange', state: 'CA', msaId: laMsaId },
+        {
+            subscriptionListId: listId(WL_REGISTERED),
+            county: 'Orange',
+            state: 'CA',
+            msaId: laMsaId,
+        },
+    ]);
 });
 
 afterAll(async () => {
-    // Prefs and county-subscription rows cascade with each user delete.
+    // Whitelist county rows cascade with the parent entry; prefs and county-subscription rows
+    // cascade with each user delete.
+    await db
+        .delete(emailSubscriptionList)
+        .where(inArray(emailSubscriptionList.email, SEEDED_WHITELIST_EMAILS));
     for (const id of SEEDED_USERS) {
         await deleteTestUser(id);
     }
@@ -306,5 +420,169 @@ describe('resolveDataAppRecipients — daily digest membership', () => {
         const byId = await dataAppRecipientsById(laMsaId);
         expect(byId.get(SOLD_STATUS_FILTER)?.dataAppStatusFilter).toEqual(['sold']);
         expect(byId.get(ORANGE_SUB)?.dataAppStatusFilter).toEqual([]);
+    });
+});
+
+// Whitelist resolvers (issue #133) — the same scoping contract as the user resolvers above,
+// against email_subscription_list_counties.
+
+async function whitelistDealRecipientsByEmail(
+    overrides: Partial<WhitelistDealRecipientQuery> = {},
+): Promise<Map<string, WhitelistRecipient>> {
+    const recipients = await resolveWhitelistDealRecipients({
+        msaIds: [laMsaId],
+        county: 'Orange',
+        city: 'Irvine',
+        state: 'CA',
+        ...overrides,
+    });
+    return new Map(recipients.map((r) => [r.email, r]));
+}
+
+describe('resolveWhitelistDealRecipients — exact-county targeting', () => {
+    it('tracked county — notifies only that county’s entries, not the rest of the MSA', async () => {
+        const byEmail = await whitelistDealRecipientsByEmail();
+        expect(byEmail.has(WL_ORANGE)).toBe(true);
+        expect(byEmail.has(WL_MULTI_MSA)).toBe(true);
+        expect(byEmail.has(WL_LA)).toBe(false); // the anti-flooding point of county granularity
+        expect(byEmail.has(WL_SD)).toBe(false);
+        expect(byEmail.has(WL_RIVERSIDE)).toBe(false);
+    });
+
+    it('multi-MSA entry — receives the deal matching their county in each MSA', async () => {
+        const sdByEmail = await whitelistDealRecipientsByEmail({
+            msaIds: [sdMsaId],
+            county: 'San Diego',
+            city: 'San Diego',
+        });
+        expect(sdByEmail.has(WL_MULTI_MSA)).toBe(true);
+        expect(sdByEmail.has(WL_SD)).toBe(true);
+        expect(sdByEmail.has(WL_ORANGE)).toBe(false);
+
+        const laProperByEmail = await whitelistDealRecipientsByEmail({
+            county: 'Los Angeles',
+            city: 'Los Angeles',
+        });
+        expect(laProperByEmail.has(WL_LA)).toBe(true);
+        expect(laProperByEmail.has(WL_MULTI_MSA)).toBe(false); // subscribed to Orange, not LA proper
+    });
+});
+
+describe('resolveWhitelistDealRecipients — MSA safety net', () => {
+    it('null county — falls back to every entry of the deal’s whole MSA', async () => {
+        const byEmail = await whitelistDealRecipientsByEmail({ county: null, city: 'Somewhere' });
+        expect(byEmail.has(WL_ORANGE)).toBe(true);
+        expect(byEmail.has(WL_LA)).toBe(true);
+        expect(byEmail.has(WL_TWO_COUNTY)).toBe(true);
+        expect(byEmail.has(WL_SD)).toBe(false);
+        expect(byEmail.has(WL_RIVERSIDE)).toBe(false);
+    });
+
+    it('untracked county — falls back to the whole MSA rather than dropping the deal', async () => {
+        const byEmail = await whitelistDealRecipientsByEmail({ county: 'Nowhere' });
+        expect(byEmail.has(WL_ORANGE)).toBe(true);
+        expect(byEmail.has(WL_LA)).toBe(true);
+    });
+
+    it('never returns the same entry twice in a fallback fan-out', async () => {
+        // WL_TWO_COUNTY holds two counties in the LA MSA, so the MSA-wide scope matches it twice.
+        const recipients = await resolveWhitelistDealRecipients({
+            msaIds: [laMsaId],
+            county: null,
+            city: 'Somewhere',
+            state: 'CA',
+        });
+        const emails = recipients.map((r) => r.email);
+        expect(new Set(emails).size).toBe(emails.length);
+        expect(emails).toContain(WL_TWO_COUNTY);
+    });
+});
+
+describe('resolveWhitelistDealRecipients — companion cities', () => {
+    it('Temecula deal (county Riverside, posted under the SD MSA) — reaches San Diego entries, bypassing exact-county match', async () => {
+        const byEmail = await whitelistDealRecipientsByEmail({
+            msaIds: [sdMsaId],
+            county: 'Riverside',
+            city: 'Temecula',
+        });
+        expect(byEmail.has(WL_SD)).toBe(true);
+        expect(byEmail.has(WL_MULTI_MSA)).toBe(true);
+        expect(byEmail.has(WL_RIVERSIDE)).toBe(false); // exact-county match is bypassed for companions
+        expect(byEmail.has(WL_ORANGE)).toBe(false);
+    });
+
+    it('companion deal carrying a different primary MSA — fans out over primary ∪ companion', async () => {
+        const byEmail = await whitelistDealRecipientsByEmail({
+            msaIds: [riversideMsaId, sdMsaId],
+            county: 'Riverside',
+            city: 'Murrieta',
+        });
+        expect(byEmail.has(WL_RIVERSIDE)).toBe(true);
+        expect(byEmail.has(WL_SD)).toBe(true);
+        expect(byEmail.has(WL_ORANGE)).toBe(false);
+    });
+});
+
+describe('resolveWhitelistDealRecipients — registered exclusion + RM', () => {
+    it('entry whose address is already a registered user — excluded (double-send prevention)', async () => {
+        const exactByEmail = await whitelistDealRecipientsByEmail();
+        expect(exactByEmail.has(WL_REGISTERED)).toBe(false);
+
+        const fallbackByEmail = await whitelistDealRecipientsByEmail({
+            county: null,
+            city: 'Somewhere',
+        });
+        expect(fallbackByEmail.has(WL_REGISTERED)).toBe(false);
+    });
+
+    it('entry with a relationship manager — rmEmail pre-resolved; without one — undefined', async () => {
+        const byEmail = await whitelistDealRecipientsByEmail();
+        expect(byEmail.get(WL_WITH_RM)?.rmEmail).toBe(emailOf(RM_USER));
+        expect(byEmail.get(WL_ORANGE)?.rmEmail).toBeUndefined();
+    });
+});
+
+async function whitelistDataAppRecipientsByEmail(
+    msaId: number,
+): Promise<Map<string, WhitelistDataAppRecipient>> {
+    const recipients = await resolveWhitelistDataAppRecipients(msaId);
+    return new Map(recipients.map((r) => [r.email, r]));
+}
+
+describe('resolveWhitelistDataAppRecipients — daily digest membership', () => {
+    it('county entry in the MSA — included, carrying their subscribed counties', async () => {
+        const byEmail = await whitelistDataAppRecipientsByEmail(laMsaId);
+        expect(byEmail.get(WL_ORANGE)?.counties).toEqual(['Orange']);
+        expect(byEmail.get(WL_LA)?.counties).toEqual(['Los Angeles']);
+    });
+
+    it('entry of a different MSA only — excluded', async () => {
+        const byEmail = await whitelistDataAppRecipientsByEmail(laMsaId);
+        expect(byEmail.has(WL_SD)).toBe(false);
+        expect(byEmail.has(WL_RIVERSIDE)).toBe(false);
+    });
+
+    it('multi-county entry — one row carrying every county in the MSA', async () => {
+        const byEmail = await whitelistDataAppRecipientsByEmail(laMsaId);
+        expect(byEmail.get(WL_TWO_COUNTY)?.counties?.sort()).toEqual(['Los Angeles', 'Orange']);
+    });
+
+    it('multi-MSA entry — counties are scoped to the queried MSA', async () => {
+        const laByEmail = await whitelistDataAppRecipientsByEmail(laMsaId);
+        expect(laByEmail.get(WL_MULTI_MSA)?.counties).toEqual(['Orange']);
+
+        const sdByEmail = await whitelistDataAppRecipientsByEmail(sdMsaId);
+        expect(sdByEmail.get(WL_MULTI_MSA)?.counties).toEqual(['San Diego']);
+    });
+
+    it('entry whose address is already a registered user — excluded (double-send prevention)', async () => {
+        const byEmail = await whitelistDataAppRecipientsByEmail(laMsaId);
+        expect(byEmail.has(WL_REGISTERED)).toBe(false);
+    });
+
+    it('entry with a relationship manager — rmEmail pre-resolved; without one — undefined', async () => {
+        const byEmail = await whitelistDataAppRecipientsByEmail(laMsaId);
+        expect(byEmail.get(WL_WITH_RM)?.rmEmail).toBe(emailOf(RM_USER));
+        expect(byEmail.get(WL_ORANGE)?.rmEmail).toBeUndefined();
     });
 });

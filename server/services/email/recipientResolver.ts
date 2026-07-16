@@ -1,6 +1,14 @@
 import { db } from 'server/storage';
-import { msas, userCountySubscriptions } from '@database/schemas/msas.schema';
-import { users, userNotificationPreferences } from '@database/schemas/users.schema';
+import {
+    msas,
+    userCountySubscriptions,
+    emailSubscriptionListCounties,
+} from '@database/schemas/msas.schema';
+import {
+    users,
+    userNotificationPreferences,
+    emailSubscriptionList,
+} from '@database/schemas/users.schema';
 import { getCompanionMsaName } from 'server/constants/companionCities.constants';
 import { getTrackedCounties } from '@shared/constants/countyToMsa';
 import { eq, and, inArray, sql } from 'drizzle-orm';
@@ -22,7 +30,7 @@ export interface DealRecipient {
 
 export interface ResolvedDealRecipients {
     recipients: DealRecipient[];
-    /** Every MSA in play (primary first, companion after) — MSA-level extras (whitelist) fan out over these. */
+    /** Every MSA in play (primary first, companion after) — resolveWhitelistDealRecipients scopes over these. */
     msaIds: number[];
 }
 
@@ -32,6 +40,28 @@ export interface DataAppRecipient {
     firstName: string;
     dataAppStatusFilter: string[];
     /** The user's subscribed counties within the queried MSA — the job's per-user "where" filter. */
+    counties: string[];
+}
+
+export interface WhitelistDealRecipientQuery {
+    /** Every MSA in play (primary first, companion after), as returned by resolveDealRecipients. */
+    msaIds: number[];
+    county: string | null;
+    city: string | null;
+    state: string | null;
+}
+
+export interface WhitelistRecipient {
+    email: string;
+    /** The entry's relationship manager's email, pre-resolved for the From address. */
+    rmEmail?: string;
+}
+
+export interface WhitelistDataAppRecipient {
+    email: string;
+    /** The entry's relationship manager's email, pre-resolved for the From address. */
+    rmEmail?: string;
+    /** The entry's subscribed counties within the queried MSA — the job's per-entry "where" filter. */
     counties: string[];
 }
 
@@ -160,4 +190,128 @@ export async function resolveDataAppRecipients(msaId: number): Promise<DataAppRe
         });
     }
     return Array.from(byUser.values());
+}
+
+// A whitelist address that has since registered gets the user path, never both (double-send
+// prevention).
+const notRegisteredAsUser = sql`NOT EXISTS (
+    SELECT 1 FROM users
+    WHERE lower(trim(users.email)) = lower(trim(${emailSubscriptionList.email}))
+)`;
+
+async function getRmEmailsByIds(rmIds: string[]): Promise<Map<string, string>> {
+    if (rmIds.length === 0) return new Map();
+    const rows = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(inArray(users.id, rmIds));
+    return new Map(rows.map((r) => [r.id, r.email]));
+}
+
+// Batch-resolves each entry's RM From address; rows repeat per matched county, so callers
+// dedupe by email before calling.
+async function withRmEmails<T extends { relationshipManagerId: string | null }>(
+    entries: T[],
+): Promise<(Omit<T, 'relationshipManagerId'> & { rmEmail?: string })[]> {
+    const rmIds = Array.from(
+        new Set(
+            entries.map((e) => e.relationshipManagerId).filter((id): id is string => id != null),
+        ),
+    );
+    const rmEmailByRmId = await getRmEmailsByIds(rmIds);
+    return entries.map(({ relationshipManagerId, ...entry }) => ({
+        ...entry,
+        rmEmail: relationshipManagerId ? rmEmailByRmId.get(relationshipManagerId) : undefined,
+    }));
+}
+
+/**
+ * Resolves the whitelist audience for a deal under the same scoping contract registered users
+ * get (issue #133): exact-county match; MSA-wide fallback over `msaIds` when the deal's county
+ * is null/untracked; companion-city deals fan out over `msaIds` (primary ∪ companion).
+ * Entries are unique by email; addresses already registered as users are excluded.
+ */
+export async function resolveWhitelistDealRecipients(
+    query: WhitelistDealRecipientQuery,
+): Promise<WhitelistRecipient[]> {
+    const { msaIds, county, city, state } = query;
+
+    const trackedCounty =
+        county != null && state != null && isTrackedCountyPair(county, state)
+            ? { county, state }
+            : null;
+
+    // Mirrors resolveDealRecipients: a companion-city deal bypasses exact-county targeting.
+    const scopeConditions =
+        getCompanionMsaName(city, state) || !trackedCounty
+            ? [inArray(emailSubscriptionListCounties.msaId, msaIds)]
+            : [
+                  sql`lower(trim(${emailSubscriptionListCounties.county})) = lower(trim(${trackedCounty.county}))`,
+                  sql`lower(trim(${emailSubscriptionListCounties.state})) = lower(trim(${trackedCounty.state}))`,
+              ];
+
+    const rows = await db
+        .select({
+            email: emailSubscriptionList.email,
+            relationshipManagerId: emailSubscriptionList.relationshipManagerId,
+        })
+        .from(emailSubscriptionListCounties)
+        .innerJoin(
+            emailSubscriptionList,
+            eq(emailSubscriptionListCounties.subscriptionListId, emailSubscriptionList.id),
+        )
+        .where(and(notRegisteredAsUser, ...scopeConditions));
+
+    // The MSA-wide scope yields one row per subscribed county — keep each entry once.
+    const seen = new Set<string>();
+    const unique = rows.filter((row) => {
+        const key = row.email.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    return withRmEmails(unique);
+}
+
+/**
+ * Resolves the daily property-digest whitelist audience for one MSA (issue #133): every entry
+ * subscribed to at least one of the MSA's counties, mirroring resolveDataAppRecipients' shape.
+ * Entries are unique by email; addresses already registered as users are excluded.
+ */
+export async function resolveWhitelistDataAppRecipients(
+    msaId: number,
+): Promise<WhitelistDataAppRecipient[]> {
+    const rows = await db
+        .select({
+            email: emailSubscriptionList.email,
+            relationshipManagerId: emailSubscriptionList.relationshipManagerId,
+            county: emailSubscriptionListCounties.county,
+        })
+        .from(emailSubscriptionListCounties)
+        .innerJoin(
+            emailSubscriptionList,
+            eq(emailSubscriptionListCounties.subscriptionListId, emailSubscriptionList.id),
+        )
+        .where(and(eq(emailSubscriptionListCounties.msaId, msaId), notRegisteredAsUser));
+
+    // One row per subscribed county — fold into a single entry per email.
+    const byEmail = new Map<
+        string,
+        { email: string; relationshipManagerId: string | null; counties: string[] }
+    >();
+    for (const row of rows) {
+        const entry = byEmail.get(row.email.toLowerCase());
+        if (entry) {
+            entry.counties.push(row.county);
+            continue;
+        }
+        byEmail.set(row.email.toLowerCase(), {
+            email: row.email,
+            relationshipManagerId: row.relationshipManagerId,
+            counties: [row.county],
+        });
+    }
+
+    return withRmEmails(Array.from(byEmail.values()));
 }
