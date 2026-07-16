@@ -21,6 +21,7 @@ import { createDealBidNotification } from 'server/services/notifications/notific
 import { broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { requestDealInfoSchema, submitOfferSchema } from '@database/validation/deals.validation';
+import { isDealType } from '@shared/types/deals';
 import { isUuid } from 'server/utils/uuid';
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
@@ -53,10 +54,7 @@ export async function getDealsController(req: Request, res: Response): Promise<v
         const city = typeof req.query.city === 'string' ? req.query.city : undefined;
         const state = typeof req.query.state === 'string' ? req.query.state : undefined;
         const zipCode = typeof req.query.zipCode === 'string' ? req.query.zipCode : undefined;
-        const status =
-            req.query.status === 'new' || req.query.status === 'sold'
-                ? req.query.status
-                : undefined;
+        const type = isDealType(req.query.type) ? req.query.type : undefined;
 
         const parsedPage = parseInt(String(req.query.page), 10);
         const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -73,7 +71,7 @@ export async function getDealsController(req: Request, res: Response): Promise<v
             city,
             state,
             zipCode,
-            status,
+            type,
             page,
             limit,
             callerId: req.session?.userId,
@@ -102,7 +100,7 @@ export async function getDealByIdController(req: Request, res: Response): Promis
             res.status(400).json({ message: 'Invalid deal id' });
             return;
         }
-        const deal = await getDealById(id);
+        const deal = await getDealById(id, req.session?.userId);
         if (!deal) {
             res.status(404).json({ message: 'Deal not found' });
             return;

@@ -115,14 +115,19 @@ These four palettes are categorical: they encode identity, not semantics, so no 
 should. They are the complete list. `scripts/hex-allowlist.txt` is the machine-readable copy —
 **edit both together or the check will fail.**
 
-### Deal types — `DealCard2.tsx`
+### Deal types — `client/src/components/ui/badge.tsx` variants
 
-| Type | Fill | Label |
-|---|---|---|
-| `wholesale` | `#9333EA` | Wholesale |
-| `sold` | `#FF0000` | Sold |
-| `agent` | `#F97316` | Agent |
-| `reo` | `#6366F1` | REO |
+The hexes live in the badge component's named variants; `DEAL_TYPE_META` in
+`client/src/utils/deals.ts` maps each deal type to its variant (rendered by `DealListRow` /
+`DealDetail`). The same palette colors the data-side status UI (`mapPins.constants.ts`,
+`PropertyTable.tsx`, `UpdatePropertyDialog.tsx`, `FilterHeader.tsx`).
+
+| Type | Badge variant | Fill | Label |
+|---|---|---|---|
+| `wholesale` | `purple` | `#9333EA` | Wholesale |
+| `sold` | `red` | `#FF0000` | Sold |
+| `agent` | `orange` | `#F97316` | Agent |
+| `reo` | `indigo` | `#6366F1` | REO |
 
 ### Transaction types — `client/src/utils/transactionTypeBadge.ts`
 

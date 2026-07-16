@@ -384,8 +384,8 @@ function DataVisual() {
 }
 
 /**
- * Deals app visual: a clean, custom deal card (a mockup of a possible redesign — intentionally NOT
- * a clone of the current DealCard2). Image banner with deal-type badges, a financial highlight
+ * Deals app visual: a clean, custom deal-card mockup (marketing illustration — intentionally not
+ * a clone of the live Deals UI). Image banner with deal-type badges, a financial highlight
  * strip, and a single clear call to action.
  */
 function DealVisual() {

@@ -6,6 +6,7 @@ import type {
     CreateDealInput,
     UpdateDealInput,
 } from '@shared/types/deals';
+import { isDealType } from '@shared/types/deals';
 import { deals, dealLinks, dealBids } from '@database/schemas/deals.schema';
 import {
     users,
@@ -29,7 +30,7 @@ import {
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
-import { eq, ne, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
+import { eq, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -181,8 +182,8 @@ type GetDealsFilters = {
     city?: string;
     state?: string;
     zipCode?: string;
-    // Column selector: 'new' = every non-sold type, 'sold' = sold only. Omit for all types.
-    status?: 'new' | 'sold';
+    // Narrows to a single deal type (including 'sold'). Omit for all types.
+    type?: DealType;
     // 1-based page + page size (offset pagination). Defaults: page 1, limit 10.
     page?: number;
     limit?: number;
@@ -193,12 +194,12 @@ type GetDealsFilters = {
 const DEFAULT_DEALS_LIMIT = 10;
 
 /**
- * Lists one page of deals for a column (new or sold), newest first.
+ * Lists one page of the unified deals feed, newest first.
  * Enriches each deal with comparable-sale links, a relative street-view URL, and — for the
  * caller's own deals — an offer count. Top buyers and the street-view image itself are fetched
  * lazily by their own endpoints, not here.
- * @param filters location/status filters plus page/limit; `callerId` scopes offer counts.
- * @returns one page: `{ deals, total, hasMore, page, limit }` for the matching column.
+ * @param filters location/type filters plus page/limit; `callerId` scopes offer counts.
+ * @returns one page: `{ deals, total, hasMore, page, limit }` of the matching feed.
  */
 export async function getDeals(filters: GetDealsFilters) {
     const {
@@ -209,7 +210,7 @@ export async function getDeals(filters: GetDealsFilters) {
         city: filterCity,
         state: filterState,
         zipCode: filterZipCode,
-        status: filterStatus,
+        type: filterType,
         callerId: filterCallerId,
     } = filters;
 
@@ -242,8 +243,7 @@ export async function getDeals(filters: GetDealsFilters) {
     if (filterCity) conditions.push(ilike(deals.city, filterCity));
     if (filterState) conditions.push(eq(deals.state, filterState.toUpperCase()));
     if (filterZipCode) conditions.push(eq(deals.zipCode, filterZipCode));
-    if (filterStatus === 'sold') conditions.push(eq(deals.type, 'sold'));
-    else if (filterStatus === 'new') conditions.push(ne(deals.type, 'sold'));
+    if (filterType) conditions.push(eq(deals.type, filterType));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Total matching rows for the column header (cheap COUNT, all filters on `deals`). A single-deal
@@ -303,7 +303,7 @@ export async function getDeals(filters: GetDealsFilters) {
 
     console.log(
         `[dealsService.getDeals] ${pageRows.length}/${total} deals (page ${page})` +
-            `${filterStatus ? ` (status=${filterStatus})` : ''}` +
+            `${filterType ? ` (type=${filterType})` : ''}` +
             `${filterUserId ? ` (userId=${filterUserId})` : ''}` +
             `${filterMsaName ? ` (msaName=${filterMsaName})` : ''}` +
             `${filterCity ? ` (city=${filterCity})` : ''}` +
@@ -360,8 +360,9 @@ export async function getDeals(filters: GetDealsFilters) {
 }
 
 // ── GET single deal by id ──────────────────────────────────────────────────────
-export async function getDealById(id: number) {
-    const { deals: rows } = await getDeals({ id, limit: 1 });
+/** Fetches one deal with the same enrichment as the list; `callerId` scopes the offer count. */
+export async function getDealById(id: number, callerId?: string) {
+    const { deals: rows } = await getDeals({ id, limit: 1, callerId });
     return rows[0] ?? null;
 }
 
@@ -480,10 +481,7 @@ export async function createDeal(input: CreateDealInput) {
         }
     }
 
-    const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
-    const resolvedDealType = (validDealTypes as readonly string[]).includes(dealType ?? '')
-        ? (dealType as 'wholesale' | 'agent' | 'sold' | 'reo')
-        : ('agent' as const);
+    const resolvedDealType: DealType = isDealType(dealType) ? dealType : 'agent';
 
     // MSA is derived from the location; the client-provided msaId is only a fallback for
     // addresses that don't resolve to a tracked market.
@@ -957,8 +955,6 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         };
     }
 
-    const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
-
     const [updated] = await db
         .update(deals)
         .set({
@@ -984,11 +980,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
                         ? Number(estimatedBudget)
                         : null
                     : undefined,
-            type:
-                dealType !== undefined &&
-                validDealTypes.includes(dealType as (typeof validDealTypes)[number])
-                    ? (dealType as (typeof validDealTypes)[number])
-                    : undefined,
+            type: isDealType(dealType) ? dealType : undefined,
             notes: notes !== undefined ? (notes ?? null) : undefined,
             adminNotes: adminNotes !== undefined ? (adminNotes ?? null) : undefined,
             photosUrl: photosUrl !== undefined ? (photosUrl ?? null) : undefined,

@@ -4,7 +4,16 @@
             "Read(**)",
             "Edit(**)",
             "Write(**)",
-            "Bash(bash .claude/skills/smell/scripts/smell-diff.sh:*)"
+            "Bash(npm *)", 
+            "Bash(npx *)", 
+            "Bash(node *)",
+            "Bash(git *)", 
+            "Bash(gh *)",
+            "Bash(mkdir *)", 
+            "Bash(mv *)", 
+            "Bash(cp *)", 
+            "Bash(touch *)",
+            "Bash(bash .claude/skills/**)"
         ],
         "deny": [
             "Read(**/.env*)",
@@ -12,7 +21,11 @@
             "Read(**/*.pem)",
             "Read(**/*.key)",
             "Read(**/.aws/**)",
-            "Read(**/.ssh/**)"
+            "Read(**/.ssh/**)",
+            "Bash(git push *)", 
+            "Bash(rm -rf *)",
+            "Read(.env)", 
+            "Read(.env.*)"
         ]
     },
     "hooks": {

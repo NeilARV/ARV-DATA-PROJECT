@@ -5,8 +5,9 @@ import { useAuth } from '@/hooks/use-auth';
 
 import { getMsaNameFromCounty } from '@/lib/county';
 
+import type { DealTypeFilter } from '@/components/deals/DealsToolbar';
 import type { LocationFilter } from '@/types/deals';
-import type { DealTab } from '@shared/types/deals';
+import { isDealType, type DealTab } from '@shared/types/deals';
 
 // ── Shared first-load default ───────────────────────────────────────────────
 /**
@@ -100,9 +101,17 @@ export function useDataNav() {
 }
 
 // ── Deals nav (/deals) ──────────────────────────────────────────────────────
-function buildDealsUrl(tab: DealTab, filter: LocationFilter | null, dealId?: number | null): string {
+// Rebuilds the query string from scratch — every param must be threaded through here from every
+// setter, or changing one filter silently drops the others from the URL.
+function buildDealsUrl(
+    tab: DealTab,
+    filter: LocationFilter | null,
+    type: DealTypeFilter,
+    dealId?: number | null,
+): string {
     const params = new URLSearchParams();
     if (tab === 'mine') params.set('tab', 'mine');
+    if (type !== 'all') params.set('type', type);
     if (filter) {
         params.set('filterType', filter.type);
         params.set('filterValue', filter.value);
@@ -139,6 +148,8 @@ export function useDealsNav() {
     const params = new URLSearchParams(search);
     const rawTab = params.get('tab');
     const tab: DealTab = rawTab === 'mine' ? 'mine' : 'all';
+    const rawType = params.get('type');
+    const typeFilter: DealTypeFilter = isDealType(rawType) ? rawType : 'all';
     const locationFilter = parseDealsFilter(params);
     const hasExplicitFilter = params.has('filterType');
 
@@ -148,35 +159,53 @@ export function useDealsNav() {
     useFirstLoadDefault(hasExplicitFilter, !!user?.county, () => {
         const msaName = getMsaNameFromCounty(user?.county ?? '');
         if (!msaName) return;
-        setLocation(buildDealsUrl(tab, { type: 'msa', value: msaName }, dealId), { replace: true });
+        setLocation(buildDealsUrl(tab, { type: 'msa', value: msaName }, typeFilter, dealId), {
+            replace: true,
+        });
     });
 
     const setTab = useCallback(
         (newTab: DealTab) => {
-            setLocation(buildDealsUrl(newTab, locationFilter, dealId));
+            setLocation(buildDealsUrl(newTab, locationFilter, typeFilter, dealId));
         },
-        [setLocation, locationFilter, dealId],
+        [setLocation, locationFilter, typeFilter, dealId],
+    );
+
+    const setTypeFilter = useCallback(
+        (type: DealTypeFilter) => {
+            setLocation(buildDealsUrl(tab, locationFilter, type, dealId));
+        },
+        [setLocation, tab, locationFilter, dealId],
     );
 
     const setLocationFilter = useCallback(
         (filter: LocationFilter | null) => {
-            setLocation(buildDealsUrl(tab, filter, dealId));
+            setLocation(buildDealsUrl(tab, filter, typeFilter, dealId));
         },
-        [setLocation, tab, dealId],
+        [setLocation, tab, typeFilter, dealId],
     );
 
     const setDealId = useCallback(
-        (id: number | null) => {
+        (id: number | null, opts?: { replace?: boolean }) => {
             const p = new URLSearchParams(search);
             if (id !== null) p.set('dealId', String(id));
             else p.delete('dealId');
             const qs = p.toString();
-            setLocation(qs ? `/deals?${qs}` : '/deals');
+            setLocation(qs ? `/deals?${qs}` : '/deals', opts);
         },
         [search, setLocation],
     );
 
-    return { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId };
+    return {
+        tab,
+        typeFilter,
+        locationFilter,
+        dealId,
+        setTab,
+        setTypeFilter,
+        setLocationFilter,
+        setDealId,
+    };
 }
 
 // ── Vendor nav (/vendors) ───────────────────────────────────────────────────

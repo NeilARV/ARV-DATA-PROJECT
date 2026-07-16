@@ -55,7 +55,11 @@ function Fact({ label, value }: { label: string; value: string | null }) {
             <p
                 className={cn(
                     'mt-0.5 text-lg font-bold tabular-nums',
-                    value ? 'text-foreground' : 'text-muted-foreground/60',
+                    !value
+                        ? 'text-muted-foreground/60'
+                        : label === 'Potential ARV'
+                          ? 'text-spread-positive'
+                          : 'text-foreground',
                 )}
             >
                 {value ?? '—'}
@@ -123,9 +127,10 @@ export default function DealDetail({
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                             {deal.isArvExclusive && (
+                                // Decorative here — the header's ARV Exclusive badge carries the text.
                                 <Star
                                     className="h-4 w-4 shrink-0 fill-primary text-primary"
-                                    aria-label="ARV Exclusive"
+                                    aria-hidden="true"
                                 />
                             )}
                             <h2 className="truncate text-lg font-semibold text-foreground">
@@ -138,6 +143,11 @@ export default function DealDetail({
                             Posted {formatPostedDate(deal.createdAt)}
                         </p>
                     </div>
+                    {deal.isArvExclusive && (
+                        <Badge size="lg" className="mt-0.5 shrink-0">
+                            ARV Exclusive
+                        </Badge>
+                    )}
                     <Badge variant={type.badge} size="lg" className="mt-0.5 shrink-0">
                         {type.label}
                     </Badge>

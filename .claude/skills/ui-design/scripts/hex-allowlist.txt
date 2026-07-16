@@ -12,7 +12,7 @@ path:client/src/components/ui/badge.tsx
 #5BC8DC
 #FFFFFF
 
-# --- Deal types (DealCard2.tsx) ---
+# --- Deal types (ui/badge.tsx variants; also data-side status UI: mapPins, PropertyTable, UpdatePropertyDialog, FilterHeader) ---
 #9333EA
 #FF0000
 #F97316
