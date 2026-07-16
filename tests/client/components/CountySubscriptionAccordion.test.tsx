@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CountySubscriptionAccordion } from '@/components/profile/CountySubscriptionAccordion';
+import { CountySubscriptionAccordion } from '@/components/CountySubscriptionAccordion';
 import type { CountySubscriptionSelection } from '@database/validation/countySubscriptions.validation';
 
 // The component is controlled: it renders the tracked county universe (COUNTY_TO_MSA) grouped

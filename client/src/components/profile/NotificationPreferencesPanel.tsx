@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import { CountySubscriptionAccordion } from '@/components/profile/CountySubscriptionAccordion';
+import { CountySubscriptionAccordion } from '@/components/CountySubscriptionAccordion';
 
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, NotificationPreferences, DealTypeFilter } from '@/hooks/use-auth';
