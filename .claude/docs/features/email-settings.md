@@ -69,7 +69,7 @@ Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per
   - Values: `'in-renovation' | 'on-market' | 'wholesale' | 'sold'`
   - Empty array = all statuses (default)
   - If filter is non-empty and 0 properties match → skip user that day (no fallback)
-- **Whitelist recipients**: `email_subscription_list` entries for the MSA also receive the unfiltered default set
+- **Whitelist recipients**: `email_subscription_list` entries receive email under the same county contract (issue #133): `resolveWhitelistDataAppRecipients` returns each entry with its subscribed counties (`email_subscription_list_counties`) within the MSA, the job filters the entry's property set to those counties (no status filter — entries have no preferences row), and an entry with zero matching properties that day receives nothing
 
 ### 2. Deals — Deal Notifications
 
@@ -81,7 +81,7 @@ Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per
   - Empty array = receive all deal types (default)
   - `sold` is a first-class filter value — users opt in to sold notifications explicitly
   - If filter is non-empty and deal type is NOT in filter → skip user
-- **Whitelist recipients**: `email_subscription_list` entries for the MSA also receive all deal notifications
+- **Whitelist recipients**: resolved by `resolveWhitelistDealRecipients` under the same scoping contract as users (issue #133): exact-county match on `email_subscription_list_counties`, MSA safety net for null/untracked counties, companion fan-out over primary ∪ companion MSAs; no deal-type filter (entries have no preferences row)
 
 ### 3. Vendors / Posts — Vendor & Community Notifications
 
@@ -221,7 +221,7 @@ The panel makes two parallel API calls on save:
 
 ## Open Questions
 
-1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Current behavior: whitelist recipients receive all emails they're listed for, unchanged. App toggles do not apply to whitelist entries.
+1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Since issue #133 their counties (`email_subscription_list_counties`) govern "where" exactly like users' subscriptions; nothing governs "what" — app toggles and status/deal-type filters do not apply to whitelist entries.
 
 2. **Per-user sent property tracking (V2)**: `sent_property_ids` is global per MSA. A wholesale property sent to a wholesale-only user gets marked sent globally — a sold-only user subscribed later won't see it. Acceptable for V1.
 
@@ -247,7 +247,7 @@ interface DealRecipientQuery {
 }
 
 // recipients are unique by user; msaIds = every MSA in play (primary first, companion after),
-// which the caller uses to fan MSA-level extras (the whitelist) out.
+// which the caller passes on to resolveWhitelistDealRecipients.
 async function resolveDealRecipients(
     query: DealRecipientQuery,
 ): Promise<{ recipients: { userId: string; email: string }[]; msaIds: number[] }>
@@ -265,6 +265,24 @@ async function resolveDealRecipients(
 async function resolveDataAppRecipients(msaId: number): Promise<DataAppRecipient[]>
 // DataAppRecipient = { userId; email; firstName; dataAppStatusFilter: string[]; counties: string[] }
 ```
+
+**Implemented — whitelist resolvers (issue #133):** the two whitelist resolvers live beside the user resolvers and apply the same scoping contracts to `email_subscription_list_counties`:
+
+```ts
+// Same deal scoping as resolveDealRecipients (exact county / MSA safety net / companion
+// fan-out over msaIds, as returned by resolveDealRecipients); entries are unique by email.
+async function resolveWhitelistDealRecipients(
+    query: { msaIds: number[]; county: string | null; city: string | null; state: string | null },
+): Promise<{ email: string; rmEmail?: string }[]>
+
+// Same per-MSA shape as resolveDataAppRecipients: one entry per email with its subscribed
+// counties within the queried MSA.
+async function resolveWhitelistDataAppRecipients(
+    msaId: number,
+): Promise<{ email: string; rmEmail?: string; counties: string[] }[]>
+```
+
+Both exclude addresses already registered in `users` (double-send prevention) and pre-resolve the relationship manager's From address (`rmEmail`). Whitelist entries have no preferences row, so no toggle/status/deal-type filtering applies.
 
 **Future**: `resolveVendorRecipients` and `resolveAnalyticsRecipients` remain to be built when those feeds ship.
 
@@ -289,6 +307,13 @@ async function resolveDataAppRecipients(msaId: number): Promise<DataAppRecipient
 - "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
 - `user_msa_subscriptions` table stays unchanged — no county column needed
 - County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 6 — County-Aware Whitelist Targeting (issue #133)
+*Whitelist subscribers receive email under the exact contract registered users get.*
+
+- **`resolveWhitelistDealRecipients` + `resolveWhitelistDataAppRecipients`** (`server/services/email/recipientResolver.ts`) — replace the MSA-level `getWhitelistRecipientsForMsa` helper (deleted from `email.services.ts` along with its RM lookup); both query `email_subscription_list_counties`, exclude already-registered addresses, and pre-resolve `rmEmail`
+- **`sendDealNotification`** — whitelist entries get exact-county targeting with the MSA safety net and companion fan-out, matching users
+- **`sendEmailUpdatesForMsa`** — each whitelist entry's property set is built from the MSA candidate pool filtered to the entry's counties (no status filter); zero matches → no email; the unfiltered "default properties" set is gone
 
 ### Patch 5 — Daily Property Email County Filtering (issue #117)
 *The daily digest reaches county subscribers with only their counties' properties.*

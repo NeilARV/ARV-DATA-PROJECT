@@ -368,9 +368,9 @@ price change on PATCH → fires notification email; validates POST `userId` matc
   (`server/services/email/recipientResolver.ts`): county-subscription match on the deal's
   county, MSA-wide fallback when the county is null/untracked, companion-city fan-out, with
   the master/deal toggles, per-user deal-type filter, and poster exclusion (except
-  neil@arvfinance.com) applied inside the resolver. Adds whitelist recipients (MSA-level, every
-  MSA in play, dedup by email), sends Postmark templates `new-deal` / `deal-sold` /
-  `price-update`.
+  neil@arvfinance.com) applied inside the resolver. Whitelist recipients get the same county
+  scoping via `resolveWhitelistDealRecipients` (issue #133; unique by email, already-registered
+  addresses excluded), sends Postmark templates `new-deal` / `deal-sold` / `price-update`.
 
 ## Deal Creation & Editing — Form Behavior
 - **Property details always required:** beds, baths, sqft, property type — no external auto-fill.
@@ -397,8 +397,9 @@ export const COMPANION_CITY_MSA: Record<string, string> = {
   a Temecula deal is posted under the San Diego MSA) and notification fan-out
   (`resolveDealRecipients` — a companion-city deal reaches every county subscriber across
   primary ∪ companion MSAs, bypassing the exact-county match).
-- Whitelist recipients are fetched for every MSA in play, deduped by email, and receive the
-  notification even when no county subscriber matches (the whitelist stays MSA-level).
+- Whitelist recipients fan out the same way (`resolveWhitelistDealRecipients` scopes over every
+  MSA in play, deduped by email) and receive the notification even when no county subscriber
+  matches.
 - **Adding a companion city:** add one `"city|state"` (lowercase) entry — no migration needed.
 
 ## Database Schema (`database/schemas/deals.schema.ts`)
@@ -437,8 +438,8 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
 
 ## Deal Lifecycle
 - **Create** → subscription check → MSA + county resolved → beds/baths/sqft/propertyType
-  validated → insert deals + dealLinks → fire-and-forget emails (primary MSA subscribers,
-  companion MSA subscribers, whitelist recipients deduped).
+  validated → insert deals + dealLinks → fire-and-forget emails (county subscribers across
+  primary + companion MSAs, county-scoped whitelist recipients deduped).
 - **Request info** → `RequestDealInfoForm` (firstName/lastName/email) → with onBehalfOfEmail:
   email to client, CC poster's RM; without: email to poster, CC requester's RM.
 - **Submit offer** → `SendOfferForm` (amount + name/email/phone) → insert `deal_bids` row (full
