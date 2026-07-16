@@ -57,10 +57,7 @@ export interface WhitelistRecipient {
     rmEmail?: string;
 }
 
-export interface WhitelistDataAppRecipient {
-    email: string;
-    /** The entry's relationship manager's email, pre-resolved for the From address. */
-    rmEmail?: string;
+export interface WhitelistDataAppRecipient extends WhitelistRecipient {
     /** The entry's subscribed counties within the queried MSA — the job's per-entry "where" filter. */
     counties: string[];
 }
