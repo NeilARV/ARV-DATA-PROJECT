@@ -5,8 +5,8 @@ export type LocationFilter =
     | { type: 'city'; value: string; state: string }
     | { type: 'zip'; value: string };
 
-// What the current viewer may do with a specific deal — computed per-deal from role + ownership,
-// so the row/detail stay presentational and the preview can supply its own caps.
+// What the current viewer may do with a specific deal — computed per-deal from role + ownership
+// (dealCaps in utils/deals.ts), so the row/detail stay presentational.
 export type DealCaps = {
     canEdit: boolean;
     canDelete: boolean;

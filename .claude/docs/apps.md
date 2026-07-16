@@ -260,8 +260,8 @@ Page `client/src/pages/Data.tsx` · components `client/src/components/data/` · 
 A marketplace for real estate investment deals — wholesale, agent-listed, and completed sales.
 Users post deals, others browse and request contact info, and the system routes inquiries to
 the appropriate relationship manager. It's an internal deal board layered on the Data app's
-property/company data. Publicly viewable, but creating deals requires any active
-subscription (basic/pro/premium, with bypass for team roles).
+property/company data. The whole experience (reads included) requires any active subscription
+(basic/pro/premium, with bypass for team roles).
 
 ## Page Entry Point
 `client/src/pages/Deals.tsx` wraps `DealsInner` in `DataProviders`; `DealsInner` renders
