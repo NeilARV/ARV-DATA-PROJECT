@@ -41,7 +41,7 @@ export async function getZipCounts({
     // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
     const idConditions = [];
 
-    const countyCondition = countyScopeCondition(county, msa);
+    const countyCondition = countyScopeCondition({ county, msa });
     if (countyCondition) idConditions.push(countyCondition);
 
     if (statusFilter) {

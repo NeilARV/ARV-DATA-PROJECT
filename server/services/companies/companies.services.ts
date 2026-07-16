@@ -173,7 +173,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         );
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const propsCountyCondition = countyScopeCondition(county, undefined);
+    const propsCountyCondition = countyScopeCondition({ county, msa: undefined });
     const now = new Date();
     const ytdStartStr = `${now.getFullYear()}-01-01`;
     const todayStr = normalizeDateToYMD(now)!;
@@ -470,7 +470,7 @@ export async function getWholesaleLeaderboard(county?: string | string[]) {
             AND s.name = 'wholesale'
         )`,
     ];
-    const countyCondition = countyScopeCondition(county, undefined);
+    const countyCondition = countyScopeCondition({ county, msa: undefined });
     if (countyCondition) wholesaleWhereParts.push(countyCondition);
     const countRows = await db
         .select({
@@ -516,7 +516,7 @@ export async function getWholesaleLeaderboard(county?: string | string[]) {
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
 export async function getLeaderboard(county: string | string[]) {
-    const countyCondition = countyScopeCondition(county, undefined);
+    const countyCondition = countyScopeCondition({ county, msa: undefined });
     // The leaderboard is always county-scoped; no counties means nothing to rank.
     if (!countyCondition) return { companies: [], zipCodes: [] };
 
@@ -628,7 +628,7 @@ export async function getCompanyById(id: string, county?: string | string[]) {
     const chartStart = new Date(ninetyDaysAgo.getFullYear(), ninetyDaysAgo.getMonth(), 1);
     const chartStartStr = normalizeDateToYMD(chartStart)!;
 
-    const countyCondition = countyScopeCondition(county, undefined) ?? undefined;
+    const countyCondition = countyScopeCondition({ county, msa: undefined }) ?? undefined;
 
     const sellerCountQuery = db
         .select({ count: sql<number>`count(*)::int` })

@@ -57,7 +57,7 @@ export async function getPropertySuggestions(
     );
     if (searchClause) conditions.push(searchClause);
 
-    const countyClause = countyScopeCondition(county, msa);
+    const countyClause = countyScopeCondition({ county, msa });
     if (countyClause) conditions.push(countyClause);
 
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];

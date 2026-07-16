@@ -131,7 +131,7 @@ function buildMapIdConditions(
 
     const conditions: SQL[] = [];
 
-    const countyCondition = countyScopeCondition(county, msa);
+    const countyCondition = countyScopeCondition({ county, msa });
     if (countyCondition) conditions.push(countyCondition);
 
     if (zipcode && zipcode.trim() !== '') {

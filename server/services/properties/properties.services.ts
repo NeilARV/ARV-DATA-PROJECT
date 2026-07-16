@@ -275,7 +275,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
 
     // County filter — `county IN (...)`, restricted to the msa's counties when msa is present
-    const countyClause = countyScopeCondition(county, msa);
+    const countyClause = countyScopeCondition({ county, msa });
     if (countyClause) conditions.push(countyClause);
 
     // Zipcode filter
