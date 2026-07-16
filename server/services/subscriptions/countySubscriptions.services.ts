@@ -4,8 +4,8 @@ import { eq, inArray } from 'drizzle-orm';
 import { getMsaForCounty, getStateFromMsaName } from '@shared/constants/countyToMsa';
 import type { CountySubscription } from '@shared/types/users';
 import type {
+    CountySubscriptionInput,
     CountySubscriptionSelection,
-    InsertUserCountySubscription,
 } from '@database/types/countySubscriptions';
 
 /**
@@ -26,15 +26,14 @@ export async function getUserCountySubscriptions(userId: string): Promise<County
 }
 
 /**
- * Resolves API `(county, state)` selections into insertable rows, deriving each county's parent MSA
- * from COUNTY_TO_MSA (issue #112) rather than trusting the client. Untracked counties, MSAs with no
- * `msas` row, and MSA names with no parseable state are dropped; state is taken from the MSA name so
- * the written `(county, state)` always matches COUNTY_TO_MSA's canonical pair.
+ * Resolves API `(county, state)` selections into `(county, state, msaId)` rows, deriving each
+ * county's parent MSA from COUNTY_TO_MSA (issue #112) rather than trusting the client. Untracked
+ * counties, MSAs with no `msas` row, and MSA names with no parseable state are dropped; state is
+ * taken from the MSA name so the resolved pair always matches COUNTY_TO_MSA's canonical pair.
  */
-async function resolveSelectionRows(
-    userId: string,
+export async function resolveCountySelections(
     selections: CountySubscriptionSelection[],
-): Promise<InsertUserCountySubscription[]> {
+): Promise<CountySubscriptionInput[]> {
     const wanted = Array.from(new Set(selections.map((s) => s.county)))
         .map((county) => ({ county, msaName: getMsaForCounty(county) }))
         .filter((c): c is { county: string; msaName: string } => c.msaName !== null);
@@ -52,7 +51,7 @@ async function resolveSelectionRows(
         const msaId = idByName.get(msaName);
         const state = getStateFromMsaName(msaName);
         if (msaId == null || !state) return [];
-        return [{ userId, county, state, msaId }];
+        return [{ county, state, msaId }];
     });
 }
 
@@ -65,12 +64,12 @@ export async function replaceUserCountySubscriptions(
     userId: string,
     selections: CountySubscriptionSelection[],
 ): Promise<void> {
-    const rows = await resolveSelectionRows(userId, selections);
+    const resolved = await resolveCountySelections(selections);
 
     // Delete-then-insert (no transaction — matches the neon-http driver used app-wide).
     await db.delete(userCountySubscriptions).where(eq(userCountySubscriptions.userId, userId));
-    if (rows.length > 0) {
-        await db.insert(userCountySubscriptions).values(rows);
+    if (resolved.length > 0) {
+        await db.insert(userCountySubscriptions).values(resolved.map((r) => ({ userId, ...r })));
     }
 }
 
