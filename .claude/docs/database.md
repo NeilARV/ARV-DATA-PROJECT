@@ -207,6 +207,22 @@ County-grained subscriptions (issue #113) — the subscription unit since `user_
 
 ---
 
+### `email_subscription_list_counties`
+County-grained whitelist subscriptions (issue #131) — structural mirror of `user_county_subscriptions` keyed by whitelist entry instead of user. Expand half of an expand–contract: the parent's `msa` column stays live until every consumer migrates. `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `subscription_list_id` | `bigint` | NOT NULL, FK → `email_subscription_list.id` (cascade) |
+| `county` | `text` | NOT NULL |
+| `state` | `text` | NOT NULL |
+| `msa_id` | `integer` | NOT NULL, FK → `msas.id` (cascade) |
+| `created_at` | `timestamp` | NOT NULL, default now |
+| `updated_at` | `timestamp` | default now |
+
+**PK:** `(subscription_list_id, county, state)`
+
+---
+
 ## Companies
 
 ### `companies`
