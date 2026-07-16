@@ -94,7 +94,13 @@ async function fetchIds(query: Record<string, string | string[]>): Promise<numbe
 }
 
 function expectedIds(...counties: string[]): number[] {
-    return counties.map((c) => idsByCounty.get(c)!).sort();
+    return counties
+        .map((c) => {
+            const id = idsByCounty.get(c);
+            if (id === undefined) throw new Error(`no seeded deal for county ${c}`);
+            return id;
+        })
+        .sort();
 }
 
 describe('GET /api/deals — county IN (...) scoped to MSA (integration)', () => {

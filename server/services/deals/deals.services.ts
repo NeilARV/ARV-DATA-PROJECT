@@ -61,6 +61,28 @@ function getDealTypeMeta(type: 'wholesale' | 'agent' | 'sold' | 'reo'): {
     }
 }
 
+// ── Shared: build the /deals deep link for an email ───────────────────────────
+/**
+ * Absolute /deals URL scoped to the deal's geography: msa+counties anchored on the county's own
+ * MSA — so a companion-city deal opens a view that contains it — falling back to the posting MSA
+ * (whole-MSA view) when the county is null/untracked; dealId pins the deal either way.
+ */
+function buildDealDeepLink(
+    dealId: number,
+    county: string | null,
+    postingMsaName?: string | null,
+): string {
+    const params = new URLSearchParams({ dealId: String(dealId) });
+    const countyMsa = county ? getMsaForCounty(county) : null;
+    if (county && countyMsa) {
+        params.set('msa', countyMsa);
+        params.set('counties', county);
+    } else if (postingMsaName) {
+        params.set('msa', postingMsaName);
+    }
+    return `${getAppBaseUrl()}/deals?${params.toString()}`;
+}
+
 // ── Shared: build a relative streetview URL for a deal ────────────────────────
 function buildDealStreetViewUrl(
     address: string | null,
@@ -174,8 +196,7 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 type GetDealsFilters = {
     id?: number;
     userId?: string;
-    // County set for `county IN (...)`; msa restricts it to that MSA's tracked counties
-    // (see countyScopeCondition) — with msa, an empty/foreign set matches no deals.
+    // County set for `county IN (...)`, scoped to one MSA — semantics owned by countyScopeCondition.
     county?: string | string[];
     msa?: string;
     // Column selector: 'new' = every non-sold type, 'sold' = sold only. Omit for all types.
@@ -666,19 +687,7 @@ export async function sendDealNotification(
                 }
             }
 
-            const APP_BASE_URL_DEALS = getAppBaseUrl();
-            const dealUrlParams = new URLSearchParams({ dealId: String(deal.id) });
-            // Anchor on the county's own MSA (not the posting MSA) so a companion-city deal
-            // links to a county view that actually contains it; the deal is pinned via dealId.
-            const countyMsa = deal.county ? getMsaForCounty(deal.county) : null;
-            if (deal.county && countyMsa) {
-                dealUrlParams.set('msa', countyMsa);
-                dealUrlParams.set('counties', deal.county);
-            } else if (msaRow?.name) {
-                // No counties param = the whole MSA.
-                dealUrlParams.set('msa', msaRow.name);
-            }
-            const dealUrl = `${APP_BASE_URL_DEALS}/deals?${dealUrlParams.toString()}`;
+            const dealUrl = buildDealDeepLink(deal.id, deal.county, msaRow?.name);
 
             const { sent, failed } = await sendTemplateToUsers({
                 recipients: [
@@ -721,7 +730,7 @@ export async function sendDealNotification(
                     notes: deal.notes ?? null,
                     county: county,
                     deal_url: dealUrl,
-                    cta_url: `${APP_BASE_URL_DEALS}/deals`,
+                    cta_url: `${getAppBaseUrl()}/deals`,
                     year: new Date().getFullYear(),
                     company_name: 'ARV Finance',
                 }),
@@ -1043,15 +1052,7 @@ export async function requestDealInfo(
 
     const requesterName = [displayFirstName, displayLastName].filter(Boolean).join(' ');
 
-    const APP_BASE_URL = getAppBaseUrl();
-    const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
-    // The county's own MSA — an untracked county gets no geo params; dealId pins the deal.
-    const dealCountyMsa = dealRow.county ? getMsaForCounty(dealRow.county) : null;
-    if (dealRow.county && dealCountyMsa) {
-        dealUrlParams.set('msa', dealCountyMsa);
-        dealUrlParams.set('counties', dealRow.county);
-    }
-    const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
+    const dealUrl = buildDealDeepLink(dealRow.id, dealRow.county);
 
     const ccCandidates = [ccAddress, displayEmail].filter(
         (addr): addr is string => Boolean(addr) && addr !== toAddress,
@@ -1322,15 +1323,7 @@ export async function sendDealOfferNotification(
     const ccList = Array.from(new Set(ccCandidates));
     const cc = ccList.length > 0 ? ccList.join(', ') : undefined;
 
-    const APP_BASE_URL = getAppBaseUrl();
-    const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
-    // The county's own MSA — an untracked county gets no geo params; dealId pins the deal.
-    const dealCountyMsa = dealRow.county ? getMsaForCounty(dealRow.county) : null;
-    if (dealRow.county && dealCountyMsa) {
-        dealUrlParams.set('msa', dealCountyMsa);
-        dealUrlParams.set('counties', dealRow.county);
-    }
-    const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
+    const dealUrl = buildDealDeepLink(dealRow.id, dealRow.county);
 
     const bidderName = [bid.firstName, bid.lastName].filter(Boolean).join(' ');
 

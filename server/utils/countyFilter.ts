@@ -4,8 +4,8 @@ import { properties, addresses } from '@database/schemas/properties.schema';
 import { filterCountiesToMsa } from '@shared/constants/countyToMsa';
 
 type CountyScopeParams = {
-    county: string | string[] | undefined;
-    msa: string | string[] | undefined;
+    county?: string | string[];
+    msa?: string | string[];
     /** County columns the filter matches against (OR across them). */
     columns?: [AnyColumn, ...AnyColumn[]];
 };
