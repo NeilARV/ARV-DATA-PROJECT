@@ -4,6 +4,7 @@ import {
     getMsaForCounty,
 } from '@shared/constants/countyToMsa';
 import type { MsaCountySelection } from '@/types/filters';
+import type { CountySubscription } from '@shared/types/users';
 
 /** Today's default view: San Diego county in its (1:1) MSA. */
 export const DEFAULT_MSA_COUNTY_SELECTION: MsaCountySelection = {
@@ -16,6 +17,22 @@ export function selectionFromCounty(county: string | null | undefined): MsaCount
     const msa = county ? getMsaForCounty(county) : null;
     if (!county || !msa) return { ...DEFAULT_MSA_COUNTY_SELECTION };
     return { msa, counties: [county] };
+}
+
+/**
+ * First-load default for a user: the home county's MSA with their subscribed counties in that
+ * MSA pre-selected, falling back to the home county alone when none are subscribed there.
+ */
+export function defaultSelectionForUser(
+    county: string | null | undefined,
+    countySubscriptions: readonly Pick<CountySubscription, 'county'>[] | undefined,
+): MsaCountySelection {
+    const home = selectionFromCounty(county);
+    const subscribed = filterCountiesToMsa(
+        home.msa,
+        (countySubscriptions ?? []).map((sub) => sub.county),
+    );
+    return subscribed.length > 0 ? { msa: home.msa, counties: subscribed } : home;
 }
 
 /**

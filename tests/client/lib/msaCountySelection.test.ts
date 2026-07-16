@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     DEFAULT_MSA_COUNTY_SELECTION,
+    defaultSelectionForUser,
     isSameSelection,
     parseLegacyDealsFilterParams,
     parseMsaCountyParams,
@@ -140,6 +141,56 @@ describe('selectionFromCounty', () => {
     it.each([null, undefined, 'Nowhere'])('falls back to the default for %j', (county) => {
         expect(selectionFromCounty(county)).toEqual(DEFAULT_MSA_COUNTY_SELECTION);
     });
+});
+
+describe('defaultSelectionForUser', () => {
+    it('pre-selects the subscribed counties within the home MSA', () => {
+        const subscriptions = [{ county: 'Denver' }, { county: 'Jefferson' }];
+        expect(defaultSelectionForUser('Adams', subscriptions)).toEqual({
+            msa: DENVER_MSA,
+            counties: ['Denver', 'Jefferson'],
+        });
+    });
+
+    it('ignores subscriptions outside the home MSA', () => {
+        const subscriptions = [{ county: 'San Diego' }, { county: 'Adams' }];
+        expect(defaultSelectionForUser('Denver', subscriptions)).toEqual({
+            msa: DENVER_MSA,
+            counties: ['Adams'],
+        });
+    });
+
+    it('drops untracked subscription counties', () => {
+        const subscriptions = [{ county: 'Nowhere' }, { county: 'Denver' }];
+        expect(defaultSelectionForUser('Adams', subscriptions)).toEqual({
+            msa: DENVER_MSA,
+            counties: ['Denver'],
+        });
+    });
+
+    it('falls back to the home county alone when no subscription is in the home MSA', () => {
+        const subscriptions = [{ county: 'San Diego' }];
+        expect(defaultSelectionForUser('Adams', subscriptions)).toEqual({
+            msa: DENVER_MSA,
+            counties: ['Adams'],
+        });
+    });
+
+    it.each([[], undefined])('falls back to the home county for %j subscriptions', (subs) => {
+        expect(defaultSelectionForUser('Adams', subs)).toEqual({
+            msa: DENVER_MSA,
+            counties: ['Adams'],
+        });
+    });
+
+    it.each([null, undefined, 'Nowhere'])(
+        'falls back to the app default for home county %j',
+        (county) => {
+            expect(defaultSelectionForUser(county, [{ county: 'Denver' }])).toEqual(
+                DEFAULT_MSA_COUNTY_SELECTION,
+            );
+        },
+    );
 });
 
 describe('DEFAULT_MSA_COUNTY_SELECTION', () => {
