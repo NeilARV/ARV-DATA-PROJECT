@@ -29,9 +29,9 @@ type MsaCountyPickerProps = {
 };
 
 /**
- * State → MSA → multi-select county picker for the Data filter bar; operates on one MSA at a
- * time — switching state or MSA resets the selection to all counties of the new MSA, so a
- * selection can never mix counties across MSAs or states.
+ * State → MSA → multi-select county picker for the Data and Deals filter bars; operates on one
+ * MSA at a time — switching state or MSA resets the selection to all counties of the new MSA,
+ * so a selection can never mix counties across MSAs or states.
  */
 export function MsaCountyPicker({ selection, onSelectionChange }: MsaCountyPickerProps) {
     const trackedMsas = useMemo(() => getTrackedMsas(), []);

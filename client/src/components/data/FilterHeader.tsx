@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ViewSwitcher } from '@/components/data/ViewSwitcher';
-import { MsaCountyPicker } from '@/components/data/MsaCountyPicker';
+import { MsaCountyPicker } from '@/components/MsaCountyPicker';
 import { getZipCodesForCounties } from '@/lib/county';
 import {
     PROPERTY_TYPES,

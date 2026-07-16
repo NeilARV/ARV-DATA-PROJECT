@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MsaCountyPicker } from '@/components/data/MsaCountyPicker';
+import { MsaCountyPicker } from '@/components/MsaCountyPicker';
 import { getCountiesForMsa } from '@shared/constants/countyToMsa';
 import type { MsaCountySelection } from '@/types/filters';
 

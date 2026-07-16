@@ -1,38 +1,38 @@
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
-import DealsLocationSearch from '@/components/deals/DealsLocationSearch';
+import { MsaCountyPicker } from '@/components/MsaCountyPicker';
 import { msaShortName } from '@/lib/county';
-import type { LocationFilter } from '@/types/deals';
+import { getCountiesForMsa } from '@shared/constants/countyToMsa';
+import type { MsaCountySelection } from '@/types/filters';
 import type { DealTab } from '@shared/types/deals';
 
 type DealsHeaderProps = {
     tab: DealTab;
-    locationFilter: LocationFilter | null;
+    selection: MsaCountySelection;
     onTabChange: (tab: DealTab) => void;
     onAddDeal: () => void;
-    onLocationFilterChange: (filter: LocationFilter | null) => void;
+    onSelectionChange: (selection: MsaCountySelection) => void;
 };
 
 export default function DealsHeader({
     tab,
-    locationFilter,
+    selection,
     onTabChange,
     onAddDeal,
-    onLocationFilterChange,
+    onSelectionChange,
 }: DealsHeaderProps) {
+    const allSelected = selection.counties.length === getCountiesForMsa(selection.msa).length;
     const title =
         tab === 'mine'
             ? 'Your Deal Feed'
-            : locationFilter?.type === 'county'
-              ? `${locationFilter.value} County Deals`
-              : locationFilter?.type === 'msa'
-                ? `${msaShortName(locationFilter.value)} MSA Deals`
-                : locationFilter?.type === 'city'
-                  ? `${locationFilter.value} Deals`
-                  : locationFilter?.type === 'zip'
-                    ? `Zip ${locationFilter.value} Deals`
-                    : 'All Deals';
+            : selection.counties.length === 0
+              ? 'No Counties Selected'
+              : allSelected
+                ? `${msaShortName(selection.msa)} MSA Deals`
+                : selection.counties.length === 1
+                  ? `${selection.counties[0]} County Deals`
+                  : `${selection.counties.length} Counties · ${msaShortName(selection.msa)} MSA Deals`;
 
     return (
         <div className="border-b border-border bg-background flex-shrink-0">
@@ -45,9 +45,9 @@ export default function DealsHeader({
                     <p className="text-sm text-muted-foreground mt-0.5 truncate">{title}</p>
                 </div>
 
-                {/* Desktop: location search + tabs + button inline */}
+                {/* Desktop: county picker + tabs + button inline */}
                 <div className="hidden 2xl:flex flex-shrink-0">
-                    <DealsLocationSearch value={locationFilter} onChange={onLocationFilterChange} />
+                    <MsaCountyPicker selection={selection} onSelectionChange={onSelectionChange} />
                 </div>
                 <div className="hidden 2xl:flex items-center justify-end gap-3 flex-1">
                     <Tabs value={tab} onValueChange={(v) => onTabChange(v as DealTab)}>
@@ -77,10 +77,10 @@ export default function DealsHeader({
                 </Button>
             </div>
 
-            {/* Compact second row: search + tabs */}
-            <div className="2xl:hidden flex items-center gap-2 px-4 pb-3">
+            {/* Compact second row: county picker + tabs */}
+            <div className="2xl:hidden flex items-center gap-2 px-4 pb-3 overflow-x-auto">
                 <div className="flex-1 min-w-0">
-                    <DealsLocationSearch value={locationFilter} onChange={onLocationFilterChange} />
+                    <MsaCountyPicker selection={selection} onSelectionChange={onSelectionChange} />
                 </div>
                 <Tabs value={tab} onValueChange={(v) => onTabChange(v as DealTab)}>
                     <TabsList>

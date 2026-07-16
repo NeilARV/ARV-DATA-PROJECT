@@ -42,25 +42,18 @@ export default function DealsPageContent() {
     const { toast } = useToast();
     const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
     const { requireAuth, requireSubscription } = useAccessGate();
-    const { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId } = useDealsNav();
+    const { tab, selection, dealId, setTab, setSelection, setDealId } = useDealsNav();
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;
 
     // Filter params shared by both columns; `status` + `page` are appended per request.
+    // County set scoped to one MSA — the server intersects the counties with the MSA's
+    // tracked list, so msa with no county params means "none selected" (no deals).
     const filterParams = (() => {
         const params = new URLSearchParams();
         if (tab === 'mine' && user?.id) params.set('userId', user.id);
-        if (locationFilter?.type === 'county') {
-            params.set('county', locationFilter.value);
-            params.set('state', locationFilter.state);
-        } else if (locationFilter?.type === 'msa') {
-            params.set('msaName', locationFilter.value);
-        } else if (locationFilter?.type === 'city') {
-            params.set('city', locationFilter.value);
-            params.set('state', locationFilter.state);
-        } else if (locationFilter?.type === 'zip') {
-            params.set('zipCode', locationFilter.value);
-        }
+        params.set('msa', selection.msa);
+        selection.counties.forEach((county) => params.append('county', county));
         return params.toString();
     })();
 
@@ -190,10 +183,10 @@ export default function DealsPageContent() {
         <div className="h-full flex flex-col overflow-hidden">
             <DealsHeader
                 tab={tab}
-                locationFilter={locationFilter}
+                selection={selection}
                 onTabChange={(t) => (t === 'mine' ? requireAuth(() => setTab(t)) : setTab(t))}
                 onAddDeal={handleAddDeal}
-                onLocationFilterChange={setLocationFilter}
+                onSelectionChange={setSelection}
             />
 
             {isLoading ? (
@@ -208,11 +201,11 @@ export default function DealsPageContent() {
                     <DealsEmptyState
                         title={tab === 'mine' ? 'No deals posted yet' : 'No deals found'}
                         message={
-                            locationFilter
-                                ? `No deals match the selected location. Try a different filter.`
+                            selection.counties.length === 0
+                                ? 'No counties are selected. Choose counties to see deals.'
                                 : tab === 'mine'
                                   ? 'Your posted deals will appear here.'
-                                  : 'Be the first to post a deal to the feed.'
+                                  : 'No deals match the selected counties. Try a different selection.'
                         }
                     />
                 </div>

@@ -1,6 +1,8 @@
 import type { Deal } from '@shared/types/deals';
 
 // Client-only UI filter for the deals location search (county / MSA / city / zip).
+// Superseded on the live Deals app by MsaCountySelection (#120); retained for the
+// DealsPreview mock page until the unified feed adopts the picker.
 export type LocationFilter =
     | { type: 'county'; value: string; state: string }
     | { type: 'msa'; value: string }
