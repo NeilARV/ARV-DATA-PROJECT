@@ -40,11 +40,33 @@ export function parseMsaCountyParams(params: URLSearchParams): MsaCountySelectio
     return null;
 }
 
-/** Writes the selection onto URL params, replacing any legacy `county` param. */
+/**
+ * Reads the geo selection from the legacy Deals filter params (`?filterType=&filterValue=`):
+ * a county filter maps to that county within its MSA, an msa filter to the whole MSA.
+ * @returns null for city/zip filters (no county equivalent) or anything untracked
+ */
+export function parseLegacyDealsFilterParams(params: URLSearchParams): MsaCountySelection | null {
+    const type = params.get('filterType');
+    const value = params.get('filterValue');
+    if (!type || !value) return null;
+    if (type === 'county') {
+        const msa = getMsaForCounty(value);
+        return msa ? { msa, counties: [value] } : null;
+    }
+    if (type === 'msa' && getCountiesForMsa(value).length > 0) {
+        return { msa: value, counties: getCountiesForMsa(value) };
+    }
+    return null;
+}
+
+/** Writes the selection onto URL params, replacing any legacy geo params (Data and Deals). */
 export function writeMsaCountyParams(params: URLSearchParams, selection: MsaCountySelection): void {
     params.set('msa', selection.msa);
     params.set('counties', selection.counties.join(','));
     params.delete('county');
+    params.delete('filterType');
+    params.delete('filterValue');
+    params.delete('filterState');
 }
 
 /** Whether two selections cover the same MSA and county set (order-insensitive). */

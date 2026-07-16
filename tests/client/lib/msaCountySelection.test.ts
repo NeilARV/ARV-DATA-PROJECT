@@ -2,15 +2,17 @@ import { describe, it, expect } from 'vitest';
 import {
     DEFAULT_MSA_COUNTY_SELECTION,
     isSameSelection,
+    parseLegacyDealsFilterParams,
     parseMsaCountyParams,
     selectionFromCounty,
     writeMsaCountyParams,
 } from '@/lib/msaCountySelection';
 import { getCountiesForMsa } from '@shared/constants/countyToMsa';
 
-// URL ↔ selection contract for the Data app (issue #119): ?msa=<name>&counties=<comma-joined>
-// carries the county set (counties= empty means none selected), legacy ?county= URLs still
-// resolve, and anything untracked or cross-MSA is dropped at parse time.
+// URL ↔ selection contract for the Data and Deals apps (issues #119/#120):
+// ?msa=<name>&counties=<comma-joined> carries the county set (counties= empty means none
+// selected), legacy ?county= and Deals ?filterType= URLs still resolve, and anything
+// untracked or cross-MSA is dropped at parse time.
 
 const DENVER_MSA = 'Denver-Aurora-Centennial, CO';
 const SD_MSA = 'San Diego-Chula Vista-Carlsbad, CA';
@@ -64,6 +66,39 @@ describe('parseMsaCountyParams', () => {
     });
 });
 
+describe('parseLegacyDealsFilterParams', () => {
+    it('resolves a legacy county filter to that county within its MSA', () => {
+        const params = new URLSearchParams({
+            filterType: 'county',
+            filterValue: 'Adams',
+            filterState: 'CO',
+        });
+        expect(parseLegacyDealsFilterParams(params)).toEqual({
+            msa: DENVER_MSA,
+            counties: ['Adams'],
+        });
+    });
+
+    it('resolves a legacy msa filter to the whole MSA', () => {
+        const params = new URLSearchParams({ filterType: 'msa', filterValue: DENVER_MSA });
+        expect(parseLegacyDealsFilterParams(params)).toEqual({
+            msa: DENVER_MSA,
+            counties: getCountiesForMsa(DENVER_MSA),
+        });
+    });
+
+    it.each([
+        ['an untracked county', { filterType: 'county', filterValue: 'Nowhere' }],
+        ['an untracked msa', { filterType: 'msa', filterValue: 'Nowhere, ZZ' }],
+        ['a city filter', { filterType: 'city', filterValue: 'San Diego', filterState: 'CA' }],
+        ['a zip filter', { filterType: 'zip', filterValue: '92101' }],
+        ['a missing filterValue', { filterType: 'county' }],
+        ['no legacy params', {}],
+    ])('returns null for %s', (_label, query) => {
+        expect(parseLegacyDealsFilterParams(new URLSearchParams(query))).toBeNull();
+    });
+});
+
 describe('writeMsaCountyParams', () => {
     it('writes msa + counties and removes the legacy county param', () => {
         const params = new URLSearchParams({ county: 'San Diego', property: 'p1' });
@@ -72,6 +107,20 @@ describe('writeMsaCountyParams', () => {
         expect(params.get('counties')).toBe('Denver,Adams');
         expect(params.get('county')).toBeNull();
         expect(params.get('property')).toBe('p1');
+    });
+
+    it('removes the legacy Deals filter params', () => {
+        const params = new URLSearchParams({
+            filterType: 'county',
+            filterValue: 'Adams',
+            filterState: 'CO',
+            tab: 'mine',
+        });
+        writeMsaCountyParams(params, { msa: DENVER_MSA, counties: ['Adams'] });
+        expect(params.get('filterType')).toBeNull();
+        expect(params.get('filterValue')).toBeNull();
+        expect(params.get('filterState')).toBeNull();
+        expect(params.get('tab')).toBe('mine');
     });
 
     it('round-trips through parseMsaCountyParams, including none selected', () => {
