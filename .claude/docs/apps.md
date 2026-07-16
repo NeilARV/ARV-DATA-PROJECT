@@ -268,8 +268,10 @@ subscription (basic/pro/premium, with bypass for team roles).
 `DealsPageContent`. Unauthenticated users get a non-forced login dialog.
 
 ## Component Tree
-- **DealsHeader** — tabs "All Deals" / "Your Deals", `DealsLocationSearch` (county/MSA/city/
-  zip autocomplete), Add Deal button (subscription-gated).
+- **DealsHeader** — tabs "All Deals" / "Your Deals", `MsaCountyPicker` (the same State → MSA →
+  multi-select county hierarchy as the Data app; shared component at `client/src/components/`),
+  Add Deal button (subscription-gated). The old `DealsLocationSearch` free-text autocomplete
+  survives only on the admin-gated DealsPreview mock page.
 - **DealsGrid** — mobile tab bar (New / Sold), two `DealsColumn`s (New Deals, Sold Deals) of
   `DealCard2`, each paginated independently (10/page, infinite scroll via `useInfiniteScroll`).
   New Deals column auto-scrolls to the expanded deal.
@@ -294,17 +296,20 @@ submission sends the poster a `deal_bid` bell notification (no email) — see th
 Mastermind/notifications section.
 
 ## State Management
-**`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `locationFilter` (`?filterType`
-+ `?filterValue` + `?filterState`), `dealId` (`?dealId=`); actions `setTab`,
-`setLocationFilter`, `setDealId`. On first load with no filter, defaults to the user's county
-(resolved from their MSA).
+**`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `selection` (`?msa=` +
+`?counties=` — the same `MsaCountySelection` contract as the Data nav, via
+`lib/msaCountySelection`; legacy `?filterType=county|msa` deep links from old deal emails still
+resolve, city/zip ones fall through to the default), `dealId` (`?dealId=`); actions `setTab`,
+`setSelection`, `setDealId`. On first load with no geo params, defaults once to the user's home
+county within its MSA.
 
 **`DealsPageContent` local state:** `showAddDeal`, `deleteConfirm`, `editDeal` (links
 normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `bestBuyersDeal`.
 
 **Data fetching (React Query):** New and Sold each have their own `useInfiniteQuery` against
 `GET /api/deals?status=new|sold&page&limit` (10/page, infinite scroll per column via
-`useInfiniteScroll`), sharing filters `userId&county&state&city&zip`. A pinned deal from `?dealId`
+`useInfiniteScroll`), sharing filters `userId&msa&county` (county repeated — the selection's
+county set, scoped to one MSA; none selected returns no deals). A pinned deal from `?dealId`
 is fetched via `GET /api/deals/:id` and prepended to its column when absent from the loaded pages.
 `DealsLocationSearch` pulls its city/zip suggestions from `GET /api/deals/locations` (independent of
 the loaded pages); top buyers load on demand from `GET /api/deals/:id/top-buyers` when the owner
@@ -313,9 +318,9 @@ opens the dialog.
 ## API Surface (`server/routes/deals.routes.ts`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/api/deals` | requireSub (basic/pro/premium) | One page for a column; `status` (new/sold), `page`, `limit`, `userId`, `county`, `city`, `state`, `zipCode`, `msaName` → `{ deals, total, hasMore, page, limit }` |
+| GET | `/api/deals` | requireSub (basic/pro/premium) | One page for a column; `status` (new/sold), `page`, `limit`, `userId`, `county` (repeatable), `msa` (scopes the county set to one MSA) → `{ deals, total, hasMore, page, limit }` |
 | GET | `/api/deals/msas` | requireSub (basic/pro/premium) | MSA list for the deal form dropdown |
-| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete |
+| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete (now used only by the DealsPreview mock page) |
 | GET | `/api/deals/:id` | requireSub (basic/pro/premium) | Single deal |
 | GET | `/api/deals/:id/top-buyers` | requireSub + ownership in service | Top buyers for the deal's zip (owner/privileged) |
 | POST | `/api/deals` | requireSub (basic/pro/premium) | Create deal |
