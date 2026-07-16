@@ -14,7 +14,10 @@ import { resolveMsaId } from 'server/utils/resolveMsa';
 import { getAppBaseUrl } from 'server/utils/appBaseUrl';
 import { normalizePropertyType } from 'server/utils/normalization';
 import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
-import { resolveDealRecipients } from 'server/services/email/recipientResolver';
+import {
+    resolveDealRecipients,
+    resolveWhitelistDealRecipients,
+} from 'server/services/email/recipientResolver';
 import {
     sendEmailWithTemplate,
     getDefaultFromEmail,
@@ -22,7 +25,6 @@ import {
     getRmEmailsByUserIds,
     resolveFromAddress,
     sendTemplateToUsers,
-    getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { eq, ne, desc, and, inArray, gte, isNotNull, sql, SQL } from 'drizzle-orm';
@@ -579,7 +581,7 @@ type DealNotificationData = {
 
 /**
  * Emails a deal notification to its resolved recipients (fire-and-forget; never throws).
- * Side effect: sends Postmark deal templates to county subscribers + the MSA whitelist.
+ * Side effect: sends Postmark deal templates to county subscribers + county-scoped whitelist entries.
  */
 export async function sendDealNotification(
     deal: DealNotificationData,
@@ -621,18 +623,13 @@ export async function sendDealNotification(
                 ? msaRow.name.split('-')[0].split(',')[0].trim()
                 : (deal.county ?? 'your area');
 
-            // ── Whitelist recipients (stays MSA-level: every MSA in play, deduplicated by email) ──
-            const whitelists = await Promise.all(
-                msaIds.map((id) => getWhitelistRecipientsForMsa(id)),
-            );
-            const seenWhitelistEmails = new Set<string>();
-            const whitelistRecipients = whitelists.flat().filter((r) => {
-                const key = r.email.toLowerCase();
-                if (seenWhitelistEmails.has(key)) return false;
-                seenWhitelistEmails.add(key);
-                return true;
+            // Whitelist recipients get the same county scoping as users (issue #133).
+            const whitelistRecipients = await resolveWhitelistDealRecipients({
+                msaIds,
+                county: deal.county,
+                city: deal.city,
+                state: deal.state,
             });
-            // ─────────────────────────────────────────────────────────────────────
 
             // Bail before the street-view fetch when nobody would receive the email.
             if (recipients.length + whitelistRecipients.length === 0) {
