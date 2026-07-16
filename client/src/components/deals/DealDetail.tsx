@@ -32,6 +32,14 @@ import { dealTypeMeta, formatPostedDate, formatShowingTime, formatUsd, isSold, t
 import type { Deal } from '@shared/types/deals';
 import type { DealCaps } from '@/types/deals';
 
+// Aligns the content column to the PAGE center, not the pane center: the detail pane sits right of
+// the list column, so plain mx-auto lands the column half the list's width right of the centered
+// header nav and toolbar cluster. 28rem is half the column's max-w-4xl; --deals-list-w is published
+// by DealsBrowser (falls back to 0 = pane-centered). max() clamps the shift so the column never
+// leaves the pane on narrower screens; margin-right stays auto and absorbs the remainder.
+const pageCenteredColumn =
+    'mx-auto w-full max-w-4xl lg:ml-[max(0px,calc(50%_-_28rem_-_var(--deals-list-w,0px)/2))]';
+
 type DealDetailProps = {
     deal: Deal;
     caps: DealCaps;
@@ -112,7 +120,7 @@ export default function DealDetail({
         <div className="flex h-full flex-col">
             {/* ── Header (min-h matches the list column's scope bar so the two align) ── */}
             <div className="flex min-h-[4.25rem] shrink-0 items-center border-b border-border px-4 py-2 md:px-6">
-                <div className="mx-auto flex w-full max-w-4xl items-center gap-2">
+                <div className={cn(pageCenteredColumn, 'flex items-center gap-2')}>
                     {onBack && (
                         <Button
                             variant="ghost"
@@ -187,7 +195,7 @@ export default function DealDetail({
 
             {/* ── Body ────────────────────────────────────────────────────────── */}
             <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
+                <div className={cn(pageCenteredColumn, 'space-y-6 p-4 md:p-6')}>
                     {/* Hero: image + key facts */}
                     <div className="flex flex-col gap-5 lg:flex-row">
                         <div className="lg:w-[42%] lg:shrink-0">

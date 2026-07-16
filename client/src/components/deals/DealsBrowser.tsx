@@ -152,7 +152,7 @@ export default function DealsBrowser({
 
     const listPaneClass = cn(
         'h-full min-h-0 flex-col border-border',
-        'w-full lg:w-[360px] lg:shrink-0 lg:border-r xl:w-[400px]',
+        'w-full lg:w-[var(--deals-list-w)] lg:shrink-0 lg:border-r',
         detailVisibleOnMobile ? 'hidden' : 'flex',
         'lg:flex',
     );
@@ -165,7 +165,9 @@ export default function DealsBrowser({
     );
 
     return (
-        <div className="flex h-full overflow-hidden">
+        // --deals-list-w is the list pane's width, published here so DealDetail can offset its
+        // content column toward the page center (see pageCenteredColumn in DealDetail.tsx).
+        <div className="flex h-full overflow-hidden lg:[--deals-list-w:360px] xl:[--deals-list-w:400px]">
             {/* ── List ─────────────────────────────────────────────────────── */}
             <div className={listPaneClass}>
                 {/* min-h matches DealDetail's header so the two columns' content start on the same line. */}
