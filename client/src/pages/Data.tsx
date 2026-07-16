@@ -17,9 +17,9 @@ import { AppAccessGate } from '@/components/auth/AppAccessGate';
 import { useAuth } from '@/hooks/use-auth';
 import { useFilters } from '@/hooks/useFilters';
 import {
+    defaultSelectionForUser,
     isSameSelection,
     parseMsaCountyParams,
-    selectionFromCounty,
 } from '@/lib/msaCountySelection';
 import { useView } from '@/hooks/useView';
 import { useDataNav } from '@/hooks/useNav';
@@ -199,7 +199,8 @@ export default function Data() {
         return <PageLoader className="h-screen" />;
     }
 
-    const defaultSelection = urlSelection ?? selectionFromCounty(user?.county);
+    const defaultSelection =
+        urlSelection ?? defaultSelectionForUser(user?.county, user?.countySubscriptions);
 
     return (
         <DataProviders

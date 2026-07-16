@@ -5,10 +5,10 @@ import { useAuth } from '@/hooks/use-auth';
 
 import {
     DEFAULT_MSA_COUNTY_SELECTION,
+    defaultSelectionForUser,
     isSameSelection,
     parseLegacyDealsFilterParams,
     parseMsaCountyParams,
-    selectionFromCounty,
     writeMsaCountyParams,
 } from '@/lib/msaCountySelection';
 
@@ -56,7 +56,7 @@ export function useDataNav() {
 
     useFirstLoadDefault(parsedSelection !== null, !!user, () => {
         const p = new URLSearchParams(search);
-        writeMsaCountyParams(p, selectionFromCounty(user?.county));
+        writeMsaCountyParams(p, defaultSelectionForUser(user?.county, user?.countySubscriptions));
         setLocation(buildDataUrl(p), { replace: true });
     });
 
@@ -133,7 +133,7 @@ export function useDealsNav() {
 
     useFirstLoadDefault(parsedSelection !== null, !!user, () => {
         const p = new URLSearchParams(search);
-        writeMsaCountyParams(p, selectionFromCounty(user?.county));
+        writeMsaCountyParams(p, defaultSelectionForUser(user?.county, user?.countySubscriptions));
         setLocation(buildDealsUrl(p), { replace: true });
     });
 

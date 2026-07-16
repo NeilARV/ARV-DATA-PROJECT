@@ -36,8 +36,9 @@ filtered, paginated, and synchronized through URL state so deep links work.
 
 ## Page Entry Point
 `client/src/pages/Data.tsx` wraps `DataContent` (behind `AppAccessGate`). Before rendering, it
-waits for auth to resolve when there's no `?county=` in the URL — preventing a double-fetch caused
-by `useDataNav` pushing the user's default county after the initial render.
+waits for auth to resolve when the URL has no geo selection — preventing a double-fetch caused by
+`useDataNav` pushing the user's default (home MSA + subscribed counties, falling back to the home
+county alone) after the initial render.
 
 ## Layout
 CSS Grid `grid-cols-[375px_1fr] grid-rows-[auto_1fr]`:
@@ -300,8 +301,9 @@ Mastermind/notifications section.
 `?counties=` — the same `MsaCountySelection` contract as the Data nav, via
 `lib/msaCountySelection`; legacy `?filterType=county|msa` deep links from old deal emails still
 resolve, city/zip ones fall through to the default), `dealId` (`?dealId=`); actions `setTab`,
-`setSelection`, `setDealId`. On first load with no geo params, defaults once to the user's home
-county within its MSA.
+`setSelection`, `setDealId`. On first load with no geo params, defaults once to the home
+county's MSA with the user's subscribed counties in it pre-selected (the home county alone when
+none are subscribed there).
 
 **`DealsPageContent` local state:** `showAddDeal`, `deleteConfirm`, `editDeal` (links
 normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `bestBuyersDeal`.

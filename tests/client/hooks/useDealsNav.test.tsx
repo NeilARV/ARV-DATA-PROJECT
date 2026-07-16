@@ -8,12 +8,14 @@ import type { ReactNode } from 'react';
 
 // URL ↔ state sync for the Deals nav (TST.HOOK), mirroring useDataNav's: the selection parsed
 // from ?msa=&counties= (and legacy ?filterType= deal-email deep links), the once-only
-// home-county default, and setSelection/setTab preserving the rest of the URL.
+// subscribed-county default anchored on the home county, and setSelection/setTab preserving
+// the rest of the URL.
 
 const DENVER_MSA = 'Denver-Aurora-Centennial, CO';
 const LA_MSA = 'Los Angeles-Long Beach-Anaheim, CA';
 
-let mockUser: { county?: string } | null = { county: 'St. Lucie' };
+type MockUser = { county?: string; countySubscriptions?: { county: string }[] };
+let mockUser: MockUser | null = { county: 'St. Lucie' };
 vi.mock('@/hooks/use-auth', () => ({
     useAuth: () => ({ user: mockUser }),
 }));
@@ -84,6 +86,30 @@ describe('useDealsNav', () => {
         // Applied with replace — no extra history entry beyond the rewritten one.
         expect(history).toHaveLength(1);
         expect(history[0]).toContain('msa=');
+    });
+
+    it('pre-selects the subscribed counties within the home MSA on first load', async () => {
+        mockUser = { county: 'St. Lucie', countySubscriptions: [{ county: 'Martin' }] };
+        const { result } = renderDealsNav('/deals');
+
+        await waitFor(() => {
+            expect(result.current.selection).toEqual({
+                msa: 'Port St. Lucie, FL',
+                counties: ['Martin'],
+            });
+        });
+    });
+
+    it('falls back to the home county when no subscription is in the home MSA', async () => {
+        mockUser = { county: 'St. Lucie', countySubscriptions: [{ county: 'Denver' }] };
+        const { result } = renderDealsNav('/deals');
+
+        await waitFor(() => {
+            expect(result.current.selection).toEqual({
+                msa: 'Port St. Lucie, FL',
+                counties: ['St. Lucie'],
+            });
+        });
     });
 
     it('a legacy city deep link has no county equivalent — the default applies instead', async () => {

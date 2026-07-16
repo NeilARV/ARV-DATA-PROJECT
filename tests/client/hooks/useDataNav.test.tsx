@@ -7,13 +7,14 @@ import { getCountiesForMsa } from '@shared/constants/countyToMsa';
 import type { ReactNode } from 'react';
 
 // URL ↔ state sync for the Data nav (TST.HOOK): the selection parsed from ?msa=&counties=
-// (and legacy ?county=), the once-only home-county default, and setSelection writing the URL
-// while clearing the property/company params.
+// (and legacy ?county=), the once-only subscribed-county default anchored on the home county,
+// and setSelection writing the URL while clearing the property/company params.
 
 const DENVER_MSA = 'Denver-Aurora-Centennial, CO';
 const LA_MSA = 'Los Angeles-Long Beach-Anaheim, CA';
 
-let mockUser: { county?: string } | null = { county: 'St. Lucie' };
+type MockUser = { county?: string; countySubscriptions?: { county: string }[] };
+let mockUser: MockUser | null = { county: 'St. Lucie' };
 vi.mock('@/hooks/use-auth', () => ({
     useAuth: () => ({ user: mockUser }),
 }));
@@ -72,6 +73,30 @@ describe('useDataNav', () => {
         // Applied with replace — no extra history entry beyond the rewritten one.
         expect(history).toHaveLength(1);
         expect(history[0]).toContain('msa=');
+    });
+
+    it('pre-selects the subscribed counties within the home MSA on first load', async () => {
+        mockUser = { county: 'St. Lucie', countySubscriptions: [{ county: 'Martin' }] };
+        const { result } = renderDataNav('/data');
+
+        await waitFor(() => {
+            expect(result.current.selection).toEqual({
+                msa: 'Port St. Lucie, FL',
+                counties: ['Martin'],
+            });
+        });
+    });
+
+    it('falls back to the home county when no subscription is in the home MSA', async () => {
+        mockUser = { county: 'St. Lucie', countySubscriptions: [{ county: 'Denver' }] };
+        const { result } = renderDataNav('/data');
+
+        await waitFor(() => {
+            expect(result.current.selection).toEqual({
+                msa: 'Port St. Lucie, FL',
+                counties: ['St. Lucie'],
+            });
+        });
     });
 
     it('setSelection writes msa + counties and clears the property/company params', async () => {
