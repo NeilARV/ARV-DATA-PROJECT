@@ -12,7 +12,8 @@ export type PropertyFilters = {
     propertyTypes: string[];
     zipCode: string;
     city?: string; // Optional city filter
-    county?: string; // Optional county filter
+    msa: string; // The one MSA being viewed (full MSA name)
+    counties: string[]; // Selected counties within msa; [] = none selected → no properties
     statusFilters: string[];
     dateRange?: DateRange; // Property acquisition date-range filter
     companyRole?: 'buyer' | 'seller'; // Set on company selection; restricts tx role match in API

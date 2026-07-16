@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -26,14 +25,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ViewSwitcher } from '@/components/data/ViewSwitcher';
-import { getZipCodesForCounty } from '@/lib/county';
+import { MsaCountyPicker } from '@/components/data/MsaCountyPicker';
+import { getZipCodesForCounties } from '@/lib/county';
 import {
     PROPERTY_TYPES,
     BEDROOM_OPTIONS,
     BATHROOM_OPTIONS,
     DATE_RANGE_OPTIONS,
     MAX_PRICE,
-    COUNTIES,
 } from '@/constants/filters.constants';
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
 import { useFilters } from '@/hooks/useFilters';
@@ -47,7 +46,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { DEFAULT_DATE_RANGE } from '@/lib/propertyFilters';
 import { fetchPropertyById } from '@/api/properties.api';
 import { MAP_ZOOM_PROPERTY } from '@/constants/map.constants';
-import type { DateRange } from '@/types/filters';
+import type { DateRange, MsaCountySelection } from '@/types/filters';
 import type { PropertySuggestion } from '@shared/types/properties';
 
 type ZipCodeWithCount = {
@@ -61,9 +60,10 @@ type CityWithCount = {
     count: number;
 };
 
-// Number of items in the wrapping filter row (view switcher, status tags, search, state, county,
-// date range, price, beds, baths, property type). Must match the itemRefs indexes in the JSX.
-const FILTER_ITEM_COUNT = 10;
+// Number of items in the wrapping filter row (view switcher, status tags, search, the
+// state/MSA/county picker, date range, price, beds, baths, property type). Must match the
+// itemRefs indexes in the JSX.
+const FILTER_ITEM_COUNT = 9;
 
 // ---- Price helper ----
 function formatPrice(val: number): string {
@@ -98,17 +98,11 @@ export default function FilterHeader() {
         filters.maxPrice ?? MAX_PRICE,
     ]);
     const [zipInput, setZipInput] = useState<string>(filters.city ?? filters.zipCode ?? '');
-    const [countySearch, setCountySearch] = useState<string>(filters.county ?? 'San Diego');
-    const [selectedState, setSelectedState] = useState<string>(() => {
-        const data = COUNTIES.find((c) => c.county === (filters.county ?? 'San Diego'));
-        return data?.state ?? 'CA';
-    });
     const [statusFilters, setStatusFilters] = useState<Set<string>>(
         new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS),
     );
     // Popover/dropdown open states
     const [priceOpen, setPriceOpen] = useState(false);
-    const [countyOpen, setCountyOpen] = useState(false);
     const [zipOpen, setZipOpen] = useState(false);
     const [typeOpen, setTypeOpen] = useState(false);
     const zipWrapperRef = useRef<HTMLDivElement>(null);
@@ -129,7 +123,6 @@ export default function FilterHeader() {
     // Suggestion results
     const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
     const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
-    const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
     const [propertySuggestions, setPropertySuggestions] = useState<PropertySuggestion[]>([]);
 
     // Close zip dropdown when clicking outside the wrapper
@@ -186,28 +179,12 @@ export default function FilterHeader() {
     useEffect(() => {
         setPriceRange([filters.minPrice ?? 0, Math.min(filters.maxPrice ?? MAX_PRICE, MAX_PRICE)]);
         setZipInput(filters.city ?? filters.zipCode ?? '');
-
-        const countyVal = filters.county ?? 'San Diego';
-        setCountySearch(countyVal);
-
-        const countyData = COUNTIES.find((c) => c.county === countyVal);
-        setSelectedState(countyData?.state ?? 'CA');
         setStatusFilters(new Set(filters.statusFilters ?? []));
     }, [filters]);
 
-    const availableStates = useMemo(() => {
-        const states = new Set(COUNTIES.map((c) => c.state));
-        return Array.from(states).sort();
-    }, []);
-
-    const countiesByState = useMemo(
-        () => COUNTIES.filter((c) => c.state === selectedState),
-        [selectedState],
-    );
-
     const zipCodeList = useMemo(() => {
-        return getZipCodesForCounty(filters.county ?? 'San Diego');
-    }, [filters.county]);
+        return getZipCodesForCounties(filters.counties);
+    }, [filters.counties]);
 
     const sortedZipCodes = useMemo(
         () =>
@@ -272,13 +249,11 @@ export default function FilterHeader() {
             setPropertySuggestions([]);
             return;
         }
-        const county = filters.county ?? 'San Diego';
+        const params = new URLSearchParams({ search: trimmed, msa: filters.msa });
+        filters.counties.forEach((county) => params.append('county', county));
         const timeoutId = setTimeout(async () => {
             try {
-                const res = await apiRequest(
-                    'GET',
-                    `/api/properties/suggestions?search=${encodeURIComponent(trimmed)}&county=${encodeURIComponent(county)}`,
-                );
+                const res = await apiRequest('GET', `/api/properties/suggestions?${params}`);
                 const data = await res.json();
                 setPropertySuggestions(data);
                 if (data.length > 0 && zipFocusedRef.current) {
@@ -289,7 +264,7 @@ export default function FilterHeader() {
             }
         }, 300);
         return () => clearTimeout(timeoutId);
-    }, [zipInput, filters.county]);
+    }, [zipInput, filters.msa, filters.counties]);
 
     // ---- Handlers ----
 
@@ -363,37 +338,16 @@ export default function FilterHeader() {
         }
     };
 
-    const handleCountySearch = (value: string) => {
-        setCountySearch(value);
-        const search = value.replace(/\s+County$/i, '').toLowerCase();
-        const matches = countiesByState
-            .filter((c) => c.county.toLowerCase().includes(search))
-            .slice(0, 10);
-        setFilteredCounties(matches);
-    };
-
-    const selectCounty = (countyObj: (typeof COUNTIES)[0]) => {
-        setCountySearch(countyObj.county);
-        setCountyOpen(false);
+    const handleSelectionChange = (selection: MsaCountySelection) => {
         setCompany(null);
-        setFilters((f) => ({ ...f, county: countyObj.county, zipCode: '', city: undefined }));
-        nav.setCounty(countyObj.county);
-    };
-
-    const handleStateChange = (newState: string) => {
-        setSelectedState(newState);
-
-        const countiesInState = COUNTIES.filter((c) => c.state === newState);
-        const currentCounty = filters.county ?? 'San Diego';
-        const exists = countiesInState.some((c) => c.county === currentCounty);
-
-        if (!exists && countiesInState.length > 0) {
-            const first = countiesInState[0];
-            setCountySearch(first.county);
-            setCompany(null);
-            setFilters((f) => ({ ...f, county: first.county, zipCode: '', city: undefined }));
-            nav.setCounty(first.county);
-        }
+        setFilters((f) => ({
+            ...f,
+            msa: selection.msa,
+            counties: selection.counties,
+            zipCode: '',
+            city: undefined,
+        }));
+        nav.setSelection(selection);
     };
 
     const togglePropertyType = (type: string) => {
@@ -657,97 +611,26 @@ export default function FilterHeader() {
                     </div>
                 </div>
 
-                {/* State */}
+                {/* State → MSA → multi-select counties — one overflow unit so the geo controls
+                    never split across rows */}
                 <div
                     ref={(el) => {
                         itemRefs.current[3] = el;
                     }}
                     className={itemClass(3)}
                 >
-                    <Select value={selectedState} onValueChange={handleStateChange}>
-                        <SelectTrigger
-                            className="h-8 w-[68px] text-xs flex-shrink-0 px-2"
-                            data-testid="button-state-select"
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="z-[10000]">
-                            {availableStates.map((state) => (
-                                <SelectItem
-                                    key={state}
-                                    value={state}
-                                    data-testid={`option-state-${state}`}
-                                >
-                                    {state}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* County combobox */}
-                <div
-                    ref={(el) => {
-                        itemRefs.current[4] = el;
-                    }}
-                    className={itemClass(4)}
-                >
-                    <Popover
-                        open={countyOpen}
-                        onOpenChange={(open) => {
-                            setCountyOpen(open);
-                            if (open) {
-                                setCountySearch(filters.county ?? 'San Diego');
-                                setFilteredCounties(countiesByState.slice(0, 15));
-                            }
-                        }}
-                    >
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 w-40 justify-between text-xs flex-shrink-0 px-2"
-                                data-testid="button-county-trigger"
-                            >
-                                <span className="truncate">{countySearch}</span>
-                                <ChevronDown className="w-3 h-3 ml-1 flex-shrink-0 opacity-50" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-2 w-52 z-[10000]" align="start">
-                            <div className="relative mb-2">
-                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search counties..."
-                                    value={countySearch}
-                                    onChange={(e) => handleCountySearch(e.target.value)}
-                                    className="h-8 pl-7 text-xs"
-                                    data-testid="input-county"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="max-h-48 overflow-y-auto">
-                                {filteredCounties.map((c) => (
-                                    <div
-                                        key={c.county}
-                                        className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted rounded-sm text-sm"
-                                        onClick={() => selectCounty(c)}
-                                        data-testid={`suggestion-county-${c.county}`}
-                                    >
-                                        <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                        {c.county} County
-                                    </div>
-                                ))}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
+                    <MsaCountyPicker
+                        selection={{ msa: filters.msa, counties: filters.counties }}
+                        onSelectionChange={handleSelectionChange}
+                    />
                 </div>
 
                 {/* Date Range */}
                 <div
                     ref={(el) => {
-                        itemRefs.current[5] = el;
+                        itemRefs.current[4] = el;
                     }}
-                    className={itemClass(5)}
+                    className={itemClass(4)}
                 >
                     <Select
                         value={filters.dateRange ?? DEFAULT_DATE_RANGE}
@@ -778,9 +661,9 @@ export default function FilterHeader() {
                 {/* Price popover */}
                 <div
                     ref={(el) => {
-                        itemRefs.current[6] = el;
+                        itemRefs.current[5] = el;
                     }}
-                    className={itemClass(6)}
+                    className={itemClass(5)}
                 >
                     <Popover open={priceOpen} onOpenChange={setPriceOpen}>
                         <PopoverTrigger asChild>
@@ -826,9 +709,9 @@ export default function FilterHeader() {
                 {/* Bedrooms */}
                 <div
                     ref={(el) => {
-                        itemRefs.current[7] = el;
+                        itemRefs.current[6] = el;
                     }}
-                    className={itemClass(7)}
+                    className={itemClass(6)}
                 >
                     <Select
                         value={filters.bedrooms ?? 'Any'}
@@ -857,9 +740,9 @@ export default function FilterHeader() {
                 {/* Bathrooms */}
                 <div
                     ref={(el) => {
-                        itemRefs.current[8] = el;
+                        itemRefs.current[7] = el;
                     }}
-                    className={itemClass(8)}
+                    className={itemClass(7)}
                 >
                     <Select
                         value={filters.bathrooms ?? 'Any'}
@@ -888,9 +771,9 @@ export default function FilterHeader() {
                 {/* Property Type multi-select */}
                 <div
                     ref={(el) => {
-                        itemRefs.current[9] = el;
+                        itemRefs.current[8] = el;
                     }}
-                    className={itemClass(9)}
+                    className={itemClass(8)}
                 >
                     <DropdownMenu open={typeOpen} onOpenChange={setTypeOpen}>
                         <DropdownMenuTrigger asChild>

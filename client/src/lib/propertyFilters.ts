@@ -1,5 +1,6 @@
 import { MAX_PRICE } from '@/constants/filters.constants';
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
+import { DEFAULT_MSA_COUNTY_SELECTION } from '@/lib/msaCountySelection';
 import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 import type { PropertyFilters, DateRange } from '@/types/filters';
 import type { MapPin, Property } from '@/types/property';
@@ -20,17 +21,19 @@ const DEFAULT_FILTERS: PropertyFilters = {
     propertyTypes: [],
     zipCode: '',
     city: undefined,
-    county: 'San Diego',
+    msa: DEFAULT_MSA_COUNTY_SELECTION.msa,
+    counties: DEFAULT_MSA_COUNTY_SELECTION.counties,
     statusFilters: [...DEFAULT_STATUS_FILTERS],
     dateRange: DEFAULT_DATE_RANGE,
 };
 
 /**
- * Returns default filter state. Pass overrides to preserve or set specific values (e.g. county on clear, zipCode for leaderboard click).
+ * Returns default filter state. Pass overrides to preserve or set specific values (e.g. the county selection on clear, zipCode for leaderboard click).
  */
 export function getDefaultFilters(overrides?: Partial<PropertyFilters>): PropertyFilters {
     const defaults: PropertyFilters = {
         ...DEFAULT_FILTERS,
+        counties: [...DEFAULT_FILTERS.counties],
         statusFilters: [...DEFAULT_STATUS_FILTERS],
     };
     return overrides ? { ...defaults, ...overrides } : defaults;

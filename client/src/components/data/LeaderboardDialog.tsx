@@ -28,13 +28,19 @@ export function LeaderboardDialog({ onClose }: LeaderboardContentProps) {
     const { setMapZoom, setMapCenter } = useGeoMap();
 
     const { data: leaderboardData, isLoading } = useQuery<LeaderboardData>({
-        queryKey: ['/api/companies/leaderboard', filters.county],
+        queryKey: ['/api/companies/leaderboard', { counties: filters.counties }],
         queryFn: async () => {
-            const url = `/api/companies/leaderboard${filters.county ? `?county=${encodeURIComponent(filters.county)}` : ''}`;
-            const res = await fetch(url, { credentials: 'include' });
+            const params = new URLSearchParams();
+            filters.counties.forEach((county) => params.append('county', county));
+            const qs = params.toString();
+            const res = await fetch(`/api/companies/leaderboard${qs ? `?${qs}` : ''}`, {
+                credentials: 'include',
+            });
             if (!res.ok) throw new Error(`Failed to fetch leaderboard: ${res.status}`);
             return res.json();
         },
+        // With no counties selected there is nothing to rank — render empty boards, skip the fetch.
+        enabled: filters.counties.length > 0,
     });
 
     const topCompanies = leaderboardData?.companies ?? [];
@@ -53,7 +59,8 @@ export function LeaderboardDialog({ onClose }: LeaderboardContentProps) {
         setFilters(
             getDefaultFilters({
                 zipCode,
-                county: filters.county ?? 'San Diego',
+                msa: filters.msa,
+                counties: filters.counties,
                 statusFilters: ['in-renovation', 'on-market', 'sold'],
             }),
         );
@@ -72,7 +79,11 @@ export function LeaderboardDialog({ onClose }: LeaderboardContentProps) {
 
             <p className="text-sm text-muted-foreground">
                 View the most active companies and zip codes{' '}
-                {filters.county ? ` in ${filters.county} County` : ''}
+                {filters.counties.length === 1
+                    ? ` in ${filters.counties[0]} County`
+                    : filters.counties.length > 1
+                      ? ` across ${filters.counties.length} counties`
+                      : ''}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">

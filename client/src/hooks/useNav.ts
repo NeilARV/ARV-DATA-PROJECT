@@ -4,8 +4,16 @@ import { useLocation, useSearch } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 
 import { getMsaNameFromCounty } from '@/lib/county';
+import {
+    DEFAULT_MSA_COUNTY_SELECTION,
+    isSameSelection,
+    parseMsaCountyParams,
+    selectionFromCounty,
+    writeMsaCountyParams,
+} from '@/lib/msaCountySelection';
 
 import type { LocationFilter } from '@/types/deals';
+import type { MsaCountySelection } from '@/types/filters';
 import type { DealTab } from '@shared/types/deals';
 
 // ── Shared first-load default ───────────────────────────────────────────────
@@ -43,21 +51,22 @@ export function useDataNav() {
     const { user } = useAuth();
 
     const params = new URLSearchParams(search);
-    const county = params.get('county');
+    const parsedSelection = parseMsaCountyParams(params);
     const propertyId = params.get('property');
     const companyId = params.get('company');
 
-    useFirstLoadDefault(county !== null, !!user, () => {
+    useFirstLoadDefault(parsedSelection !== null, !!user, () => {
         const p = new URLSearchParams(search);
-        p.set('county', user?.county ?? 'San Diego');
+        writeMsaCountyParams(p, selectionFromCounty(user?.county));
         setLocation(buildDataUrl(p), { replace: true });
     });
 
-    const setCounty = useCallback(
-        (c: string) => {
+    const setSelection = useCallback(
+        (selection: MsaCountySelection) => {
             const p = new URLSearchParams(search);
-            if (p.get('county') === c) return;
-            p.set('county', c);
+            const current = parseMsaCountyParams(p);
+            if (current && isSameSelection(current, selection)) return;
+            writeMsaCountyParams(p, selection);
             p.delete('property');
             p.delete('company');
             setLocation(buildDataUrl(p));
@@ -90,17 +99,21 @@ export function useDataNav() {
     );
 
     return {
-        county: county ?? 'San Diego',
+        selection: parsedSelection ?? DEFAULT_MSA_COUNTY_SELECTION,
         propertyId,
         companyId,
-        setCounty,
+        setSelection,
         setPropertyId,
         setCompanyId,
     };
 }
 
 // ── Deals nav (/deals) ──────────────────────────────────────────────────────
-function buildDealsUrl(tab: DealTab, filter: LocationFilter | null, dealId?: number | null): string {
+function buildDealsUrl(
+    tab: DealTab,
+    filter: LocationFilter | null,
+    dealId?: number | null,
+): string {
     const params = new URLSearchParams();
     if (tab === 'mine') params.set('tab', 'mine');
     if (filter) {

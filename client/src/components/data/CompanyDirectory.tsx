@@ -53,7 +53,7 @@ import {
     DEFAULT_STATUS_FILTERS,
     WHOLESALE_VIEW_STATUS_FILTERS,
 } from '@/constants/propertyStatus.constants';
-import { COUNTIES } from '@/constants/filters.constants';
+import { getStateFromMsaName } from '@shared/constants/countyToMsa';
 import { useView } from '@/hooks/useView';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';
@@ -109,10 +109,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         id: string;
         name: string;
     } | null>(null);
-    const enrichState = useMemo(
-        () => COUNTIES.find((c) => c.county === (filters.county ?? 'San Diego'))?.state ?? 'CA',
-        [filters.county],
-    );
+    const enrichState = useMemo(() => getStateFromMsaName(filters.msa) ?? 'CA', [filters.msa]);
     const { isAdmin, isOwner } = useAuth();
     const { requireAuth, requireSubscription } = useAccessGate();
     const { view, setView } = useView();
@@ -338,7 +335,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             queryClient.invalidateQueries({ queryKey: ['/api/companies', companyId] });
             // Patch the contact name in the list card without a full reload
             const fresh = await fetchCompanyById(companyId, {
-                county: filters.county ?? undefined,
+                counties: filters.counties,
             });
             if (fresh?.contactName)
                 updateCompanyInList(companyId, { contactName: fresh.contactName });
