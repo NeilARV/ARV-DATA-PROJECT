@@ -18,13 +18,8 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import VerifyEmail from '@/pages/VerifyEmail';
 import NotFound from '@/pages/not-found';
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useLocation } from 'wouter';
-
-// Standalone mock preview of the redesigned Deals experience (no auth/backend). Shipped to
-// production intentionally so the redesign can be reviewed at /deals-preview before it's wired
-// into the real /deals page. Lazy-loaded so it stays out of the main bundle.
-const DealsPreview = lazy(() => import('@/pages/DealsPreview'));
 import { ViewProvider } from '@/hooks/useView';
 import { DialogsProvider, useDialogs } from '@/hooks/useDialogs';
 import { useAuth } from '@/hooks/use-auth';
@@ -84,11 +79,6 @@ function Router() {
             <Route path="/analytics" component={Analytics} />
             <Route path="/vendors" component={Vendors} />
             <Route path="/deals" component={Deals} />
-            <Route path="/deals-preview">
-                <Suspense fallback={null}>
-                    <DealsPreview />
-                </Suspense>
-            </Route>
             <Route path="/mastermind" component={Mastermind} />
             <Route path="/mastermind/dm/:userId" component={Mastermind} />
             <Route path="/mastermind/:channelName" component={Mastermind} />

@@ -30,7 +30,7 @@ import {
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
-import { eq, ne, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
+import { eq, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -182,8 +182,6 @@ type GetDealsFilters = {
     city?: string;
     state?: string;
     zipCode?: string;
-    // Column selector: 'new' = every non-sold type, 'sold' = sold only. Omit for all types.
-    status?: 'new' | 'sold';
     // Narrows to a single deal type (including 'sold'). Omit for all types.
     type?: DealType;
     // 1-based page + page size (offset pagination). Defaults: page 1, limit 10.
@@ -196,12 +194,12 @@ type GetDealsFilters = {
 const DEFAULT_DEALS_LIMIT = 10;
 
 /**
- * Lists one page of deals for a column (new or sold), newest first.
+ * Lists one page of the unified deals feed, newest first.
  * Enriches each deal with comparable-sale links, a relative street-view URL, and — for the
  * caller's own deals — an offer count. Top buyers and the street-view image itself are fetched
  * lazily by their own endpoints, not here.
- * @param filters location/status/type filters plus page/limit; `callerId` scopes offer counts.
- * @returns one page: `{ deals, total, hasMore, page, limit }` for the matching column.
+ * @param filters location/type filters plus page/limit; `callerId` scopes offer counts.
+ * @returns one page: `{ deals, total, hasMore, page, limit }` of the matching feed.
  */
 export async function getDeals(filters: GetDealsFilters) {
     const {
@@ -212,7 +210,6 @@ export async function getDeals(filters: GetDealsFilters) {
         city: filterCity,
         state: filterState,
         zipCode: filterZipCode,
-        status: filterStatus,
         type: filterType,
         callerId: filterCallerId,
     } = filters;
@@ -246,8 +243,6 @@ export async function getDeals(filters: GetDealsFilters) {
     if (filterCity) conditions.push(ilike(deals.city, filterCity));
     if (filterState) conditions.push(eq(deals.state, filterState.toUpperCase()));
     if (filterZipCode) conditions.push(eq(deals.zipCode, filterZipCode));
-    if (filterStatus === 'sold') conditions.push(eq(deals.type, 'sold'));
-    else if (filterStatus === 'new') conditions.push(ne(deals.type, 'sold'));
     if (filterType) conditions.push(eq(deals.type, filterType));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -308,7 +303,7 @@ export async function getDeals(filters: GetDealsFilters) {
 
     console.log(
         `[dealsService.getDeals] ${pageRows.length}/${total} deals (page ${page})` +
-            `${filterStatus ? ` (status=${filterStatus})` : ''}` +
+            `${filterType ? ` (type=${filterType})` : ''}` +
             `${filterUserId ? ` (userId=${filterUserId})` : ''}` +
             `${filterMsaName ? ` (msaName=${filterMsaName})` : ''}` +
             `${filterCity ? ` (city=${filterCity})` : ''}` +

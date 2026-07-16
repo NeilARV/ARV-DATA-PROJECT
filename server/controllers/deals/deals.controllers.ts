@@ -54,10 +54,6 @@ export async function getDealsController(req: Request, res: Response): Promise<v
         const city = typeof req.query.city === 'string' ? req.query.city : undefined;
         const state = typeof req.query.state === 'string' ? req.query.state : undefined;
         const zipCode = typeof req.query.zipCode === 'string' ? req.query.zipCode : undefined;
-        const status =
-            req.query.status === 'new' || req.query.status === 'sold'
-                ? req.query.status
-                : undefined;
         const type = isDealType(req.query.type) ? req.query.type : undefined;
 
         const parsedPage = parseInt(String(req.query.page), 10);
@@ -75,7 +71,6 @@ export async function getDealsController(req: Request, res: Response): Promise<v
             city,
             state,
             zipCode,
-            status,
             type,
             page,
             limit,

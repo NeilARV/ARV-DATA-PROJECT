@@ -76,16 +76,10 @@ describe('GET /api/deals — type filter (integration)', () => {
     });
 });
 
-describe('GET /api/deals — status filter unchanged (integration)', () => {
-    it('?status=sold — returns only sold deals', async () => {
+describe('GET /api/deals — removed status param (integration)', () => {
+    it('?status=sold — ignored, returns all types without error', async () => {
         const res = await listDeals({ status: 'sold' });
         expect(res.status).toBe(200);
-        expect(dealTypes(res)).toEqual(['sold']);
-    });
-
-    it('?status=new — returns every non-sold type', async () => {
-        const res = await listDeals({ status: 'new' });
-        expect(res.status).toBe(200);
-        expect(dealTypes(res).sort()).toEqual(['agent', 'reo', 'wholesale']);
+        expect(dealTypes(res).sort()).toEqual(['agent', 'reo', 'sold', 'wholesale']);
     });
 });
