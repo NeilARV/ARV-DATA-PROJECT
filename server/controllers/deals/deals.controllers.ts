@@ -105,7 +105,7 @@ export async function getDealByIdController(req: Request, res: Response): Promis
             res.status(400).json({ message: 'Invalid deal id' });
             return;
         }
-        const deal = await getDealById(id);
+        const deal = await getDealById(id, req.session?.userId);
         if (!deal) {
             res.status(404).json({ message: 'Deal not found' });
             return;

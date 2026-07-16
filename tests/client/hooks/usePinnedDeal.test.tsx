@@ -38,10 +38,11 @@ function renderPinnedDeal(dealId: number | null, loadedDeals: Deal[]) {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    return renderHook(({ id, deals }: HookProps) => usePinnedDeal(id, deals), {
+    const rendered = renderHook(({ id, deals }: HookProps) => usePinnedDeal(id, deals), {
         wrapper,
         initialProps: { id: dealId, deals: loadedDeals },
     });
+    return { ...rendered, queryClient };
 }
 
 beforeEach(() => {
@@ -88,11 +89,11 @@ describe('usePinnedDeal', () => {
     it('usePinnedDeal — non-404 failure — neither pins nor reports gone', async () => {
         apiRequestMock.mockRejectedValue(new Error('500: boom'));
 
-        const { result } = renderPinnedDeal(42, []);
+        const { result, queryClient } = renderPinnedDeal(42, []);
 
-        await waitFor(() => expect(apiRequestMock).toHaveBeenCalled());
-        // Give the rejected query a beat to settle before asserting nothing changed.
-        await new Promise((r) => setTimeout(r, 10));
+        await waitFor(() =>
+            expect(queryClient.getQueryState(['/api/deals', 42])?.status).toBe('error'),
+        );
         expect(result.current.pinnedDeal).toBeNull();
         expect(result.current.isGone).toBe(false);
     });

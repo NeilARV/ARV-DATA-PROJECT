@@ -365,8 +365,9 @@ export async function getDeals(filters: GetDealsFilters) {
 }
 
 // ── GET single deal by id ──────────────────────────────────────────────────────
-export async function getDealById(id: number) {
-    const { deals: rows } = await getDeals({ id, limit: 1 });
+/** Fetches one deal with the same enrichment as the list; `callerId` scopes the offer count. */
+export async function getDealById(id: number, callerId?: string) {
+    const { deals: rows } = await getDeals({ id, limit: 1, callerId });
     return rows[0] ?? null;
 }
 

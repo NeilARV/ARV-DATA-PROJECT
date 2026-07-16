@@ -1194,7 +1194,7 @@ Get a single deal by integer ID.
 
 **Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role.
 
-**Response `200`** Full deal object · `400` invalid id · `404` not found
+**Response `200`** Full deal object, enriched like the list (`links`, `streetViewUrl`; a deal the caller owns also carries `bidCount`) · `400` invalid id · `404` not found
 
 ---
 

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { Deal } from '@shared/types/deals';
 
-type PinnedDeal = {
+type UsePinnedDealResult = {
     /** The deep-linked deal to prepend to the feed; null when unneeded, unresolved, or gone. */
     pinnedDeal: Deal | null;
     /** True once the server confirmed the linked deal no longer exists (404). */
@@ -13,7 +13,7 @@ type PinnedDeal = {
  * Resolves a deep-linked deal that the loaded feed pages don't contain, so the page can pin it
  * to the top of the list — or heal the URL when the server confirms the deal is gone.
  */
-export function usePinnedDeal(dealId: number | null, loadedDeals: Deal[]): PinnedDeal {
+export function usePinnedDeal(dealId: number | null, loadedDeals: readonly Deal[]): UsePinnedDealResult {
     const isInFeed = dealId != null && loadedDeals.some((deal) => deal.id === dealId);
 
     // Keyed under '/api/deals' so the deal mutations' invalidation re-checks the pinned deal too

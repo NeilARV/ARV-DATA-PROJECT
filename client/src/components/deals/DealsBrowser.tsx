@@ -120,10 +120,12 @@ export default function DealsBrowser({
     const loadMoreRef = useRef<HTMLDivElement>(null);
 
     // The deal shown in the detail pane: the URL selection when present, otherwise (on desktop) the
-    // first deal so the pane is never blank. The URL only changes on an explicit click, so this
-    // fallback never churns history.
+    // first deal so the pane is never blank. While a deep-linked deal is still resolving
+    // (selected but not yet in `deals`), show nothing rather than flash the wrong deal.
+    // The URL only changes on an explicit click, so the fallback never churns history.
     const shownDeal =
-        deals.find((d) => d.id === selectedDealId) ?? (isWide ? (deals[0] ?? null) : null);
+        deals.find((d) => d.id === selectedDealId) ??
+        (isWide && selectedDealId === null ? (deals[0] ?? null) : null);
 
     // Mobile shows one pane at a time, driven by whether a deal is explicitly selected.
     const detailVisibleOnMobile = selectedDealId !== null;
@@ -229,7 +231,9 @@ export default function DealsBrowser({
                         onTopBuyers={() => onTopBuyers(shownDeal)}
                     />
                 ) : (
-                    <DetailPlaceholder loading={isLoading} />
+                    // A selected-but-unresolved deal is a pinned fetch in flight — show the
+                    // spinner, not the "select a deal" prompt.
+                    <DetailPlaceholder loading={isLoading || selectedDealId !== null} />
                 )}
             </div>
         </div>
