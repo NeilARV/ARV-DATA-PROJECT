@@ -1,11 +1,7 @@
 import { ServerClient } from 'postmark';
 import { db } from 'server/storage';
-import {
-    users,
-    userRelationshipManagers,
-    emailSubscriptionList,
-} from '@database/schemas/users.schema';
-import { eq, inArray, and, sql, isNotNull } from 'drizzle-orm';
+import { users, userRelationshipManagers } from '@database/schemas/users.schema';
+import { eq, inArray, and, isNotNull } from 'drizzle-orm';
 import {
     listSenderSignatures,
     findSignatureByEmail,
@@ -142,22 +138,6 @@ export async function getEmailRecipientsByUserIds(
         );
 }
 
-// Given RM user IDs (e.g. from email_whitelist), returns a map of rmId → email.
-export async function getRmEmailsByRmIds(rmIds: string[]): Promise<Map<string, string>> {
-    const map = new Map<string, string>();
-    if (rmIds.length === 0) return map;
-
-    const rows = await db
-        .select({ id: users.id, email: users.email })
-        .from(users)
-        .where(inArray(users.id, rmIds));
-
-    for (const row of rows) {
-        if (row.email) map.set(row.id, row.email);
-    }
-    return map;
-}
-
 // ── From address resolution ────────────────────────────────────────────────────
 
 // Resolves the best "From" address for a given RM email: if the RM is a confirmed
@@ -249,48 +229,4 @@ export async function sendTemplateToUsers(params: {
     }
 
     return { sent, failed };
-}
-
-// ── Whitelist recipients for an MSA ───────────────────────────────────────────
-// Queries email_subscription_list for a given MSA ID, excludes any address that
-// already exists in the users table (prevents double-sends), excludes any address
-// in the provided excludeEmails set, and pre-resolves RM From addresses.
-// Returns a ready-to-spread array for any sendTemplateToUsers call.
-export async function getWhitelistRecipientsForMsa(
-    msaId: number,
-    excludeEmails: Set<string> = new Set(),
-): Promise<Array<{ email: string; rmEmail?: string }>> {
-    const rows = await db
-        .select({
-            email: emailSubscriptionList.email,
-            relationshipManagerId: emailSubscriptionList.relationshipManagerId,
-        })
-        .from(emailSubscriptionList)
-        .where(
-            and(
-                eq(emailSubscriptionList.msa, msaId),
-                sql`NOT EXISTS (
-          SELECT 1 FROM users
-          WHERE LOWER(TRIM(users.email)) = LOWER(TRIM(${emailSubscriptionList.email}))
-        )`,
-            ),
-        );
-
-    const filtered = rows.filter((r) => r.email && !excludeEmails.has(r.email.toLowerCase()));
-
-    if (filtered.length === 0) return [];
-
-    const rmIds = Array.from(
-        new Set(
-            filtered.map((r) => r.relationshipManagerId).filter((id): id is string => id != null),
-        ),
-    );
-    const rmEmailByRmId = await getRmEmailsByRmIds(rmIds);
-
-    return filtered.map((r) => ({
-        email: r.email,
-        rmEmail: r.relationshipManagerId
-            ? (rmEmailByRmId.get(r.relationshipManagerId) ?? undefined)
-            : undefined,
-    }));
 }

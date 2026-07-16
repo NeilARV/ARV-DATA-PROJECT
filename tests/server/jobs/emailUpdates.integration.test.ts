@@ -1,22 +1,22 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
-import { msas, userCountySubscriptions } from '@database/schemas/msas.schema';
-import { userNotificationPreferences } from '@database/schemas/users.schema';
+import {
+    msas,
+    userCountySubscriptions,
+    emailSubscriptionListCounties,
+} from '@database/schemas/msas.schema';
+import { userNotificationPreferences, emailSubscriptionList } from '@database/schemas/users.schema';
 import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
 import { sentPropertyIds } from '@database/schemas/sync.schema';
-import {
-    sendTemplateToUsers,
-    getWhitelistRecipientsForMsa,
-} from 'server/services/postmark/email.services';
+import { sendTemplateToUsers } from 'server/services/postmark/email.services';
 import { sendEmailUpdatesForMsa } from 'server/jobs/email/processes/emailUpdates';
 import { getTestDb, seedTestUser, deleteTestUser } from '../../helpers/db';
 
 // The daily job's external edges (TST.MOCK-THE-EDGE): Postmark sending and the Google Street
-// View lookup. Everything else — recipient resolution, candidate pool, per-user county/status
-// filtering — runs for real against the test branch.
+// View lookup. Everything else — recipient resolution (users and whitelist), candidate pool,
+// per-recipient county/status filtering — runs for real against the test branch.
 vi.mock('server/services/postmark/email.services', () => ({
     sendTemplateToUsers: vi.fn(),
-    getWhitelistRecipientsForMsa: vi.fn(),
 }));
 vi.mock('server/services/properties', () => ({
     StreetviewServices: { getStreetviewImage: vi.fn(async () => ({ available: true })) },
@@ -38,7 +38,11 @@ const MSA_NAME = 'Emailupdates Integration MSA #117, CA';
 const SFR_BASE = 954_117_000_000;
 const SFR_IDS = [SFR_BASE + 1, SFR_BASE + 2, SFR_BASE + 3];
 
-const WHITELIST_EMAIL = 'whitelist-117@integration.test.internal';
+// Whitelist entries (issue #133): one subscribed to Alpha (receives Alpha's properties), one
+// subscribed only to Gamma (no matching properties that day → receives nothing).
+const WHITELIST_ALPHA_EMAIL = 'whitelist-117-alpha@integration.test.internal';
+const WHITELIST_GAMMA_EMAIL = 'whitelist-117-gamma@integration.test.internal';
+const SEEDED_WHITELIST_EMAILS = [WHITELIST_ALPHA_EMAIL, WHITELIST_GAMMA_EMAIL];
 
 function emailOf(userId: string): string {
     return `${userId}@integration.test.internal`;
@@ -125,6 +129,23 @@ beforeAll(async () => {
         { userId: SOLD_ONLY_ALPHA_SUB, county: 'Alpha', state: 'CA', msaId },
     ]);
 
+    // Whitelist entries — county rows from an aborted previous run cascade with the parent delete.
+    await db
+        .delete(emailSubscriptionList)
+        .where(inArray(emailSubscriptionList.email, SEEDED_WHITELIST_EMAILS));
+    const whitelistEntries = await db
+        .insert(emailSubscriptionList)
+        .values([{ email: WHITELIST_ALPHA_EMAIL }, { email: WHITELIST_GAMMA_EMAIL }])
+        .returning({ id: emailSubscriptionList.id, email: emailSubscriptionList.email });
+    await db.insert(emailSubscriptionListCounties).values(
+        whitelistEntries.map((e) => ({
+            subscriptionListId: e.id,
+            county: e.email === WHITELIST_ALPHA_EMAIL ? 'Alpha' : 'Gamma',
+            state: 'CA',
+            msaId,
+        })),
+    );
+
     // Recording dates order the pool ALPHA_1 → ALPHA_2 → BETA_1. ALPHA_2's raw casing
     // proves the county match is lower/trim-normalized against the subscription rows.
     alpha1Id = await seedProperty({
@@ -150,17 +171,20 @@ beforeAll(async () => {
         sent: recipients.length,
         failed: [],
     }));
-    vi.mocked(getWhitelistRecipientsForMsa).mockResolvedValue([{ email: WHITELIST_EMAIL }]);
 
     await sendEmailUpdatesForMsa(MSA_NAME, 'Testville', 'CA');
 });
 
 afterAll(async () => {
-    // Cascades: properties → addresses/transactions/sent_property_ids; users → prefs/subs.
+    // Cascades: properties → addresses/transactions/sent_property_ids; users → prefs/subs;
+    // whitelist entries → county rows.
     await db.delete(properties).where(inArray(properties.sfrPropertyId, SFR_IDS));
     for (const id of SEEDED_USERS) {
         await deleteTestUser(id);
     }
+    await db
+        .delete(emailSubscriptionList)
+        .where(inArray(emailSubscriptionList.email, SEEDED_WHITELIST_EMAILS));
     await db.delete(msas).where(eq(msas.name, MSA_NAME));
 });
 
@@ -184,10 +208,16 @@ describe('sendEmailUpdatesForMsa — per-user county filtering', () => {
         expect(recipientEmails).not.toContain(emailOf(SOLD_ONLY_ALPHA_SUB));
     });
 
-    it('sendEmailUpdatesForMsa — whitelist recipient — still gets the MSA-wide unfiltered set', async () => {
-        expect(emailedPropertyIds(WHITELIST_EMAIL).sort()).toEqual(
-            [alpha1Id, alpha2Id, beta1Id].sort(),
+    it('sendEmailUpdatesForMsa — whitelist entry — receives only their counties’ properties', async () => {
+        expect(emailedPropertyIds(WHITELIST_ALPHA_EMAIL).sort()).toEqual(
+            [alpha1Id, alpha2Id].sort(),
         );
+    });
+
+    it('sendEmailUpdatesForMsa — whitelist entry with none of the day’s counties — receives nothing', async () => {
+        const recipientEmails = capturedSend().recipients.map((r) => r.email);
+        expect(recipientEmails).not.toContain(WHITELIST_GAMMA_EMAIL);
+        expect(recipientEmails).toContain(WHITELIST_ALPHA_EMAIL);
     });
 
     it('sendEmailUpdatesForMsa — emailed properties — marked in sent_property_ids (TST.INT-STATE)', async () => {
