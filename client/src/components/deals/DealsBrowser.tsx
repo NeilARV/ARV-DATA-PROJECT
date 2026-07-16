@@ -52,12 +52,13 @@ function useIsWide() {
 
 function DealRowSkeleton() {
     return (
-        <div className="flex items-center gap-3 rounded-lg p-2.5">
-            <Skeleton className="h-[68px] w-[68px] shrink-0 rounded-md" />
+        <div className="flex items-center gap-3 rounded-lg border border-transparent p-2.5">
+            <Skeleton className="h-20 w-20 shrink-0 rounded-md" />
             <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-3/5" />
                 <Skeleton className="h-3 w-1/2" />
-                <Skeleton className="h-4 w-3/5" />
             </div>
         </div>
     );

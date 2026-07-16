@@ -55,7 +55,11 @@ function Fact({ label, value }: { label: string; value: string | null }) {
             <p
                 className={cn(
                     'mt-0.5 text-lg font-bold tabular-nums',
-                    value ? 'text-foreground' : 'text-muted-foreground/60',
+                    !value
+                        ? 'text-muted-foreground/60'
+                        : label === 'Potential ARV'
+                          ? 'text-spread-positive'
+                          : 'text-foreground',
                 )}
             >
                 {value ?? '—'}
