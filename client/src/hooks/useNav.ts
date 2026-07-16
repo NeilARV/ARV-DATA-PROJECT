@@ -186,12 +186,12 @@ export function useDealsNav() {
     );
 
     const setDealId = useCallback(
-        (id: number | null) => {
+        (id: number | null, opts?: { replace?: boolean }) => {
             const p = new URLSearchParams(search);
             if (id !== null) p.set('dealId', String(id));
             else p.delete('dealId');
             const qs = p.toString();
-            setLocation(qs ? `/deals?${qs}` : '/deals');
+            setLocation(qs ? `/deals?${qs}` : '/deals', opts);
         },
         [search, setLocation],
     );

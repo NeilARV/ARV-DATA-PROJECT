@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import AppDialog from '@/components/modals/Dialog';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import DealOffersDialog from '@/components/deals/DealOffersDialog';
 import { BestBuyersDialog } from '@/components/deals/BestBuyersDialog';
 import { useDealsNav } from '@/hooks/useNav';
 import { useDealsFeed } from '@/hooks/useDealsFeed';
+import { usePinnedDeal } from '@/hooks/usePinnedDeal';
 import type {
     RequestDealInfoFormValues,
     SubmitOfferFormValues,
@@ -74,7 +75,18 @@ export default function DealsPageContent() {
     })();
 
     const feed = useDealsFeed(typeFilter, filterParams);
-    const deals = feed.data?.pages.flatMap((p) => p.deals) ?? [];
+    const loadedDeals = feed.data?.pages.flatMap((p) => p.deals) ?? [];
+
+    // A deep-linked deal outside the loaded pages/filters is pinned to the top of the feed, so a
+    // shared link always shows the deal it promised.
+    const { pinnedDeal, isGone } = usePinnedDeal(dealId, loadedDeals);
+    const deals = pinnedDeal ? [pinnedDeal, ...loadedDeals] : loadedDeals;
+
+    // A link to a deal that no longer exists heals itself: strip the dead dealId with a replacing
+    // navigation (no history entry) and leave a truthful clean feed — no error state.
+    useEffect(() => {
+        if (isGone) setDealId(null, { replace: true });
+    }, [isGone, setDealId]);
 
     // isOwner from useAuth is the ARV "owner" role — distinct from DealCaps.isOwner ("viewer
     // posted this deal"), hence the isArvOwner name on the viewer.
