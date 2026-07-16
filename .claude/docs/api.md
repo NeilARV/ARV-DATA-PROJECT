@@ -1183,11 +1183,8 @@ List one page of deals for a single column (new or sold), newest first.
 | `page` | number | 1-based page (default `1`) |
 | `limit` | number | Page size (default `10`, max `50`) |
 | `userId` | string | Filter by deal owner |
-| `msaName` | string | Filter by MSA name |
-| `county` | string | Filter by county |
-| `city` | string | Filter by city |
-| `state` | string | Filter by state |
-| `zipCode` | string | Filter by zip code |
+| `county` | string, repeatable | County set for `county IN (...)` |
+| `msa` | string | Restricts the county set to that MSA's tracked counties — with `msa`, an empty or foreign county set matches no deals (one-MSA-at-a-time contract, as on `GET /api/properties`) |
 
 **Response `200`** `{ deals, total, hasMore, page, limit }`. `deals` is one page of deal objects (each with `links` and a relative `streetViewUrl`; deals the caller owns also carry a `bidCount` of offers received, omitted otherwise since offers are poster-private). `total` is the count of all matching deals; `hasMore` indicates further pages. Top buyers are **not** included — fetch them lazily via `GET /api/deals/:id/top-buyers`.
 

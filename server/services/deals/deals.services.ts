@@ -25,7 +25,8 @@ import {
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
-import { eq, ne, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
+import { eq, ne, desc, and, inArray, gte, isNotNull, sql, SQL } from 'drizzle-orm';
+import { countyScopeCondition } from 'server/utils/countyFilter';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -172,11 +173,10 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 type GetDealsFilters = {
     id?: number;
     userId?: string;
-    msaName?: string;
-    county?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
+    // County set for `county IN (...)`; msa restricts it to that MSA's tracked counties
+    // (see countyScopeCondition) — with msa, an empty/foreign set matches no deals.
+    county?: string | string[];
+    msa?: string;
     // Column selector: 'new' = every non-sold type, 'sold' = sold only. Omit for all types.
     status?: 'new' | 'sold';
     // 1-based page + page size (offset pagination). Defaults: page 1, limit 10.
@@ -200,11 +200,8 @@ export async function getDeals(filters: GetDealsFilters) {
     const {
         id: filterId,
         userId: filterUserId,
-        msaName: filterMsaName,
         county: filterCounty,
-        city: filterCity,
-        state: filterState,
-        zipCode: filterZipCode,
+        msa: filterMsa,
         status: filterStatus,
         callerId: filterCallerId,
     } = filters;
@@ -213,31 +210,15 @@ export async function getDeals(filters: GetDealsFilters) {
     const limit = filters.limit && filters.limit > 0 ? filters.limit : DEFAULT_DEALS_LIMIT;
     const offset = (page - 1) * limit;
 
-    let filterMsaId: number | undefined;
-    if (filterMsaName) {
-        const [msaRow] = await db
-            .select({ id: msas.id })
-            .from(msas)
-            .where(eq(msas.name, filterMsaName))
-            .limit(1);
-
-        if (!msaRow) {
-            console.log(
-                `[dealsService.getDeals] MSA not found: "${filterMsaName}" — returning empty`,
-            );
-            return { deals: [], total: 0, hasMore: false, page, limit };
-        }
-        filterMsaId = msaRow.id;
-    }
-
     const conditions: SQL[] = [];
     if (filterId !== undefined) conditions.push(eq(deals.id, filterId));
     if (filterUserId) conditions.push(eq(deals.userId, filterUserId));
-    if (filterMsaId !== undefined) conditions.push(eq(deals.msaId, filterMsaId));
-    if (filterCounty) conditions.push(ilike(deals.county, filterCounty));
-    if (filterCity) conditions.push(ilike(deals.city, filterCity));
-    if (filterState) conditions.push(eq(deals.state, filterState.toUpperCase()));
-    if (filterZipCode) conditions.push(eq(deals.zipCode, filterZipCode));
+    const countyCondition = countyScopeCondition({
+        county: filterCounty,
+        msa: filterMsa,
+        columns: [deals.county],
+    });
+    if (countyCondition) conditions.push(countyCondition);
     if (filterStatus === 'sold') conditions.push(eq(deals.type, 'sold'));
     else if (filterStatus === 'new') conditions.push(ne(deals.type, 'sold'));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -301,9 +282,8 @@ export async function getDeals(filters: GetDealsFilters) {
         `[dealsService.getDeals] ${pageRows.length}/${total} deals (page ${page})` +
             `${filterStatus ? ` (status=${filterStatus})` : ''}` +
             `${filterUserId ? ` (userId=${filterUserId})` : ''}` +
-            `${filterMsaName ? ` (msaName=${filterMsaName})` : ''}` +
-            `${filterCity ? ` (city=${filterCity})` : ''}` +
-            `${filterZipCode ? ` (zipCode=${filterZipCode})` : ''}`,
+            `${filterMsa ? ` (msa=${filterMsa})` : ''}` +
+            `${filterCounty ? ` (county=${[filterCounty].flat().join(',')})` : ''}`,
     );
 
     // Batch-fetch links for the page's deals.
