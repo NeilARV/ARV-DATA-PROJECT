@@ -27,6 +27,7 @@ import {
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { eq, ne, desc, and, inArray, gte, isNotNull, sql, SQL } from 'drizzle-orm';
 import { countyScopeCondition } from 'server/utils/countyFilter';
+import { getMsaForCounty } from '@shared/constants/countyToMsa';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -667,13 +668,15 @@ export async function sendDealNotification(
 
             const APP_BASE_URL_DEALS = getAppBaseUrl();
             const dealUrlParams = new URLSearchParams({ dealId: String(deal.id) });
-            if (deal.county && deal.state) {
-                dealUrlParams.set('filterType', 'county');
-                dealUrlParams.set('filterValue', deal.county);
-                dealUrlParams.set('filterState', deal.state);
+            // Anchor on the county's own MSA (not the posting MSA) so a companion-city deal
+            // links to a county view that actually contains it; the deal is pinned via dealId.
+            const countyMsa = deal.county ? getMsaForCounty(deal.county) : null;
+            if (deal.county && countyMsa) {
+                dealUrlParams.set('msa', countyMsa);
+                dealUrlParams.set('counties', deal.county);
             } else if (msaRow?.name) {
-                dealUrlParams.set('filterType', 'msa');
-                dealUrlParams.set('filterValue', msaRow.name);
+                // No counties param = the whole MSA.
+                dealUrlParams.set('msa', msaRow.name);
             }
             const dealUrl = `${APP_BASE_URL_DEALS}/deals?${dealUrlParams.toString()}`;
 
@@ -1042,10 +1045,11 @@ export async function requestDealInfo(
 
     const APP_BASE_URL = getAppBaseUrl();
     const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
-    if (dealRow.county && dealRow.state) {
-        dealUrlParams.set('filterType', 'county');
-        dealUrlParams.set('filterValue', dealRow.county);
-        dealUrlParams.set('filterState', dealRow.state);
+    // The county's own MSA — an untracked county gets no geo params; dealId pins the deal.
+    const dealCountyMsa = dealRow.county ? getMsaForCounty(dealRow.county) : null;
+    if (dealRow.county && dealCountyMsa) {
+        dealUrlParams.set('msa', dealCountyMsa);
+        dealUrlParams.set('counties', dealRow.county);
     }
     const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
 
@@ -1320,10 +1324,11 @@ export async function sendDealOfferNotification(
 
     const APP_BASE_URL = getAppBaseUrl();
     const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
-    if (dealRow.county && dealRow.state) {
-        dealUrlParams.set('filterType', 'county');
-        dealUrlParams.set('filterValue', dealRow.county);
-        dealUrlParams.set('filterState', dealRow.state);
+    // The county's own MSA — an untracked county gets no geo params; dealId pins the deal.
+    const dealCountyMsa = dealRow.county ? getMsaForCounty(dealRow.county) : null;
+    if (dealRow.county && dealCountyMsa) {
+        dealUrlParams.set('msa', dealCountyMsa);
+        dealUrlParams.set('counties', dealRow.county);
     }
     const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
 
