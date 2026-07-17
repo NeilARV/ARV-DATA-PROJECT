@@ -1,0 +1,133 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "client/src/index.css",
+      "tailwind.config.ts",
+      "client/src/utils/transactionTypeBadge.ts",
+      "client/src/components/ui/badge.tsx"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#5bc8dc",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.352Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#ffffff",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.429Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#9333ea",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.507Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#ff0000",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.584Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#f97316",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.662Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#6366f1",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.743Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#22c55e",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.822Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#f59e0b",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.899Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#3b82f6",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:54.978Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#06b6d4",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.055Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#ef4444",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.133Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#69c9e1",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.211Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#16a34a",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.301Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#d97706",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.380Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#7e22ce",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.458Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#1d4ed8",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.537Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#0e7490",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.615Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#dc2626",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.693Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#0891b2",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.770Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#9ca3af",
+        "reason": "sanctioned categorical palette / token file - mirrors ui-design hex-allowlist.txt (DS.NO-HARDCODED-COLOR)",
+        "createdAt": "2026-07-17T16:13:55.848Z"
+      }
+    ]
+  }
+}

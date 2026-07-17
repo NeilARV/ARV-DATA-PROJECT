@@ -1,7 +1,8 @@
 # Typography
 
 Font: `Inter` (Google Fonts, 300–700) → `sans-serif`, wired through `--font-sans` in `index.css`.
-Rules owned here: `DS.FIXED-TYPE-SIZE`, `DS.TYPE-FLOOR`.
+Rules: `DS.FIXED-TYPE-SIZE` and `DS.TYPE-FLOOR` — canonical statements in `DESIGN.md` §3; this file
+owns the operational scale, weights, and role tables that apply them.
 
 ## Scale
 

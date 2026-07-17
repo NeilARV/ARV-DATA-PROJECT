@@ -1,7 +1,9 @@
 # Colors
 
 All tokens are CSS variables in `client/src/index.css`, mapped to Tailwind in `tailwind.config.ts`.
-Rule: `DS.NO-HARDCODED-COLOR`. Sanctioned exceptions are at the bottom of this file and nowhere else.
+Rule: `DS.NO-HARDCODED-COLOR` — canonical statement in `DESIGN.md` §2 (*The Token-Only Rule*); this
+file owns the token tables and the sanctioned exceptions. Sanctioned exceptions are at the bottom of
+this file and nowhere else.
 
 ## Contents
 

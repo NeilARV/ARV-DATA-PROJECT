@@ -10,49 +10,53 @@ allowed-tools: Read, Grep, Glob, Bash(${CLAUDE_PROJECT_DIR}/.claude/skills/ui-de
 
 # UI Design System
 
-Owns the `DS.*` rule IDs. `react.md` RX.DESIGN-TOKENS and RX.RESPONSIVE-RESTRAINT defer here.
+The operational + enforcement layer for the design system. `react.md` RX.DESIGN-TOKENS and
+RX.RESPONSIVE-RESTRAINT defer here.
 
-Token definitions live in `tailwind.config.ts` and `client/src/index.css`. Component utility
-classes live in `client/src/styles/deal.components.css`. This skill is the reference for what
-those files mean and when to reach for each value — it is not a copy of them. When they disagree,
-the code is right and this skill is stale; say so.
+**Division of labor.** `DESIGN.md` (project root) owns the *identity* ("The Insider's Desk", the
+"trusted insider + sharp analyst" personality, `PRODUCT.md`'s anti-references) **and the canonical
+statement of every `DS.*` rule** — each is a Named Rule in a DESIGN.md section. This skill owns the
+*operational layer*: the which-token-when lookup tables (`references/`) and the machine enforcement
+(`scripts/check-hex.sh`). `index.css` + `tailwind.config.ts` own the *values*. Design *work* —
+building, redesigning, or auditing a surface — is driven through `/impeccable` (`DESIGN.md` +
+`PRODUCT.md` are its context); reach for this skill when you need the exact token, size, or rule to
+apply, or to run the hex check.
 
-For the *why* behind the visual system — the brand identity ("The Insider's Desk"), the "trusted
-insider + sharp analyst" personality, the per-surface references, and the do's/don'ts that carry
-`PRODUCT.md`'s anti-references — see the root `DESIGN.md`. Division of labor: `DESIGN.md` owns
-identity and strategic intent; this skill owns which token to use when (the `DS.*` rules +
-`check-hex.sh`); `index.css` + `tailwind.config.ts` own the values. All three defer to the code as
-the source of truth, so `DESIGN.md` cites `DS.*` rules rather than restating them and speaks in the
-source's own HSL rather than asserting hex — nothing to drift.
+When any of these disagree, the code is right and the doc is stale; say so. `DESIGN.md` speaks in the
+source's own HSL rather than asserting hex, so nothing drifts. Component utility classes live in
+`client/src/styles/*.components.css`.
 
 ## The five invariants
 
-These apply to every frontend change. Everything else is lookup.
+These apply to every frontend change; everything else is lookup. Their canonical statement — the
+*why* — lives in `DESIGN.md`; the one-liners here are the working reminder plus where this skill
+enforces them. `DS.BREAKPOINT-DEFAULT` is defined here (DESIGN.md carries no layout section).
 
-- **DS.NO-HARDCODED-COLOR** — Never write a hex literal, `rgb()`, or a Tailwind palette color
-  (`text-gray-300`, `bg-slate-800`) in a component. Use a semantic token. There are exactly four
-  sanctioned exceptions (deal types, transaction types, badge variants, rank medals), all listed
-  in `references/colors.md`. Adding a fifth requires documenting it there first.
-  `scripts/check-hex.sh` enforces this on a diff.
+- **DS.NO-HARDCODED-COLOR** — Use a semantic token; never a hex literal, `rgb()`, or a Tailwind
+  palette color (`text-gray-300`, `bg-slate-800`) in a component. Exactly four sanctioned exceptions
+  (deal types, transaction types, badge variants, rank medals) live in `references/colors.md`; a
+  fifth must be documented there and in `scripts/hex-allowlist.txt` first. Enforced on a diff by
+  `scripts/check-hex.sh`. → canonical: DESIGN.md §2, *The Token-Only Rule*.
 
 - **DS.MUTED-FOREGROUND** — Every piece of secondary text — labels, descriptions, timestamps,
-  placeholders, decorative icons — is `text-muted-foreground`. This is the single most-violated
-  rule in the codebase; the dark-mode value was specifically tuned (72% lightness) so that it
-  works, and hardcoding `text-gray-300/80` undoes that tuning.
+  placeholders, decorative icons — is `text-muted-foreground`, never a hardcoded gray. The single
+  most-violated rule in the codebase; the dark-mode value is tuned to 72% lightness and
+  `text-gray-300/80` undoes that. → canonical: DESIGN.md §2, *The Muted-Foreground Rule*.
 
-- **DS.NO-SHADOWS** — Shadow tokens are set to zero opacity. Depth comes from the elevation
-  utilities (`hover-elevate`, `active-elevate-2`, `toggle-elevate`), which paint an overlay via
-  `::before`/`::after`. Consequence worth remembering: a parent with `overflow: hidden` clips the
-  overlay, so a card that needs both needs the escape hatch, not a shadow.
+- **DS.NO-SHADOWS** — Shadow tokens are zero-opacity. Depth comes from the elevation utilities
+  (`hover-elevate`, `active-elevate-2`, `toggle-elevate`), painted via `::before`/`::after`. A parent
+  with `overflow: hidden` clips the overlay — use the escape hatch, not a shadow. → canonical:
+  DESIGN.md §4, *The Flat-By-Default* / *Overlay-Not-Shadow* Rules.
+
+- **DS.FIXED-TYPE-SIZE** — Text sizes are fixed. Responsively scale exactly two things: page titles
+  (`text-xl lg:text-2xl`) and a card's primary heading when the card itself grows
+  (`text-base lg:text-lg`). Scaling everything moves every element in lockstep — the appearance of
+  hierarchy, none of the proportion. → canonical: DESIGN.md §3, *The Fixed-Scale Rule*.
 
 - **DS.BREAKPOINT-DEFAULT** — `lg:` (1024px) is the default responsive breakpoint. `tablet:`
   (850px) exists for deal-card layout shifts only. Never stack `sm:`/`md:`/`lg:` on the same
   property — if you find yourself doing it, the layout wants restructuring, not more variants.
-
-- **DS.FIXED-TYPE-SIZE** — Text sizes are fixed. Responsively scale exactly two things: page
-  titles (`text-xl lg:text-2xl`) and card primary headings when the card itself grows
-  (`text-base lg:text-lg`). Scaling everything moves every element in lockstep, which produces
-  the appearance of hierarchy while changing none of the actual proportions.
+  Defined here; `references/layout.md` owns the breakpoint table.
 
 ## Where to look things up
 

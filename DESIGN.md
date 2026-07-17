@@ -132,13 +132,19 @@ components:
 
 # Design System: ARV Finance Data App
 
-> **Source-of-truth note.** Token values live in `client/src/index.css` (HSL) and `tailwind.config.ts`.
-> This file's frontmatter is a faithful snapshot of those, kept in the source's own HSL. For *which*
-> token to use *when* — and for hex equivalents, the elevation utilities, and the sanctioned
-> categorical palettes — the canonical reference is the `ui-design` skill
-> (`.claude/skills/ui-design/references/`), which owns the `DS.*` rules. When any of the three
-> disagree, the code wins; this file is stale and should be regenerated with `/impeccable document`.
-> This document adds what the code can't: the *identity* — why the system looks the way it does.
+> **Source-of-truth note.** Three layers, one job each. **Code owns the values:** every token lives in
+> `client/src/index.css` and `tailwind.config.ts` as HSL. **This document owns the *identity and the
+> rules*:** why the system looks the way it does, and the canonical statement of every `DS.*` rule —
+> the Named Rules in the sections below. **The `ui-design` skill owns the *operational layer*:** the
+> which-token-when lookup tables (`.claude/skills/ui-design/references/`) and the machine enforcement
+> (`scripts/check-hex.sh`); it cites the `DS.*` rules by ID rather than restating them. Design *work* —
+> building, redesigning, or auditing a surface — is driven through `/impeccable`, for which this file
+> and `PRODUCT.md` are the context.
+>
+> **HSL is canonical.** The frontmatter mirrors `index.css` verbatim in HSL, not hex or OKLCH, so the
+> two never drift through rounding. A regeneration (`/impeccable document`) MUST preserve HSL; the
+> Stitch hex-only linter warning on this frontmatter is expected and accepted. When the three layers
+> disagree, the code wins and this file is stale — regenerate it, preserving HSL.
 
 ## 1. Overview
 
@@ -179,6 +185,10 @@ A cool-neutral system with a single cyan brand accent — restrained by default,
 Five-series ramp led by the brand: `chart-1` cyan (primary/brand), `chart-2` green (positive), `chart-3` violet, `chart-4` amber, `chart-5` rose. Dark-mode values are lightened 5–20% for contrast.
 
 ### Named Rules
+**The Token-Only Rule.** (`DS.NO-HARDCODED-COLOR`) Every color is a semantic token — never a hex literal, an `rgb()`, or a Tailwind palette color (`text-gray-300`, `bg-slate-800`) in a component. The only sanctioned hex is the four categorical palettes (deal types, transaction types, badge variants, rank medals), enumerated in `ui-design/references/colors.md`; adding a fifth means documenting it there and in `scripts/hex-allowlist.txt` first. `scripts/check-hex.sh` enforces this on a diff.
+
+**The Muted-Foreground Rule.** (`DS.MUTED-FOREGROUND`) Every piece of secondary text — labels, descriptions, timestamps, placeholders, decorative icons — is `text-muted-foreground`, never a hand-picked gray. The dark-mode value is tuned to 72% lightness specifically, and hardcoding `text-gray-300/80` discards that tuning. The single most-violated rule in the codebase.
+
 **The One Accent Rule.** Insider Cyan is the *only* brand color, and it appears only where it carries meaning — action, selection, focus, link, primary series. If cyan is decorating something that isn't interactive or isn't the primary datum, remove it. Its rarity is what makes it read as authoritative.
 
 **The Cool-Neutral Rule.** Grays carry a faint blue cast (`hue 220`), never a warm one. No cream, no beige, no sand — those are the generic-template tell this brand rejects. Warmth, when it's wanted, comes from copy and content, never from the surface.
@@ -187,7 +197,7 @@ Five-series ramp led by the brand: `chart-1` cyan (primary/brand), `chart-2` gre
 
 **Display / Body / Label Font:** Inter (300–700), with `sans-serif` fallback. One family does every job.
 
-**Character:** Inter is a neutral, highly legible humanist sans — the sharp-analyst voice. There is no display/body pairing and there should not be; a second family would read as decoration, and this system earns hierarchy through weight and size instead. Rules owned by `ui-design/references/typography.md` (`DS.FIXED-TYPE-SIZE`, `DS.TYPE-FLOOR`).
+**Character:** Inter is a neutral, highly legible humanist sans — the sharp-analyst voice. There is no display/body pairing and there should not be; a second family would read as decoration, and this system earns hierarchy through weight and size instead. `DS.FIXED-TYPE-SIZE` and `DS.TYPE-FLOOR` are defined in the Named Rules below; `ui-design/references/typography.md` carries the operational scale and role tables.
 
 ### Hierarchy
 - **Display / Page title** (`600`, `1.5rem`/24px, scales from `text-xl`): the only element besides a growing card heading that scales responsively.
@@ -203,20 +213,20 @@ The one-page marketing surface (`components/Home`) is the *only* place responsiv
 - **Marketing section heading** (`Home/ui/typography.ts` `sectionHeading`): `text-[2rem]` → `sm:text-4xl` → `lg:text-[2.75rem]`, `leading-[1.08]`, `tracking-[-0.025em]`. Ceiling ~44px. Every marketing section header shares this one scale so the page's hierarchy reads deliberate, not drifting.
 
 ### Named Rules
-**The Fixed-Scale Rule.** Type sizes are fixed, not fluid. Exactly two things scale with the viewport — page titles and a card heading when its card grows. Scaling everything in lockstep changes no real proportion; it only pays reflow for the illusion of hierarchy. Clamp-sized headings belong to the marketing layer, never to app UI.
+**The Fixed-Scale Rule.** (`DS.FIXED-TYPE-SIZE`) Type sizes are fixed, not fluid. Exactly two things scale with the viewport — page titles and a card heading when its card grows. Scaling everything in lockstep changes no real proportion; it only pays reflow for the illusion of hierarchy. Clamp-sized headings belong to the marketing layer, never to app UI.
 
 **The Marketing-Exception Rule.** Clamped display type and choreographed entrance motion are permitted on `components/Home` and forbidden everywhere else. The exception is bounded, not a second design language: still Inter, still one cyan accent, still cool neutrals, still flat. If a clamp heading or a scroll reveal shows up outside `components/Home`, it's a bug.
 
-**The 12px Floor Rule.** `text-xs` (12px) is the minimum for UI text. The only exceptions are avatar initials (sized to their circle) and the dense transaction list. Anywhere else, a smaller size means the container is too small — fix the container.
+**The 12px Floor Rule.** (`DS.TYPE-FLOOR`) `text-xs` (12px) is the minimum for UI text. The only exceptions are avatar initials (sized to their circle) and the dense transaction list. Anywhere else, a smaller size means the container is too small — fix the container.
 
 ## 4. Elevation
 
-This system has **no shadows**. Every shadow token is set to zero opacity. Depth is painted by a translucent overlay on a `::before`/`::after` pseudo-element (`hover-elevate`, `hover-elevate-2`, `active-elevate-2`, `toggle-elevate`) — roughly a 3% wash on hover, 8% on press, tinted dark-on-light and light-on-dark. Owned by `ui-design/references/components.md` (`DS.NO-SHADOWS`).
+This system has **no shadows**. Every shadow token is set to zero opacity. Depth is painted by a translucent overlay on a `::before`/`::after` pseudo-element (`hover-elevate`, `hover-elevate-2`, `active-elevate-2`, `toggle-elevate`) — roughly a 3% wash on hover, 8% on press, tinted dark-on-light and light-on-dark. `DS.NO-SHADOWS` is defined in the Named Rules below; `ui-design/references/components.md` carries the elevation-utility table.
 
 ### Named Rules
-**The Flat-By-Default Rule.** Surfaces are flat at rest. Elevation is a *response to state* (hover, press, toggle), never an ambient decoration. A card that looks lifted while idle is wrong.
+**The Flat-By-Default Rule.** (`DS.NO-SHADOWS`) Surfaces are flat at rest. Elevation is a *response to state* (hover, press, toggle), never an ambient decoration. A card that looks lifted while idle is wrong.
 
-**The Overlay-Not-Shadow Rule.** Never reach for a `box-shadow` to separate two surfaces — use the border ladder (`border` / `card-border` / `input`) or the elevate overlay. Consequence worth remembering: an ancestor with `overflow: hidden` clips the overlay, so a rounded-image card silently loses its hover — fix the clip, don't add a shadow.
+**The Overlay-Not-Shadow Rule.** (`DS.NO-SHADOWS`) Never reach for a `box-shadow` to separate two surfaces — use the border ladder (`border` / `card-border` / `input`) or the elevate overlay. Consequence worth remembering: an ancestor with `overflow: hidden` clips the overlay, so a rounded-image card silently loses its hover — fix the clip, don't add a shadow.
 
 ## 5. Components
 

@@ -67,7 +67,7 @@ These docs are canonical — read the relevant one before writing code in that a
 | React / frontend | `.claude/docs/standards/react.md` | `RX.*` |
 | Express / Drizzle | `.claude/docs/standards/express.md` | `EX.*`, `DB.*` |
 | access by role / subscription / auth | `.claude/docs/access-control.md` | route permission tables, middleware, status codes |
-| any UI (components, styling, tokens) | the `ui-design` skill | colors, type, spacing, dark mode; tokens in `tailwind.config.ts` + `client/src/index.css` |
+| any UI (components, styling, tokens) | the `ui-design` skill | token lookup + `check-hex.sh` enforcement; `DS.*` rule definitions live in `DESIGN.md`, values in `tailwind.config.ts` + `client/src/index.css` |
 | tests | `.claude/docs/standards/testing.md` | `TST.*` |
 
 ## Coding standards
@@ -128,7 +128,7 @@ Two root docs carry the product's design intent (maintained with the `impeccable
 - **`PRODUCT.md`** — the strategic brief: register (**product**, with a one-page marketing layer on `Home`), users (ARV's borrower-clients — mostly wholesalers & fix-and-flip operators), positioning, the "trusted insider + sharp analyst" personality, and anti-references (generic AI/SaaS template, cluttered legacy portal, cold enterprise/bank, consumer-toy).
 - **`DESIGN.md`** — the visual identity ("The Insider's Desk"): palette, type, elevation, components, do's/don'ts. Its frontmatter mirrors `client/src/index.css` in the source's own HSL.
 
-Division of labor for anything visual: `DESIGN.md` owns identity and intent; the **`ui-design` skill** owns which token to use when (the `DS.*` rules + `check-hex.sh`); `client/src/index.css` + `tailwind.config.ts` own the values and win when any doc disagrees.
+Division of labor for anything visual: **`DESIGN.md` owns the identity *and* the canonical `DS.*` rule definitions** (each a Named Rule in a section); the **`ui-design` skill** owns the operational layer — the which-token-when lookup tables and the `check-hex.sh` enforcement — and cites the `DS.*` rules by ID; `client/src/index.css` + `tailwind.config.ts` own the values and win when any doc disagrees. Design *work* (building, redesigning, auditing a surface) is driven through `/impeccable`, for which `DESIGN.md` + `PRODUCT.md` are the context. `DESIGN.md`'s frontmatter is canonical HSL, mirroring `index.css`; a regeneration must preserve HSL.
 
 ## References
 

@@ -1,7 +1,8 @@
 # Components
 
-Variants, sizes, and interaction states for shared primitives. Rules owned here: `DS.NO-SHADOWS`
-(elevation), `DS.INTERACTION-STATES`.
+Variants, sizes, and interaction states for shared primitives. `DS.INTERACTION-STATES` is defined
+here; `DS.NO-SHADOWS` (elevation) has its canonical statement in `DESIGN.md` §4 — this file owns the
+elevation-utility and interaction-state tables that apply it.
 
 ## Contents
 
@@ -145,9 +146,9 @@ variants.
 
 | Class | Definition |
 |---|---|
-| `.deal-card-label` | `text-sm text-muted-foreground` |
+| `.deal-card-label` | `text-sm font-medium text-muted-foreground` |
 | `.deal-card-value` | `text-lg font-bold text-foreground` |
-| `.deal-card-value-empty` | `text-xs font-bold text-muted-foreground` |
+| `.deal-card-value-empty` | `text-lg font-bold text-muted-foreground` |
 | `.deal-card-icon` | `w-4 h-4 text-muted-foreground` |
 | `.deal-card-sub-icon` | `w-3.5 h-3.5` |
 | `.deal-card-address` | `text-sm text-muted-foreground truncate` |
