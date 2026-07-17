@@ -62,7 +62,16 @@ function companyCountiesExists(
     )`;
 }
 
-async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, PrimaryContact>> {
+function contactMatchesSearch(contact: PrimaryContact, needle: string): boolean {
+    const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ').toLowerCase();
+    return name.includes(needle) || (contact.email ?? '').toLowerCase().includes(needle);
+}
+
+/** First contact per company (sort order), preferring one matching `preferMatching` when given. */
+async function fetchPrimaryContacts(
+    companyIds: string[],
+    preferMatching?: string,
+): Promise<Map<string, PrimaryContact>> {
     if (companyIds.length === 0) return new Map();
     const rows = await db
         .select()
@@ -71,7 +80,16 @@ async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, P
         .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id);
     const map = new Map<string, PrimaryContact>();
     for (const row of rows) {
-        if (!map.has(row.companyId)) map.set(row.companyId, row);
+        const current = map.get(row.companyId);
+        if (!current) {
+            map.set(row.companyId, row);
+        } else if (
+            preferMatching &&
+            !contactMatchesSearch(current, preferMatching) &&
+            contactMatchesSearch(row, preferMatching)
+        ) {
+            map.set(row.companyId, row);
+        }
     }
     return map;
 }
@@ -85,13 +103,25 @@ interface CompanySuggestion {
     contactEmail: string | null;
 }
 
+/** Companies whose name — or a contact's name/email — matches the search (max 5), each with its best-matching contact. */
 export async function getCompanySuggestions(
     search: string,
     county?: string | string[],
 ): Promise<CompanySuggestion[]> {
-    const searchTerm = `%${search.trim().toLowerCase()}%`;
+    const needle = search.trim().toLowerCase();
+    const searchTerm = `%${needle}%`;
     const conditions: ReturnType<typeof sql>[] = [
-        sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`,
+        or(
+            sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`,
+            sql`EXISTS (
+                SELECT 1 FROM company_contacts con
+                WHERE con.company_id = ${companies.id}
+                AND (
+                    LOWER(TRIM(con.first_name || ' ' || COALESCE(con.last_name, ''))) LIKE ${searchTerm}
+                    OR LOWER(TRIM(COALESCE(con.email, ''))) LIKE ${searchTerm}
+                )
+            )`,
+        ) as any,
     ];
 
     const countiesClause = companyCountiesExists(county);
@@ -108,7 +138,10 @@ export async function getCompanySuggestions(
 
     if (results.length === 0) return [];
 
-    const primaryContacts = await fetchPrimaryContacts(results.map((r) => r.id));
+    const primaryContacts = await fetchPrimaryContacts(
+        results.map((r) => r.id),
+        needle,
+    );
     return results.map((r) => {
         const primary = primaryContacts.get(r.id) ?? null;
         return {

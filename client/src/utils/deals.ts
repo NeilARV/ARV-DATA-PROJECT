@@ -1,4 +1,5 @@
 import type { Deal, DealType } from '@shared/types/deals';
+import type { DealCaps } from '@/types/deals';
 
 // ── Deal-type metadata ──────────────────────────────────────────────────────
 // Type color is owned by the Badge component (its purple/orange/indigo/red variants map to the
@@ -22,6 +23,40 @@ export function dealTypeMeta(type: DealType) {
 /** A sold deal is a comp: reference-only, never actionable (no offers / info requests). */
 export function isSold(deal: Pick<Deal, 'dealType'>): boolean {
     return deal.dealType === 'sold';
+}
+
+// ── Capabilities ────────────────────────────────────────────────────────────
+
+/** The viewer's identity plus ARV team-role flags, as `dealCaps` consumes them. */
+// isArvOwner is the ARV "owner" role (useAuth's isOwner) — deliberately not named isOwner,
+// because DealCaps.isOwner means "viewer posted this deal" and conflating the two is how the
+// preview's matrix went wrong.
+export type DealCapsViewer = {
+    userId: string;
+    isAdmin: boolean;
+    isArvOwner: boolean;
+    isRelationshipManager: boolean;
+};
+
+/**
+ * What the viewer may do with a deal.
+ * Must match the ownership/role checks in `server/services/deals/deals.services.ts` — except
+ * `isOwner`, which deliberately keeps offers/top-buyers poster-only in the UI even though the
+ * server also permits privileged staff.
+ */
+export function dealCaps(deal: Pick<Deal, 'userId' | 'dealType'>, viewer: DealCapsViewer): DealCaps {
+    const isPoster = deal.userId === viewer.userId;
+    const isAdminOrArvOwner = viewer.isAdmin || viewer.isArvOwner;
+    const isPrivileged = isAdminOrArvOwner || viewer.isRelationshipManager;
+    const isActionable = !isSold(deal) && !isPoster;
+    return {
+        canEdit: isPoster || isAdminOrArvOwner,
+        canDelete: isPoster || isPrivileged,
+        canRequestContact: isActionable,
+        canSubmitOffer: isActionable,
+        isOwner: isPoster,
+        canViewPoster: isPrivileged,
+    };
 }
 
 // ── Number coercion ─────────────────────────────────────────────────────────

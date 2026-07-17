@@ -1182,14 +1182,14 @@ Add a member to a company (auto-singleton). If the company has no group, a singl
 ## 6. Deals `/api/deals`
 
 ### `GET /api/deals`
-List one page of deals for a single column (new or sold), newest first.
+List one page of the unified deals feed, newest first.
 
 **Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role. (The whole Deals experience is gated.)
 
 **Query params** (all optional)
 | Param | Type | Description |
 |---|---|---|
-| `status` | `"new" \| "sold"` | Column selector: `new` = every non-sold type, `sold` = sold only. Omit for all types. |
+| `type` | `DealType` | Narrows to a single deal type (`wholesale`, `agent`, `reo`, or `sold`); an invalid value is ignored. Omit for all types. |
 | `page` | number | 1-based page (default `1`) |
 | `limit` | number | Page size (default `10`, max `50`) |
 | `userId` | string | Filter by deal owner |
@@ -1205,7 +1205,7 @@ Get a single deal by integer ID.
 
 **Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role.
 
-**Response `200`** Full deal object · `400` invalid id · `404` not found
+**Response `200`** Full deal object, enriched like the list (`links`, `streetViewUrl`; a deal the caller owns also carries `bidCount`) · `400` invalid id · `404` not found
 
 ---
 

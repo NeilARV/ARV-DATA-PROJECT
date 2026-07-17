@@ -261,32 +261,36 @@ Page `client/src/pages/Data.tsx` · components `client/src/components/data/` · 
 A marketplace for real estate investment deals — wholesale, agent-listed, and completed sales.
 Users post deals, others browse and request contact info, and the system routes inquiries to
 the appropriate relationship manager. It's an internal deal board layered on the Data app's
-property/company data. Publicly viewable, but creating deals requires any active
-subscription (basic/pro/premium, with bypass for team roles).
+property/company data. The whole experience (reads included) requires any active subscription
+(basic/pro/premium, with bypass for team roles).
 
 ## Page Entry Point
-`client/src/pages/Deals.tsx` wraps `DealsInner`, which checks auth and renders `Header` +
-`DealsPageContent`. Unauthenticated users get a non-forced login dialog.
+`client/src/pages/Deals.tsx` wraps `DealsInner` in `DataProviders`; `DealsInner` renders
+`MarketingHeader` + a whole-page `AppAccessGate` (redirects unauthenticated visitors to
+`/login?redirect=/deals`) around `DealsPageContent`. All auth/subscription gating lives in the
+gate — `DealsPageContent` has no in-page checks.
 
 ## Component Tree
-- **DealsHeader** — tabs "All Deals" / "Your Deals", `MsaCountyPicker` (the same State → MSA →
-  multi-select county hierarchy as the Data app; shared component at `client/src/components/`),
-  Add Deal button (subscription-gated). The old `DealsLocationSearch` free-text autocomplete
-  survives only on the admin-gated DealsPreview mock page.
-- **DealsGrid** — mobile tab bar (New / Sold), two `DealsColumn`s (New Deals, Sold Deals) of
-  `DealCard2`, each paginated independently (10/page, infinite scroll via `useInfiniteScroll`).
-  New Deals column auto-scrolls to the expanded deal.
+- **DealsToolbar** — deal-type dropdown (All Types / Wholesale / REO / Agent / Sold),
+  `MsaCountyPicker` (the same State → MSA → multi-select county hierarchy as the Data app;
+  shared component at `client/src/components/`), Add Deal button.
+- **DealsBrowser** — master–detail over the unified newest-first feed: a `DealListRow` list
+  (infinite scroll via `useInfiniteScroll`, 12/page) beside a `DealDetail` pane at ≥1024px;
+  below that a single pane swaps between list and detail. Scope tabs "All Deals" / "My Deals"
+  sit on the list column. On desktop the first deal auto-selects locally when nothing is
+  selected; per-deal actions are driven by `capabilitiesFor` (`dealCaps`).
 - **Dialogs** — AddDealDialog, EditDealDialog (both use `DealFormFields`), DeleteDealDialog,
-  RequestDealInfoDialog (`RequestDealInfoForm`), BestBuyersDialog (top 3 buyers for a zip, fetched
-  on open).
+  RequestDealInfoDialog (`RequestDealInfoForm`), SendOfferDialog (`SendOfferForm`),
+  DealOffersDialog, BestBuyersDialog (top 3 buyers for a zip, fetched on open).
 
-**DealCard2 collapsed:** street view image, address, deal-type badge (Wholesale purple /
-Agent orange / Sold red / REO indigo), ARV Exclusive badge (admin-set), relative posted date, beds/baths/
-sqft, financial grid (Purchase Price, Potential ARV, Est. Budget, Close of Escrow), Request
-More Info + 3-dot Edit/Delete menu.
-**Expanded:** notes, photo album link, up to 3 comparable sale links (domain-extracted
-labels), Send Offer + Request More Info (mobile), Offers (N) + Top Potential Buyers (owner
-only), admin footer (admin/owner/RM): poster name/email/phone, On Behalf Of, Internal Note.
+**DealListRow:** street-view thumbnail, address (ARV Exclusive star when admin-set), deal-type
+badge (Wholesale purple / Agent orange / Sold red / REO indigo — variants from `DEAL_TYPE_META`
+in `client/src/utils/deals.ts`), compact price, city/state + relative posted date.
+**DealDetail:** street-view image, address + deal-type badge, financial grid (Purchase Price,
+Potential ARV, Est. Budget, Close of Escrow), beds/baths/sqft, notes, photo album link, up to 3
+comparable sale links (domain-extracted labels), Request More Info + Send Offer, Offers (N) +
+Top Potential Buyers (deal poster only), Edit/Delete per `dealCaps`, poster footer
+(admin/owner/RM): poster name/email/phone, On Behalf Of, Internal Note.
 
 **Offers (bids):** any subscriber (basic+) or team member can submit a non-binding offer on a
 non-sold deal via the Send Offer dialog (`SendOfferDialog`/`SendOfferForm` — amount + auto-filled
@@ -297,32 +301,33 @@ submission sends the poster a `deal_bid` bell notification (no email) — see th
 Mastermind/notifications section.
 
 ## State Management
-**`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `selection` (`?msa=` +
-`?counties=` — the same `MsaCountySelection` contract as the Data nav, via
-`lib/msaCountySelection`; legacy `?filterType=county|msa` deep links from old deal emails still
-resolve, city/zip ones fall through to the default), `dealId` (`?dealId=`); actions `setTab`,
-`setSelection`, `setDealId`. On first load with no geo params, defaults once to the home
-county's MSA with the user's subscribed counties in it pre-selected (the home county alone when
-none are subscribed there).
+**`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `typeFilter` (`?type=`,
+invalid values fall back to `all`), `selection` (`?msa=` + `?counties=` — the same
+`MsaCountySelection` contract as the Data nav, via `lib/msaCountySelection`; legacy
+`?filterType=county|msa` deep links from old deal emails still resolve, city/zip ones fall
+through to the default), `dealId` (`?dealId=`); actions `setTab`, `setTypeFilter`,
+`setSelection`, `setDealId(id, { replace? })`. On first load with no geo params, defaults once
+to the home county's MSA with the user's subscribed counties in it pre-selected (the home
+county alone when none are subscribed there).
 
 **`DealsPageContent` local state:** `showAddDeal`, `deleteConfirm`, `editDeal` (links
-normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `bestBuyersDeal`.
+normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `offerDeal`,
+`offerSucceeded`, `viewOffersDeal`, `bestBuyersDeal`.
 
-**Data fetching (React Query):** New and Sold each have their own `useInfiniteQuery` against
-`GET /api/deals?status=new|sold&page&limit` (10/page, infinite scroll per column via
-`useInfiniteScroll`), sharing filters `userId&msa&county` (county repeated — the selection's
-county set, scoped to one MSA; none selected returns no deals). A pinned deal from `?dealId`
-is fetched via `GET /api/deals/:id` and prepended to its column when absent from the loaded pages.
-`DealsLocationSearch` pulls its city/zip suggestions from `GET /api/deals/locations` (independent of
-the loaded pages); top buyers load on demand from `GET /api/deals/:id/top-buyers` when the owner
-opens the dialog.
+**Data fetching (React Query):** one `useInfiniteQuery` (`useDealsFeed`) against
+`GET /api/deals?type&page&limit` (12/page, infinite scroll via `useInfiniteScroll`), plus the
+shared scope filters `userId&msa&county` (county repeated — the selection's county set, scoped
+to one MSA; none selected returns no deals). A deep-linked `?dealId` outside the loaded pages
+is fetched via `GET /api/deals/:id` (`usePinnedDeal`) and pinned to the top of the feed; a 404
+marks it gone and the page strips the dead `dealId` with a replacing navigation. Top buyers
+load on demand from `GET /api/deals/:id/top-buyers` when the poster opens the dialog.
 
 ## API Surface (`server/routes/deals.routes.ts`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/api/deals` | requireSub (basic/pro/premium) | One page for a column; `status` (new/sold), `page`, `limit`, `userId`, `county` (repeatable), `msa` (scopes the county set to one MSA) → `{ deals, total, hasMore, page, limit }` |
+| GET | `/api/deals` | requireSub (basic/pro/premium) | One page of the unified feed; `type` (wholesale/agent/reo/sold), `page`, `limit`, `userId`, `county` (repeatable), `msa` (scopes the county set to one MSA) → `{ deals, total, hasMore, page, limit }` |
 | GET | `/api/deals/msas` | requireSub (basic/pro/premium) | MSA list for the deal form dropdown |
-| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete (now used only by the DealsPreview mock page) |
+| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete (legacy — no live client consumer since the county picker replaced the location search) |
 | GET | `/api/deals/:id` | requireSub (basic/pro/premium) | Single deal |
 | GET | `/api/deals/:id/top-buyers` | requireSub + ownership in service | Top buyers for the deal's zip (owner/privileged) |
 | POST | `/api/deals` | requireSub (basic/pro/premium) | Create deal |
@@ -346,7 +351,7 @@ price change on PATCH → fires notification email; validates POST `userId` matc
 (no posting on behalf of others unless admin).
 
 **Service** (`deals.services.ts`):
-- **`getDeals(filters)`** — one page for a column (`status` new/sold, `page`/`limit`), newest
+- **`getDeals(filters)`** — one page of the unified feed (`type`, `page`/`limit`), newest
   first; dynamic WHERE, joins `msas` + `users`, plus a COUNT for the total. Batch-fetches
   `dealLinks` and (for the caller's own deals) offer counts, and sets a relative `streetViewUrl`.
   Returns `{ deals, total, hasMore, page, limit }`. It no longer probes the street-view image or
@@ -454,7 +459,9 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
 
 ## Key Files
 Page `client/src/pages/Deals.tsx` · `client/src/components/deals/` (DealsPageContent,
-DealFormFields, AddDealDialog, EditDealDialog, +others) · hook `useDealsNav.ts` · routes
+DealsToolbar, DealsBrowser, DealListRow, DealDetail, DealFormFields, AddDealDialog,
+EditDealDialog, +others) · hooks `useNav.ts` (`useDealsNav`), `useDealsFeed.ts`,
+`usePinnedDeal.ts` · capabilities `client/src/utils/deals.ts` (`dealCaps`) · routes
 `server/routes/deals.routes.ts` · controller `deals.controllers.ts` · service
 `deals.services.ts` · schema `database/schemas/deals.schema.ts` · validation
 `database/inserts/deals.insert.ts`, `database/validation/deals.validation.ts`.

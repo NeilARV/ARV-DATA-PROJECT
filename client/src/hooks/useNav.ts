@@ -13,7 +13,8 @@ import {
 } from '@/lib/msaCountySelection';
 
 import type { MsaCountySelection } from '@/types/filters';
-import type { DealTab } from '@shared/types/deals';
+import type { DealTypeFilter } from '@/components/deals/DealsToolbar';
+import { isDealType, type DealTab } from '@shared/types/deals';
 
 // ── Shared first-load default ───────────────────────────────────────────────
 /**
@@ -127,6 +128,8 @@ export function useDealsNav() {
     const rawTab = params.get('tab');
     const tab: DealTab = rawTab === 'mine' ? 'mine' : 'all';
     const parsedSelection = parseDealsSelection(params);
+    const rawType = params.get('type');
+    const typeFilter: DealTypeFilter = isDealType(rawType) ? rawType : 'all';
 
     const rawDealId = params.get('dealId');
     const dealId: number | null = rawDealId ? Number(rawDealId) || null : null;
@@ -158,12 +161,22 @@ export function useDealsNav() {
         [search, setLocation],
     );
 
+    const setTypeFilter = useCallback(
+        (type: DealTypeFilter) => {
+            const p = new URLSearchParams(search);
+            if (type !== 'all') p.set('type', type);
+            else p.delete('type');
+            setLocation(buildDealsUrl(p));
+        },
+        [search, setLocation],
+    );
+
     const setDealId = useCallback(
-        (id: number | null) => {
+        (id: number | null, opts?: { replace?: boolean }) => {
             const p = new URLSearchParams(search);
             if (id !== null) p.set('dealId', String(id));
             else p.delete('dealId');
-            setLocation(buildDealsUrl(p));
+            setLocation(buildDealsUrl(p), opts);
         },
         [search, setLocation],
     );
@@ -171,9 +184,11 @@ export function useDealsNav() {
     return {
         tab,
         selection: parsedSelection ?? DEFAULT_MSA_COUNTY_SELECTION,
+        typeFilter,
         dealId,
         setTab,
         setSelection,
+        setTypeFilter,
         setDealId,
     };
 }

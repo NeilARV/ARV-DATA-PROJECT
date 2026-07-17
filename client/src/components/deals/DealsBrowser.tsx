@@ -52,12 +52,13 @@ function useIsWide() {
 
 function DealRowSkeleton() {
     return (
-        <div className="flex items-center gap-3 rounded-lg p-2.5">
-            <Skeleton className="h-[68px] w-[68px] shrink-0 rounded-md" />
+        <div className="flex items-center gap-3 rounded-lg border border-transparent p-2.5">
+            <Skeleton className="h-20 w-20 shrink-0 rounded-md" />
             <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="h-3 w-3/5" />
                 <Skeleton className="h-3 w-1/2" />
-                <Skeleton className="h-4 w-3/5" />
             </div>
         </div>
     );
@@ -120,10 +121,12 @@ export default function DealsBrowser({
     const loadMoreRef = useRef<HTMLDivElement>(null);
 
     // The deal shown in the detail pane: the URL selection when present, otherwise (on desktop) the
-    // first deal so the pane is never blank. The URL only changes on an explicit click, so this
-    // fallback never churns history.
+    // first deal so the pane is never blank. While a deep-linked deal is still resolving
+    // (selected but not yet in `deals`), show nothing rather than flash the wrong deal.
+    // The URL only changes on an explicit click, so the fallback never churns history.
     const shownDeal =
-        deals.find((d) => d.id === selectedDealId) ?? (isWide ? (deals[0] ?? null) : null);
+        deals.find((d) => d.id === selectedDealId) ??
+        (isWide && selectedDealId === null ? (deals[0] ?? null) : null);
 
     // Mobile shows one pane at a time, driven by whether a deal is explicitly selected.
     const detailVisibleOnMobile = selectedDealId !== null;
@@ -149,7 +152,7 @@ export default function DealsBrowser({
 
     const listPaneClass = cn(
         'h-full min-h-0 flex-col border-border',
-        'w-full lg:w-[360px] lg:shrink-0 lg:border-r xl:w-[400px]',
+        'w-full lg:w-[var(--deals-list-w)] lg:shrink-0 lg:border-r',
         detailVisibleOnMobile ? 'hidden' : 'flex',
         'lg:flex',
     );
@@ -162,7 +165,9 @@ export default function DealsBrowser({
     );
 
     return (
-        <div className="flex h-full overflow-hidden">
+        // --deals-list-w is the list pane's width, published here so DealDetail can offset its
+        // content column toward the page center (see pageCenteredColumn in DealDetail.tsx).
+        <div className="flex h-full overflow-hidden lg:[--deals-list-w:360px] xl:[--deals-list-w:400px]">
             {/* ── List ─────────────────────────────────────────────────────── */}
             <div className={listPaneClass}>
                 {/* min-h matches DealDetail's header so the two columns' content start on the same line. */}
@@ -229,7 +234,9 @@ export default function DealsBrowser({
                         onTopBuyers={() => onTopBuyers(shownDeal)}
                     />
                 ) : (
-                    <DetailPlaceholder loading={isLoading} />
+                    // A selected-but-unresolved deal is a pinned fetch in flight — show the
+                    // spinner, not the "select a deal" prompt.
+                    <DetailPlaceholder loading={isLoading || selectedDealId !== null} />
                 )}
             </div>
         </div>

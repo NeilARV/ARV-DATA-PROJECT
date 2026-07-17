@@ -833,8 +833,8 @@ export default function FilterHeader() {
             </div>
             {/* end wrapping filter row */}
 
-            {/* Centered expand/collapse text below the row — same pattern as DealCard2's
-                View More indicator, blending into the header rather than reading as a bar */}
+            {/* Centered expand/collapse text below the row — blends into the header rather than
+                reading as a bar */}
             {hasOverflow && (
                 <div className="flex justify-center pb-1.5">
                     <button

@@ -12,10 +12,12 @@ Branch Naming Format: `<type>/<name>` (ie. `feature/company-merging` | `fix/logi
 
 Use /tdd where possible, at pre-agreed seams.
 
-Run typechecking regularly, single test files regularly, and the full test suite once at the end.
+Run typechecking after each meaningful change. Run single test files at TDD seams, scoped by path (ie. `vitest run src/deals/merge.test.ts`). **Never run the full test suite mid-branch.**
 
-Once done, use /code-review to review the work.
-
-Commit your work to the current branch at each coherent checkpoint, then stop to request my approval to continue. Error toward more commits. **Never commit broken code** — every commit should typecheck and pass its relevant tests, so each is independently revertable and reviewable.
+Commit your work to the current branch at each coherent checkpoint. **Before a commit** stop to request my approval so I can review. Error toward more commits. **Never commit broken code** — every commit must typecheck and pass the test files covering the files it changed, so each is independently revertable and reviewable.
 
 Give each commit a clear, concise message. Start it with the issue number if it exists (ie. `Issue #23 | Prevent duplicate password reset tokens`).
+
+When the final checkpoint is committed, run the full test suite once. If it surfaces a break introduced earlier in the branch, fix forward with an additional commit — do not rewrite history.
+
+Then use /code-review to review the work.

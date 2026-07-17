@@ -3,7 +3,7 @@ import request from 'supertest';
 import { setupIntegrationUsers } from '../../../helpers/setup';
 import { assignRole, assignSubscription, getTestDb } from '../../../helpers/db';
 import { resolveMsaId } from 'server/utils/resolveMsa';
-import { deals } from '@database/schemas/deals.schema';
+import { deals, dealBids } from '@database/schemas/deals.schema';
 import { msas } from '@database/schemas/msas.schema';
 import { eq } from 'drizzle-orm';
 
@@ -185,5 +185,46 @@ describe('PATCH /api/deals/:id — ownership enforcement (integration)', () => {
                 .send({ notes: 'test' });
             expect(res.status).toBe(401);
         });
+    });
+});
+
+// The offer count is poster-private: getDealById passes the caller through to getDeals, which
+// attaches bidCount only to deals the caller owns. Backs the deep-link pinned fetch (issue #127).
+describe('GET /api/deals/:id — offer-count privacy (integration)', () => {
+    // One bid on the shared seeded deal; cascade-deleted with the deal in afterAll.
+    beforeAll(async () => {
+        await getTestDb().insert(dealBids).values({
+            dealId: seededDealId,
+            bidderUserId: ACTING_USER_ID,
+            amount: '300000',
+            firstName: 'Jane',
+            lastName: 'Investor',
+            email: 'jane@example.com',
+        });
+    });
+
+    it('GET /api/deals/:id — deal owner — includes bidCount', async () => {
+        const res = await request(getApp())
+            .get(`/api/deals/${seededDealId}`)
+            .set('x-test-user-id', DEAL_OWNER_ID);
+        expect(res.status).toBe(200);
+        expect(res.body.bidCount).toBe(1);
+    });
+
+    it('GET /api/deals/:id — non-owner subscriber — omits bidCount', async () => {
+        await assignSubscription(ACTING_USER_ID, 'basic');
+        const res = await request(getApp())
+            .get(`/api/deals/${seededDealId}`)
+            .set('x-test-user-id', ACTING_USER_ID);
+        expect(res.status).toBe(200);
+        expect(res.body).not.toHaveProperty('bidCount');
+    });
+
+    it('GET /api/deals/:id — unknown deal — returns 404', async () => {
+        await assignSubscription(ACTING_USER_ID, 'basic');
+        const res = await request(getApp())
+            .get('/api/deals/999999999')
+            .set('x-test-user-id', ACTING_USER_ID);
+        expect(res.status).toBe(404);
     });
 });

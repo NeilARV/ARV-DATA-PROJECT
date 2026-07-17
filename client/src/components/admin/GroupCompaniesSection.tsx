@@ -77,7 +77,11 @@ export default function GroupCompaniesSection({ groupId, companies }: GroupCompa
     const existingIds = new Set(companies.map((c) => c.id));
     const options: SearchOption[] = suggestions
         .filter((s) => !existingIds.has(s.id))
-        .map((s) => ({ id: s.id, label: formatCompanyName(s.companyName) ?? s.companyName }));
+        .map((s) => ({
+            id: s.id,
+            label: formatCompanyName(s.companyName) ?? s.companyName,
+            sublabel: s.contactName ?? undefined,
+        }));
 
     return (
         <section className="space-y-3">
@@ -87,7 +91,7 @@ export default function GroupCompaniesSection({ groupId, companies }: GroupCompa
             </div>
 
             <AsyncSearchSelect
-                placeholder="Search companies to add..."
+                placeholder="Search by company or contact name..."
                 search={search}
                 onSearchChange={setSearch}
                 options={options}
