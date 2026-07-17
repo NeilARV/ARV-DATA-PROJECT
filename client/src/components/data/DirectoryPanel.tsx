@@ -39,6 +39,7 @@ export function DirectoryPanel() {
         setCompany,
         group,
         setGroup,
+        total: companiesTotal,
     } = useCompanies();
     const { loadGroups, total: groupsTotal } = useGroups();
     const { filters } = useFilters();
