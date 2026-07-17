@@ -1,47 +1,118 @@
 {
-  "permissions": {
-    "allow": [
-      "Read(**)",
-      "Edit(**)",
-      "Write(**)",
-      "Bash(npm *)", 
-      "Bash(npx *)", 
-      "Bash(node *)",
-      "Bash(git *)", 
-      "Bash(gh *)",
-      "Bash(mkdir *)", 
-      "Bash(mv *)", 
-      "Bash(cp *)", 
-      "Bash(touch *)",
-      "Bash(bash .claude/skills/**)"
-    ],
-    "deny": [
-      "Read(**/.env*)",
-      "Read(**/secrets/**)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)",
-      "Read(**/.aws/**)",
-      "Read(**/.ssh/**)",
-      "Bash(git push *)", 
-      "Bash(rm -rf *)",
-      "Read(.env)", 
-      "Read(.env.*)"
-    ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:\\\\Users\\\\jcdos\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\hook.mjs\"",
-            "timeout": 5,
-            "statusMessage": "Checking UI changes"
-          }
+    "permissions": {
+        "defaultMode": "acceptEdits",
+        "allow": [
+            "Read(**)",
+            "Edit(**)",
+            "Write(**)",
+            "Bash(npm *)", 
+            "Bash(npx *)", 
+            "Bash(node *)",
+            "Bash(git *)", 
+            "Bash(gh *)",
+            "Bash(mkdir *)", 
+            "Bash(mv *)", 
+            "Bash(cp *)", 
+            "Bash(touch *)",
+            "Bash(bash .claude/skills/**)",
+            "PowerShell(npm *)",
+            "PowerShell(npx *)",
+            "PowerShell(node *)",
+            "PowerShell(git *)",
+            "PowerShell(gh *)",
+            "PowerShell(New-Item *)",
+            "PowerShell(Move-Item *)",
+            "PowerShell(Copy-Item *)",
+            "PowerShell(Remove-Item *)",
+            "PowerShell(Get-ChildItem *)",
+            "PowerShell(Get-Content *)",
+            "PowerShell(Test-Path *)",
+            "PowerShell(Select-String *)",
+            "PowerShell(Set-Location *)",
+            "PowerShell(Measure-Object *)"
+        ],
+        "deny": [
+            "Read(**/.env*)",
+            "Read(**/secrets/**)",
+            "Read(**/*.pem)",
+            "Read(**/*.key)",
+            "Read(**/.aws/**)",
+            "Read(**/.ssh/**)",
+            "Bash(git push *)", 
+            "Bash(rm -rf *)",
+            "Read(.env)", 
+            "Read(.env.*)"
         ]
-      }
-    ]
-  },
-  "description": "Impeccable design detector: runs after Edit/Write/MultiEdit on UI files and surfaces findings as system reminders."
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "if": "Bash(rm -rf *)",
+                        "command": "echo 'Blocked: rm -rf is not allowed' >&2; exit 2"
+                    },
+                    {
+                        "type": "command",
+                        "if": "Bash(git push --force*)",
+                        "command": "echo 'Blocked: force push is not allowed' >&2; exit 2"
+                    },
+                    {
+                        "type": "command",
+                        "if": "Bash(git push -f *)",
+                        "command": "echo 'Blocked: force push is not allowed' >&2; exit 2"
+                    },
+                    {
+                        "type": "command",
+                        "if": "Bash(*.env*)",
+                        "command": "echo 'Blocked: reading .env via shell is not allowed' >&2; exit 2"
+                    }
+                ]
+            }
+        ],
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "echo '## Git' && git branch --show-current && git status --short | head -10 && echo '' && git log --oneline -5"
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "jq -r '.tool_input.file_path // empty' | { read -r f; [ -n \"$f\" ] && node_modules/.bin/prettier --write --ignore-unknown \"$f\"; } 2>/dev/null || true"
+                    }
+                ]
+            }
+        ],
+        "Notification": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "osascript -e 'display notification \"Claude needs you\" with title \"Claude Code\"'"
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "if ! npm run check > /tmp/claude_tsc.log 2>&1; then echo 'Type check (npm run check) failed — fix before finishing:'; tail -40 /tmp/claude_tsc.log; exit 2; fi"
+                    }
+                ]
+            }
+        ]
+    }
 }

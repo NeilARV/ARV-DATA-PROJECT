@@ -11,6 +11,7 @@ function toMapFilters(q: MapQuery) {
         statusFilter: q.status,
         dateRange: q.dateRange,
         companyId: q.companyId,
+        groupId: q.groupId,
         companyRole: q.companyRole,
         zipcode: q.zipcode,
         city: q.city,

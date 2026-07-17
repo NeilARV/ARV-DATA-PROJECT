@@ -64,8 +64,12 @@ type CandidateGroup = { id: string; name: string; companyCount: number };
 async function fetchCandidateGroups(
     county: string | string[] | undefined,
     searchTerm: string,
+    id?: string,
 ): Promise<CandidateGroup[]> {
     const conditions: SQL[] = [];
+    if (id) {
+        conditions.push(eq(companyGroups.id, id));
+    }
     if (searchTerm.length >= 2) {
         const pattern = `%${searchTerm.toLowerCase()}%`;
         // Users know operators by either the group name or a member LLC, so match both. The EXISTS
@@ -196,4 +200,46 @@ export async function getGroupDirectory(
     const groupsPage = rows.slice(offset, offset + limitNum);
 
     return { groups: groupsPage, total, page: pageNum, limit: limitNum };
+}
+
+/**
+ * One group's directory row under the same visibility rules as the directory (2+ members,
+ * county-scoped, non-zero count for the sort), or null when the group is stale for this view —
+ * disbanded, below two members, or without activity in the selected county. Backs ?group=
+ * deep-link validation.
+ */
+export async function getGroupDirectoryRowById(
+    id: string,
+    params: { county?: string | string[]; sort?: string },
+): Promise<GroupDirectoryRow | null> {
+    const sortOption = (GROUP_DIRECTORY_SORT_OPTIONS as readonly string[]).includes(
+        params.sort ?? '',
+    )
+        ? (params.sort as CountedSortOption)
+        : 'most-properties';
+
+    const [candidate] = await fetchCandidateGroups(params.county, '', id);
+    if (!candidate) return null;
+
+    const now = new Date();
+    const dates = { ytdStartStr: `${now.getFullYear()}-01-01`, todayStr: normalizeDateToYMD(now)! };
+    const countMap = await fetchGroupSortCounts(sortOption, [candidate.id], params.county, dates);
+    const count = countMap.get(candidate.id) ?? 0;
+    // Mirrors the directory's zero-count filter: no activity for this sort in this county = stale.
+    if (count <= 0) return null;
+
+    const countField = SORT_COUNT_FIELD[sortOption] as keyof GroupDirectoryRow;
+    return {
+        id: candidate.id,
+        name: candidate.name,
+        companyCount: candidate.companyCount,
+        propertyCount: 0,
+        propertiesSoldCount: 0,
+        propertiesSoldCountAllTime: 0,
+        propertiesBoughtCount: 0,
+        propertiesBoughtCountAllTime: 0,
+        wholesaleBuyCount: 0,
+        wholesalerCount: 0,
+        [countField]: count,
+    };
 }

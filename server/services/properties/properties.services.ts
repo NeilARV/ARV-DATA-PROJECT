@@ -8,9 +8,13 @@ import {
 } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { companyContacts } from '@database/schemas/companies.schema';
+import { companies } from '@database/schemas/companies.schema';
 import { trimCompanyName } from 'server/utils/normalization';
 import { calculateSpread, getAssignorFromTxs } from 'server/utils/orderTransactions';
-import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
+import {
+    companyInvolvementExists,
+    resolveInvolvementTarget,
+} from 'server/utils/companyTransactionFilters';
 import { countyScopeCondition } from 'server/utils/countyFilter';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
@@ -37,6 +41,7 @@ interface GetPropertiesFilters {
     company?: string;
     propertyOwner?: string;
     companyId?: string; // Company ID filter - matches via property_transactions
+    groupId?: string; // Operator-group filter — matches any member company (companyId wins when both present)
     hasDateSold?: string;
     dateRange?: string;
     page?: string;
@@ -58,11 +63,11 @@ interface GetPropertiesResult {
 /**
  * Returns the transaction to use for display (buyer name, seller name, price, date).
  *
- * Company selected → most recent Arms Length tx where company is buyer or seller; if the
- *   company is involved only as the assignor (not a buyer/seller on any sale), fall back
- *   to the most recent Arms Length tx — the assignor role is surfaced separately via
- *   assignorId/assignorCompanyName.
- * No company → most recent Arms Length tx.
+ * Company/group selected → most recent Arms Length tx where an involved id (the company, or any
+ *   group member) is buyer or seller; if the target is involved only as the assignor (not a
+ *   buyer/seller on any sale), fall back to the most recent Arms Length tx — the assignor role
+ *   is surfaced separately via assignorId/assignorCompanyName.
+ * No selection → most recent Arms Length tx.
  *
  * Txs must be ordered COALESCE(sort_order, 999999) ASC so the first match is most recent.
  */
@@ -72,17 +77,19 @@ function findDisplayTx<
         buyerId: string | null;
         sellerId: string | null;
     },
->(txs: T[], companyId: string | null): T | null {
+>(txs: T[], involvedIds: ReadonlySet<string> | null): T | null {
     const latestAL =
         txs.find((tx) => (tx.transactionType ?? '').trim().toLowerCase() === 'arms length') ?? null;
 
-    if (!companyId) return latestAL;
+    if (!involvedIds || involvedIds.size === 0) return latestAL;
 
     const companyTx =
         txs.find((tx) => {
             const type = (tx.transactionType ?? '').trim().toLowerCase();
             return (
-                type === 'arms length' && (tx.buyerId === companyId || tx.sellerId === companyId)
+                type === 'arms length' &&
+                ((tx.buyerId != null && involvedIds.has(tx.buyerId)) ||
+                    (tx.sellerId != null && involvedIds.has(tx.sellerId)))
             );
         }) ?? null;
 
@@ -110,6 +117,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         company,
         propertyOwner,
         companyId,
+        groupId,
         hasDateSold,
         dateRange,
         page,
@@ -172,19 +180,20 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         if (searchClause) conditions.push(searchClause);
     }
 
-    const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
-    const hasCompanyFilter = companyIdTrimmed !== '';
+    const involvementTarget = resolveInvolvementTarget(companyId, groupId);
+    const hasInvolvementFilter = involvementTarget !== null;
 
-    // Company ID filter: match properties where the company is the buyer/seller on an
-    // Arms Length sale, or (when no role is pinned) the assignor on any sale. Shared with
-    // the map and zip-count queries via companyInvolvementExists so they can't diverge.
-    if (hasCompanyFilter) {
-        conditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
+    // Company/group filter: match properties where the target (company, or any group member) is
+    // the buyer/seller on an Arms Length sale, or (when no role is pinned) the assignor on any
+    // sale. Shared with the map and zip-count queries via companyInvolvementExists so they can't
+    // diverge.
+    if (involvementTarget) {
+        conditions.push(companyInvolvementExists(involvementTarget, companyRole));
     }
 
     // Name-based company filter — the client's fallback when a company has no resolved id.
     // Applies independently of the status filter.
-    if (!hasCompanyFilter) {
+    if (!hasInvolvementFilter) {
         const ownerFilter = company || propertyOwner;
         if (ownerFilter) {
             const searchTerm = trimCompanyName(ownerFilter.toString())?.toLowerCase();
@@ -303,9 +312,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
 
     // Date range: filter by most recent Arms Length recording_date via alSummary join.
-    // Skipped when a company is selected — show all transactions regardless of date.
+    // Skipped when a company or group is selected — show all transactions regardless of date.
     const resolvedDateRange =
-        dateRange && !hasCompanyFilter ? (resolveDateRange(dateRange) ?? null) : null;
+        dateRange && !hasInvolvementFilter ? (resolveDateRange(dateRange) ?? null) : null;
     if (resolvedDateRange) {
         conditions.push(sql`${alSummary.maxRecordingDate} >= ${resolvedDateRange.dateMin}::date`);
         conditions.push(sql`${alSummary.maxRecordingDate} <= ${resolvedDateRange.dateMax}::date`);
@@ -489,13 +498,28 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         transactionsByPropertyId.set(pid, list);
     }
 
+    // The display-tx pick needs the target's concrete id-set in JS: the single company, or the
+    // group's member companies (one small lookup — the SQL filter already resolved membership).
+    let involvedIds: ReadonlySet<string> | null = null;
+    if (involvementTarget) {
+        if ('companyId' in involvementTarget) {
+            involvedIds = new Set([involvementTarget.companyId]);
+        } else {
+            const memberRows = await db
+                .select({ id: companies.id })
+                .from(companies)
+                .where(eq(companies.groupId, involvementTarget.groupId));
+            involvedIds = new Set(memberRows.map((r) => r.id));
+        }
+    }
+
     // Pre-pass: determine displayTx for each property and collect company IDs for contact lookup
     const displayTxByPropertyId = new Map<string, TxRow>();
     const displayTxCompanyIds = new Set<string>();
 
     for (const prop of rawPropertiesList) {
         const txs = transactionsByPropertyId.get(prop.id) ?? [];
-        const displayTx = findDisplayTx(txs, companyIdTrimmed || null);
+        const displayTx = findDisplayTx(txs, involvedIds);
         if (displayTx) {
             displayTxByPropertyId.set(prop.id, displayTx);
             if (displayTx.buyerId) displayTxCompanyIds.add(displayTx.buyerId);

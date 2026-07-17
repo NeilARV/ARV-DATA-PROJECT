@@ -3,7 +3,10 @@ import { properties, addresses, propertyTransactions } from '@database/schemas/p
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
-import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
+import {
+    companyInvolvementExists,
+    resolveInvolvementTarget,
+} from 'server/utils/companyTransactionFilters';
 import { countyScopeCondition } from 'server/utils/countyFilter';
 import type { ZipCount } from '@shared/types/properties';
 
@@ -23,6 +26,8 @@ interface GetZipCountsFilters {
     statusFilter?: string | string[];
     dateRange?: string;
     companyId?: string;
+    /** Operator-group filter — matches any member company (companyId wins when both present). */
+    groupId?: string;
     companyRole?: string;
 }
 
@@ -32,10 +37,10 @@ export async function getZipCounts({
     statusFilter,
     dateRange,
     companyId,
+    groupId,
     companyRole,
 }: GetZipCountsFilters): Promise<ZipCount[]> {
-    const companyIdTrimmed = companyId?.trim() ?? '';
-    const hasCompanyFilter = companyIdTrimmed !== '';
+    const involvementTarget = resolveInvolvementTarget(companyId, groupId);
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
 
     // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
@@ -74,8 +79,8 @@ export async function getZipCounts({
         );
     }
 
-    if (hasCompanyFilter) {
-        idConditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
+    if (involvementTarget) {
+        idConditions.push(companyInvolvementExists(involvementTarget, companyRole));
     }
 
     const idWhereClause = idConditions.length > 0 ? and(...idConditions) : undefined;

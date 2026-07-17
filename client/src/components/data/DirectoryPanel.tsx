@@ -37,13 +37,26 @@ export function DirectoryPanel() {
         loadCompanies,
         company,
         setCompany,
+        group,
+        setGroup,
         total: companiesTotal,
     } = useCompanies();
     const { loadGroups, total: groupsTotal } = useGroups();
     const { filters } = useFilters();
     const nav = useDataNav();
 
-    const [activeTab, setActiveTab] = useState<DirectoryTab>('companies');
+    // The initial tab derives from the URL: ?group= lands on Groups, ?company= (which wins when
+    // both are present — see useDataNav) or neither lands on Companies.
+    const [activeTab, setActiveTab] = useState<DirectoryTab>(() =>
+        nav.groupId ? 'groups' : 'companies',
+    );
+
+    // Follow later URL-driven selection changes (e.g. a company picked from a property modal while
+    // the Groups tab is active) so the visible tab always matches the selection's dimension.
+    useEffect(() => {
+        if (nav.groupId) setActiveTab('groups');
+        else if (nav.companyId) setActiveTab('companies');
+    }, [nav.groupId, nav.companyId]);
     const [searchInput, setSearchInput] = useState(directorySearch);
     const debouncedSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -101,12 +114,28 @@ export function DirectoryPanel() {
                     nav.setCompanyId(null);
                 }
             } else {
+                // Leaving Groups likewise clears the selected group (GroupsDirectory's effect
+                // reverts the filters).
+                if (group) {
+                    setGroup(null);
+                    nav.setGroupId(null);
+                }
                 // Returning to Companies: reflect the current shared sort/search (they may have
                 // changed while the Groups tab was active).
                 loadCompanies({ sort: directorySort, search: directorySearch });
             }
         },
-        [activeTab, company, setCompany, nav, loadCompanies, directorySort, directorySearch],
+        [
+            activeTab,
+            company,
+            setCompany,
+            group,
+            setGroup,
+            nav,
+            loadCompanies,
+            directorySort,
+            directorySearch,
+        ],
     );
 
     // Load the Groups tab lazily on first switch, and reload it on any sort/search/county change

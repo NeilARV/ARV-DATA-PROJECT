@@ -1,7 +1,9 @@
 import { createContext, ReactNode, useContext, useState, useCallback, useRef } from 'react';
 import type { CompanyContactWithCounts } from '@/types/companies';
 import type { DirectorySortOption } from '@/types/options';
+import type { GroupDirectoryRow } from '@shared/types/groups';
 import { fetchCompanyContactsPage, fetchCompanyById } from '@/api/companies.api';
+import { fetchGroupDirectoryRow } from '@/api/groups.api';
 import { useFilters } from './useFilters';
 import { useView } from './useView';
 import { ALL_STATUS_FILTERS } from '@/constants/propertyStatus.constants';
@@ -11,6 +13,14 @@ const DEFAULT_PAGE_SIZE = 50;
 export type CompaniesContextValue = {
     company: CompanyContactWithCounts | null;
     setCompany: (company: CompanyContactWithCounts | null) => void;
+    /** The selected operator group; mutually exclusive with `company` (setting either clears the other). */
+    group: GroupDirectoryRow | null;
+    setGroup: (group: GroupDirectoryRow | null) => void;
+    /**
+     * Resolves a ?group= deep link: validates the id against the county-scoped directory, expands
+     * filters, and selects the group. @returns false when the link is stale (caller clears the URL).
+     */
+    ensureGroup: (groupId: string) => Promise<boolean>;
     companies: CompanyContactWithCounts[];
     total: number;
     hasMore: boolean;
@@ -50,9 +60,22 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     const { filters, setFilters } = useFilters();
     const { setSidebarView } = useView();
     const [company, setCompanyState] = useState<CompanyContactWithCounts | null>(null);
+    const [group, setGroupState] = useState<GroupDirectoryRow | null>(null);
     const setCompany = useCallback((value: CompanyContactWithCounts | null) => {
         setCompanyState(value);
         if (value == null) {
+            setEnsuredCompany(null);
+            companyFiltersExpandedRef.current = null;
+        } else {
+            // Selections are mutually exclusive — picking a company clears the group.
+            setGroupState(null);
+        }
+    }, []);
+    const setGroup = useCallback((value: GroupDirectoryRow | null) => {
+        setGroupState(value);
+        // Selections are mutually exclusive — picking a group clears the company.
+        if (value != null) {
+            setCompanyState(null);
             setEnsuredCompany(null);
             companyFiltersExpandedRef.current = null;
         }
@@ -245,6 +268,27 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         [companies, setCompany, setSidebarView, filters, setFilters],
     );
 
+    const ensureGroup = useCallback(
+        async (groupId: string): Promise<boolean> => {
+            const row = await fetchGroupDirectoryRow(groupId, {
+                counties: filters.counties,
+                sort: directorySort,
+            });
+            // Stale link (disbanded / under two members / no county activity): leave unselected.
+            if (!row) return false;
+            // Mirror the company deep link: expand to all statuses and full history on selection.
+            setFilters({
+                ...filters,
+                statusFilters: ALL_STATUS_FILTERS,
+                dateRange: 'all-time',
+                companyRole: undefined,
+            });
+            setGroup(row);
+            return true;
+        },
+        [filters, setFilters, directorySort, setGroup],
+    );
+
     const updateCompanyInList = useCallback(
         (id: string, patch: Partial<CompanyContactWithCounts>) => {
             setCompaniesState((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -259,6 +303,9 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     const value: CompaniesContextValue = {
         company,
         setCompany,
+        group,
+        setGroup,
+        ensureGroup,
         companies,
         total,
         hasMore,

@@ -4,7 +4,12 @@ import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, inArray, type SQL } from 'drizzle-orm';
 import type { PgSelect } from 'drizzle-orm/pg-core';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
-import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
+import {
+    companyInvolvementExists,
+    involvedPartyMatches,
+    resolveInvolvementTarget,
+    type InvolvementTarget,
+} from 'server/utils/companyTransactionFilters';
 import { countyScopeCondition } from 'server/utils/countyFilter';
 import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 
@@ -59,6 +64,8 @@ interface MapFilters {
     statusFilter?: string | string[];
     dateRange?: string;
     companyId?: string;
+    /** Operator-group filter — matches any member company (companyId wins when both present). */
+    groupId?: string;
     companyRole?: string;
     /** Exact zip-code match (addresses.zip_code). */
     zipcode?: string;
@@ -106,8 +113,7 @@ function buildMapIdConditions(
     bounds?: MapBounds,
 ): {
     conditions: SQL[];
-    hasCompanyFilter: boolean;
-    companyIdTrimmed: string;
+    involvementTarget: InvolvementTarget | null;
     joins: MapJoinRequirements;
 } {
     const {
@@ -116,6 +122,7 @@ function buildMapIdConditions(
         statusFilter,
         dateRange,
         companyId,
+        groupId,
         companyRole,
         zipcode,
         city,
@@ -125,8 +132,7 @@ function buildMapIdConditions(
         bathrooms,
         propertyTypes,
     } = filters;
-    const companyIdTrimmed = companyId?.trim() ?? '';
-    const hasCompanyFilter = companyIdTrimmed !== '';
+    const involvementTarget = resolveInvolvementTarget(companyId, groupId);
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
 
     const conditions: SQL[] = [];
@@ -179,8 +185,8 @@ function buildMapIdConditions(
         );
     }
 
-    if (hasCompanyFilter) {
-        conditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
+    if (involvementTarget) {
+        conditions.push(companyInvolvementExists(involvementTarget, companyRole));
     }
 
     // Price / beds / baths / type mirror the client's matchesFiltersForPin so the extent count,
@@ -225,8 +231,7 @@ function buildMapIdConditions(
 
     return {
         conditions,
-        hasCompanyFilter,
-        companyIdTrimmed,
+        involvementTarget,
         joins: { needsStructures, needsLastSales },
     };
 }
@@ -288,10 +293,7 @@ function pushCoordsPresent(conditions: SQL[]): void {
  */
 export async function getMapProperties(params: MapPropertiesParams): Promise<MapPropertyData[]> {
     const { bounds, ...filters } = params;
-    const { conditions, hasCompanyFilter, companyIdTrimmed, joins } = buildMapIdConditions(
-        filters,
-        bounds,
-    );
+    const { conditions, involvementTarget, joins } = buildMapIdConditions(filters, bounds);
 
     const idWhereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -329,11 +331,11 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
         .groupBy(propertyStatuses.propertyId)
         .as('status_data');
 
-    // One correlated subquery per pin (only when a company is selected): a single JSON object with
-    // the company's buyer/seller role + name on its most relevant Arms Length tx. Assignor-only
-    // pins (company on no Arms Length sale) resolve to null here — they still render via the
-    // companyInvolvementExists filter; the assignor role isn't surfaced on the pin badge.
-    const txInfoSql = hasCompanyFilter
+    // One correlated subquery per pin (only when a company/group is selected): a single JSON
+    // object with the target's buyer/seller role + name on its most relevant Arms Length tx.
+    // Assignor-only pins (target on no Arms Length sale) resolve to null here — they still render
+    // via the companyInvolvementExists filter; the assignor role isn't surfaced on the pin badge.
+    const txInfoSql = involvementTarget
         ? sql<TxInfo | null>`(
             SELECT json_build_object(
                 'buyerId', pt.buyer_id::text,
@@ -343,7 +345,7 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
             FROM property_transactions pt
             WHERE pt.property_id = ${properties.id}
             AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-            AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+            AND (${involvedPartyMatches('buyer_id', involvementTarget)} OR ${involvedPartyMatches('seller_id', involvementTarget)})
             ORDER BY COALESCE(pt.sort_order, 999999) ASC
             LIMIT 1
           )`

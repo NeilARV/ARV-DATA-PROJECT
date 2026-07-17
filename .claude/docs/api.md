@@ -656,6 +656,7 @@ List properties with filtering, pagination, and sorting. Accepts many query para
 | `minPrice` / `maxPrice` | number | Price range |
 | `company` | string | Filter by company name (fallback when no `companyId` is resolved) |
 | `companyId` / `companyRole` | string | Filter by company id, optionally pinned to `buyer`/`seller` |
+| `groupId` | string | Filter by operator group — matches every member company's transactions via the shared involvement predicate; `companyRole` applies; `companyId` wins when both are present. Suppresses `dateRange` like a company selection |
 | `page` | number | Page number (default `1`; malformed values fall back to the default) |
 | `limit` | number | Results per page (default `10`, max `100`; malformed values fall back to the default) |
 | `skipCount` | string | `"true"` on page > 1 skips the COUNT query; the client reuses page 1's total |
@@ -694,7 +695,7 @@ Lightweight list of property coordinates and basic metadata for map rendering. R
 
 **Auth**: Public
 
-**Query params**: `county`, `status` (repeatable), `dateRange`, `companyId`, `companyRole`, `zipcode`, `city` (filters) · `south`, `west`, `north`, `east` (optional viewport box — all four required together; `400` if partially specified or non-numeric). Omit the box to fetch the full filtered set.
+**Query params**: `county`, `status` (repeatable), `dateRange`, `companyId`, `groupId` (operator group — all member companies; `companyId` wins when both are present), `companyRole`, `zipcode`, `city` (filters) · `south`, `west`, `north`, `east` (optional viewport box — all four required together; `400` if partially specified or non-numeric). Omit the box to fetch the full filtered set.
 
 **Response `200`** Array of `{ id, latitude, longitude, city, zipcode, county, status, statuses, price, buyerId, sellerId, propertyOwner, ... }`
 
@@ -705,7 +706,7 @@ Bounding box + count of the qualifying set for the current filters/company, used
 
 **Auth**: Public
 
-**Query params**: `county`, `status` (repeatable), `dateRange`, `companyId`, `companyRole`, `zipcode`, `city`
+**Query params**: `county`, `status` (repeatable), `dateRange`, `companyId`, `groupId`, `companyRole`, `zipcode`, `city`
 
 **Response `200`** `{ minLat, maxLat, minLng, maxLng, count }`, or `null` when no properties with coordinates match.
 
@@ -726,6 +727,8 @@ Property counts grouped by county for the national overview layer (the zoomed-ou
 Property counts grouped by zip code. Used to populate filter dropdowns.
 
 **Auth**: Public
+
+**Query params**: `county`, `msa`, `status` (repeatable), `dateRange`, `companyId`, `groupId`, `companyRole` — the company/group involvement semantics match `GET /api/properties`.
 
 **Response `200`** `[{ zipCode: "92101", count: 14 }]`
 
@@ -890,6 +893,18 @@ Group names are RAW (format with `formatCompanyName` at the render edge).
 
 **Response `200`** `{ groups: GroupDirectoryRow[], total: number, page: number, limit: number }` where
 each row is `{ id, name, companyCount, propertyCount, propertiesSoldCount, propertiesSoldCountAllTime, propertiesBoughtCount, propertiesBoughtCountAllTime, wholesaleBuyCount, wholesalerCount }` with exactly one count populated for the active sort.
+
+---
+
+### `GET /api/companies/groups/:id`
+One group's directory row under the same visibility rules as the directory (2+ members, county
+scoping, non-zero count for the sort). Backs `?group=` deep-link validation in the Data app.
+
+**Auth**: Public
+
+**Query params**: `county` (repeatable), `sort` (same set as the directory; invalid → `most-properties`)
+
+**Response `200`** `{ group: GroupDirectoryRow }` · **`404`** when the group is stale for this view — disbanded, under two members, no activity in the selected counties, or a malformed/unknown id.
 
 ---
 

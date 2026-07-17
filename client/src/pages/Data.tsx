@@ -30,8 +30,14 @@ import { DataProviders } from '@/components/DataProviders';
 function DataContent() {
     const { filters, setFilters } = useFilters();
     const { view, sidebarView } = useView();
-    const { loadCompanies, companySelectionInProgressRef, company, handleCompanyClick } =
-        useCompanies();
+    const {
+        loadCompanies,
+        companySelectionInProgressRef,
+        company,
+        handleCompanyClick,
+        group,
+        ensureGroup,
+    } = useCompanies();
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [showProperty, setShowProperty] = useState(false);
@@ -67,9 +73,16 @@ function DataContent() {
             fetchProperty(nav.propertyId);
         }
 
-        // Load company from URL param
+        // Load company from URL param (wins over the group param — see useDataNav)
         if (nav.companyId) {
             handleCompanyClick('', nav.companyId);
+        } else if (nav.groupId) {
+            // A stale group link (disbanded / under two members / no county activity) deselects
+            // gracefully: clear the param and land on the Groups tab unselected.
+            const staleGroupId = nav.groupId;
+            void ensureGroup(staleGroupId).then((found) => {
+                if (!found) nav.setGroupId(null);
+            });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -90,6 +103,13 @@ function DataContent() {
     useEffect(() => {
         nav.setCompanyId(company?.id ?? null);
     }, [company?.id]);
+
+    // Mirror group selection → URL param. Only selection syncs here: every deselect path writes
+    // the URL itself, and the mount-time ensureGroup fetch must not be raced by a clearing write
+    // while `group` is still null.
+    useEffect(() => {
+        if (group) nav.setGroupId(group.id);
+    }, [group?.id]);
 
     // Open the property modal whenever a property is selected in table/grid views
     useEffect(() => {

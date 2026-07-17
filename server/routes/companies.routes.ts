@@ -21,6 +21,9 @@ router.get('/leaderboard', CompaniesController.getLeaderboardHandler);
 // wins; the admin group-mutation router (/api/groups) is separate and untouched.
 router.get('/groups', CompaniesController.getGroupDirectoryHandler);
 
+// One group's directory row (deep-link validation for ?group= URLs); 404 when stale/invisible.
+router.get('/groups/:id', CompaniesController.getGroupDirectoryRowHandler);
+
 // Get company by id
 router.get('/:id', CompaniesController.getCompanyByIdHandler);
 
@@ -28,11 +31,7 @@ router.get('/:id', CompaniesController.getCompanyByIdHandler);
 router.patch('/:id', requireRole(ADMIN_ROLES), CompaniesController.updateCompanyHandler);
 
 // Company contacts
-router.post(
-    '/:id/contacts',
-    requireRole(ADMIN_ROLES),
-    CompaniesController.addContactHandler,
-);
+router.post('/:id/contacts', requireRole(ADMIN_ROLES), CompaniesController.addContactHandler);
 router.patch(
     '/:id/contacts/:contactId',
     requireRole(ADMIN_ROLES),
@@ -45,10 +44,6 @@ router.delete(
 );
 
 // Enrich company data from OpenCorporates
-router.post(
-    '/:id/enrich',
-    requireRole(ADMIN_ROLES),
-    CompaniesController.enrichCompanyHandler,
-);
+router.post('/:id/enrich', requireRole(ADMIN_ROLES), CompaniesController.enrichCompanyHandler);
 
 export default router;

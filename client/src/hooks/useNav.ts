@@ -54,6 +54,9 @@ export function useDataNav() {
     const parsedSelection = parseMsaCountyParams(params);
     const propertyId = params.get('property');
     const companyId = params.get('company');
+    // Company and group selections are mutually exclusive; on a hand-crafted URL carrying both
+    // params, the company wins and the group param is ignored.
+    const groupId = companyId ? null : params.get('group');
 
     useFirstLoadDefault(parsedSelection !== null, !!user, () => {
         const p = new URLSearchParams(search);
@@ -69,6 +72,7 @@ export function useDataNav() {
             writeMsaCountyParams(p, selection);
             p.delete('property');
             p.delete('company');
+            p.delete('group');
             setLocation(buildDataUrl(p));
         },
         [search, setLocation],
@@ -91,8 +95,30 @@ export function useDataNav() {
             const p = new URLSearchParams(search);
             const current = p.get('company') ?? null;
             if (current === id) return;
-            if (id) p.set('company', id);
-            else p.delete('company');
+            if (id) {
+                p.set('company', id);
+                // Mutually exclusive with the group selection — setting one clears the other.
+                p.delete('group');
+            } else {
+                p.delete('company');
+            }
+            setLocation(buildDataUrl(p), { replace: true });
+        },
+        [search, setLocation],
+    );
+
+    const setGroupId = useCallback(
+        (id: string | null) => {
+            const p = new URLSearchParams(search);
+            const current = p.get('group') ?? null;
+            if (current === id) return;
+            if (id) {
+                p.set('group', id);
+                // Mutually exclusive with the company selection — setting one clears the other.
+                p.delete('company');
+            } else {
+                p.delete('group');
+            }
             setLocation(buildDataUrl(p), { replace: true });
         },
         [search, setLocation],
@@ -102,9 +128,11 @@ export function useDataNav() {
         selection: parsedSelection ?? DEFAULT_MSA_COUNTY_SELECTION,
         propertyId,
         companyId,
+        groupId,
         setSelection,
         setPropertyId,
         setCompanyId,
+        setGroupId,
     };
 }
 

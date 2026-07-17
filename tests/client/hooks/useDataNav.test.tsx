@@ -133,4 +133,88 @@ describe('useDataNav', () => {
 
         expect(history).toHaveLength(before);
     });
+
+    // ── Group selection param (?group=) ──────────────────────────────────────
+
+    it('parses ?group= from the URL into groupId', () => {
+        const { result } = renderDataNav(
+            `/data?msa=${encodeURIComponent(DENVER_MSA)}&counties=Denver&group=g1`,
+        );
+        expect(result.current.groupId).toBe('g1');
+        expect(result.current.companyId).toBeNull();
+    });
+
+    it('company wins when both company and group params are present', () => {
+        const { result } = renderDataNav(
+            `/data?msa=${encodeURIComponent(DENVER_MSA)}&counties=Denver&company=c1&group=g1`,
+        );
+        expect(result.current.companyId).toBe('c1');
+        expect(result.current.groupId).toBeNull();
+    });
+
+    it('setGroupId writes the group param and clears the company param', async () => {
+        const { result, history } = renderDataNav(
+            `/data?msa=${encodeURIComponent(DENVER_MSA)}&counties=Denver&company=c1`,
+        );
+
+        act(() => {
+            result.current.setGroupId('g1');
+        });
+
+        await waitFor(() => {
+            expect(result.current.groupId).toBe('g1');
+        });
+        const latest = new URLSearchParams(history[history.length - 1].split('?')[1]);
+        expect(latest.get('group')).toBe('g1');
+        expect(latest.get('company')).toBeNull();
+    });
+
+    it('setCompanyId writes the company param and clears the group param', async () => {
+        const { result, history } = renderDataNav(
+            `/data?msa=${encodeURIComponent(DENVER_MSA)}&counties=Denver&group=g1`,
+        );
+
+        act(() => {
+            result.current.setCompanyId('c1');
+        });
+
+        await waitFor(() => {
+            expect(result.current.companyId).toBe('c1');
+        });
+        const latest = new URLSearchParams(history[history.length - 1].split('?')[1]);
+        expect(latest.get('company')).toBe('c1');
+        expect(latest.get('group')).toBeNull();
+    });
+
+    it('setGroupId(null) removes the group param', async () => {
+        const { result, history } = renderDataNav(
+            `/data?msa=${encodeURIComponent(DENVER_MSA)}&counties=Denver&group=g1`,
+        );
+
+        act(() => {
+            result.current.setGroupId(null);
+        });
+
+        await waitFor(() => {
+            expect(result.current.groupId).toBeNull();
+        });
+        const latest = new URLSearchParams(history[history.length - 1].split('?')[1]);
+        expect(latest.get('group')).toBeNull();
+    });
+
+    it('setSelection clears the group param along with property/company', async () => {
+        const { result, history } = renderDataNav(
+            `/data?msa=${encodeURIComponent(DENVER_MSA)}&counties=Denver&group=g1`,
+        );
+
+        act(() => {
+            result.current.setSelection({ msa: LA_MSA, counties: getCountiesForMsa(LA_MSA) });
+        });
+
+        await waitFor(() => {
+            expect(result.current.selection.msa).toBe(LA_MSA);
+        });
+        const latest = new URLSearchParams(history[history.length - 1].split('?')[1]);
+        expect(latest.get('group')).toBeNull();
+    });
 });

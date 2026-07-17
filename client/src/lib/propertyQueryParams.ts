@@ -3,6 +3,7 @@ import type { PropertyFilters } from '@/types/filters';
 import type { SortOption } from '@/types/options';
 import { getEffectiveStatusFilters } from '@/lib/propertyFilters';
 import type { CompanyContactWithCounts } from '@/types/companies';
+import type { GroupDirectoryRow } from '@shared/types/groups';
 import type { MapBoundsParams } from '@/types/property';
 
 export type BuildPropertyQueryParamsOptions = {
@@ -26,6 +27,8 @@ export type BuildPropertyQueryParamsOptions = {
 
 export type BuildPropertyQueryParamsContext = {
     company: CompanyContactWithCounts | null;
+    /** Selected operator group — mutually exclusive with `company` (company wins if both are set). */
+    group?: GroupDirectoryRow | null;
     sortBy: SortOption;
 };
 
@@ -64,12 +67,13 @@ function appendAttributes(params: URLSearchParams, filters: PropertyFilters): vo
     }
 }
 
-/** Appends the selected company (id + role, or fallback name) shared by map-pin and full-list queries. */
-function appendCompany(
+/** Appends the selected company (id + role, or fallback name) or group, shared by map-pin and full-list queries. */
+function appendSelection(
     params: URLSearchParams,
-    company: CompanyContactWithCounts | null,
+    context: BuildPropertyQueryParamsContext,
     filters: PropertyFilters,
 ): void {
+    const { company, group } = context;
     if (company?.id) {
         params.append('companyId', company.id);
         if (filters.companyRole) {
@@ -77,6 +81,11 @@ function appendCompany(
         }
     } else if (company?.companyName) {
         params.append('company', company.companyName);
+    } else if (group) {
+        params.append('groupId', group.id);
+        if (filters.companyRole) {
+            params.append('companyRole', filters.companyRole);
+        }
     }
 }
 
@@ -130,7 +139,7 @@ export function buildPropertyQueryParams(
     // Map pins: county + status + location + company + attributes + viewport box.
     if (forMapPins) {
         appendLocation(params, filters);
-        appendCompany(params, company, filters);
+        appendSelection(params, context, filters);
         if (filters.dateRange) {
             params.append('dateRange', filters.dateRange);
         }
@@ -148,7 +157,7 @@ export function buildPropertyQueryParams(
     // Full filters for properties list / buyers feed
     appendLocation(params, filters);
     appendAttributes(params, filters);
-    appendCompany(params, company, filters);
+    appendSelection(params, context, filters);
 
     if (hasDateSold) {
         params.append('hasDateSold', 'true');

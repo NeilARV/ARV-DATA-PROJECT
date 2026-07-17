@@ -1,5 +1,6 @@
 {
     "permissions": {
+        "defaultMode": "acceptEdits",
         "allow": [
             "Read(**)",
             "Edit(**)",
@@ -13,7 +14,22 @@
             "Bash(mv *)", 
             "Bash(cp *)", 
             "Bash(touch *)",
-            "Bash(bash .claude/skills/**)"
+            "Bash(bash .claude/skills/**)",
+            "PowerShell(npm *)",
+            "PowerShell(npx *)",
+            "PowerShell(node *)",
+            "PowerShell(git *)",
+            "PowerShell(gh *)",
+            "PowerShell(New-Item *)",
+            "PowerShell(Move-Item *)",
+            "PowerShell(Copy-Item *)",
+            "PowerShell(Remove-Item *)",
+            "PowerShell(Get-ChildItem *)",
+            "PowerShell(Get-Content *)",
+            "PowerShell(Test-Path *)",
+            "PowerShell(Select-String *)",
+            "PowerShell(Set-Location *)",
+            "PowerShell(Measure-Object *)"
         ],
         "deny": [
             "Read(**/.env*)",

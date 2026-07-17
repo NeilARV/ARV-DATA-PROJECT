@@ -1,11 +1,4 @@
-import {
-    createContext,
-    useContext,
-    useMemo,
-    useRef,
-    type ReactNode,
-    type RefObject,
-} from 'react';
+import { createContext, useContext, useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { buildPropertyQueryParams } from '@/lib/propertyQueryParams';
 import { apiRequest } from '@/lib/queryClient';
@@ -51,7 +44,7 @@ function isPropertiesListView(view: string): boolean {
  * and for users without app access (the server enforces the same gate).
  */
 export function PropertiesProvider({ children }: PropertiesProviderProps): JSX.Element {
-    const { company } = useCompanies();
+    const { company, group } = useCompanies();
     const { view } = useView();
     const { filters, sortBy } = useFilters();
     // Feeds/table are app-access gated (server enforces too); don't fire the list query for
@@ -65,15 +58,19 @@ export function PropertiesProvider({ children }: PropertiesProviderProps): JSX.E
     // Key on company?.id (not the company object) so enriching a stub company (same id, new object
     // reference) after fetchCompanyById does not restart the query and blank the grid.
     const companyId = company?.id ?? null;
+    const groupId = group?.id ?? null;
 
     const { data, isLoading, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage } =
         useInfiniteQuery({
-            queryKey: ['/api/properties', { filters, sortBy, companyId, view, hasDateSold, limit }],
+            queryKey: [
+                '/api/properties',
+                { filters, sortBy, companyId, groupId, view, hasDateSold, limit },
+            ],
             queryFn: async ({ pageParam }): Promise<PropertiesResponse> => {
                 const base = buildPropertyQueryParams(
                     filters,
                     { page: pageParam, limit, hasDateSold },
-                    { company, sortBy },
+                    { company, group, sortBy },
                 );
                 // Skip the COUNT query after page 1 — page 1's total covers the whole result set.
                 const url =
