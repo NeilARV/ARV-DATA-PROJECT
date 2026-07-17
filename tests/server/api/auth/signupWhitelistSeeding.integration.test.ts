@@ -67,23 +67,29 @@ async function subscriptionRowsFor(userId: string) {
         .where(eq(userCountySubscriptions.userId, userId));
 }
 
-async function deleteSignupUsers() {
+/** Deletes the signup-created users and whitelist entries owned by this file. */
+async function cleanupSignupState() {
     const rows = await db
         .select({ id: users.id })
         .from(users)
         .where(inArray(users.email, [UNION_EMAIL, OVERLAP_EMAIL]));
     for (const row of rows) await deleteTestUser(row.id);
+    await db
+        .delete(emailSubscriptionList)
+        .where(inArray(emailSubscriptionList.email, [UNION_EMAIL, OVERLAP_EMAIL]));
 }
 
-const signupBody = (email: string, county: string, state: string) => ({
-    firstName: 'Integration',
-    lastName: 'Signup',
-    phone: '(555) 000-0000',
-    email,
-    password: 'correct-horse-battery-staple',
-    county,
-    state,
-});
+function signupBody(email: string, county: string, state: string) {
+    return {
+        firstName: 'Integration',
+        lastName: 'Signup',
+        phone: '(555) 000-0000',
+        email,
+        password: 'correct-horse-battery-staple',
+        county,
+        state,
+    };
+}
 
 let app: Express;
 let sdMsaId: number;
@@ -108,22 +114,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await deleteSignupUsers();
-    await db
-        .delete(emailSubscriptionList)
-        .where(inArray(emailSubscriptionList.email, [UNION_EMAIL, OVERLAP_EMAIL]));
+    await cleanupSignupState();
     await deleteTestUser(RM_USER);
 });
 
 beforeEach(async () => {
-    await deleteSignupUsers();
-    await db
-        .delete(emailSubscriptionList)
-        .where(inArray(emailSubscriptionList.email, [UNION_EMAIL, OVERLAP_EMAIL]));
+    await cleanupSignupState();
 });
 
 describe('POST /api/auth/signup — whitelist county transfer (integration)', () => {
-    it('seeds the union of the entry counties and the home county, grants the tier, links the RM, deletes the entry', async () => {
+    it('whitelisted signup — seeds the union of the entry counties and the home county, grants the tier, links the RM, deletes the entry', async () => {
         const entryId = await seedEntry(UNION_EMAIL, [
             { county: 'San Diego', state: 'CA', msaId: sdMsaId },
             { county: 'Adams', state: 'CO', msaId: denverMsaId },
@@ -168,7 +168,7 @@ describe('POST /api/auth/signup — whitelist county transfer (integration)', ()
         expect(entries).toHaveLength(0);
     });
 
-    it('produces no duplicate rows when the home county is already among the entry counties', async () => {
+    it('home county already among the entry counties — produces no duplicate rows', async () => {
         await seedEntry(OVERLAP_EMAIL, [
             { county: 'San Diego', state: 'CA', msaId: sdMsaId },
             { county: 'Denver', state: 'CO', msaId: denverMsaId },

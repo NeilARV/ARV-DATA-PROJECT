@@ -72,7 +72,6 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         }
 
         if (subscriptionListEntry) {
-            // Copy the entry's counties before the delete — they cascade with the entry (#135).
             await seedWhitelistCountySubscriptions(newUser.id, subscriptionListEntry.id);
             await UserServices.removeEmailFromSubscriptionList(subscriptionListEntry.id);
             console.log('[signup] removed from subscription list:', subscriptionListEntry.id);
@@ -83,8 +82,8 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             dealTypeFilter: ['wholesale', 'agent', 'sold', 'reo'],
         });
 
-        // Seed the home county — never the whole (multi-county) MSA (issue #114). With a whitelist
-        // entry this unions with the counties copied above; the PK dedupes an overlap (#135).
+        // Seed the home county only — never the whole (multi-county) MSA (#114); for a whitelisted
+        // signup it unions with the entry counties copied above (#135).
         if (normalizedCounty) {
             await seedHomeCountySubscription(newUser.id, normalizedCounty);
         }

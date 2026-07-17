@@ -78,9 +78,8 @@ export async function replaceUserCountySubscriptions(
 }
 
 /**
- * Copies a whitelist entry's county rows into the user's subscriptions (issue #135) so the admin's
- * curation survives signup; rows already present (e.g. the home county) dedupe via the PK. Must run
- * before the entry is deleted — its county rows cascade with it.
+ * Copies a whitelist entry's county rows into the user's subscriptions (issue #135); rows already
+ * present dedupe via the PK. Must run before the entry is deleted — its county rows cascade with it.
  * Side effect: writes `user_county_subscriptions`.
  */
 export async function seedWhitelistCountySubscriptions(
