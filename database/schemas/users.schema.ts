@@ -19,11 +19,10 @@ export const sessions = pgTable('sessions', {
     expire: integer('expire').notNull(),
 });
 
-// Email Subscription List (msa references msas.id)
+// Email Subscription List (counties live in email_subscription_list_counties, msas.schema.ts)
 export const emailSubscriptionList = pgTable('email_subscription_list', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     email: text('email').unique().notNull(),
-    msa: integer('msa'),
     relationshipManagerId: uuid('relationship_manager_id').references(() => users.id, {
         onDelete: 'set null',
     }),

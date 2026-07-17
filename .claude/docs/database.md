@@ -170,7 +170,6 @@ Many-to-many: users ↔ relationship managers.
 |--------|------|-------------|
 | `id` | `bigserial` | PK |
 | `email` | `text` | NOT NULL, UNIQUE |
-| `msa` | `integer` | nullable (references `msas.id` logically) |
 | `relationship_manager_id` | `uuid` | FK → `users.id` (set null) |
 | `created_at` | `timestamp with time zone` | NOT NULL, default now |
 | `updated_at` | `timestamp with time zone` | NOT NULL, default now |
@@ -208,7 +207,7 @@ County-grained subscriptions (issue #113) — the subscription unit since `user_
 ---
 
 ### `email_subscription_list_counties`
-County-grained whitelist subscriptions (issue #131) — structural mirror of `user_county_subscriptions` keyed by whitelist entry instead of user. Expand half of an expand–contract: the parent's `msa` column stays live until every consumer migrates. `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`).
+County-grained whitelist subscriptions (issue #131) — structural mirror of `user_county_subscriptions` keyed by whitelist entry instead of user; the subscription unit since the parent's `msa` column was dropped (#136). `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`).
 
 | Column | Type | Constraints |
 |--------|------|-------------|

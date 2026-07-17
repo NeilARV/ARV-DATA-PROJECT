@@ -8,7 +8,6 @@ export const insertEmailSubscriptionListSchema = createInsertSchema(emailSubscri
         id: true,
         createdAt: true,
         updatedAt: true,
-        msa: true,
     })
     .extend({
         email: z.string().email('Invalid email address'),
