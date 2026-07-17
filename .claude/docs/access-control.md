@@ -192,6 +192,7 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | GET | `/api/companies/contacts/suggestions` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/companies/wholesale-leaderboard` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/companies/leaderboard` | (public) | ✓ | ✓ | ✓ | ✓ |
+| GET | `/api/companies/groups` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/companies/:id` | (public) | ✓ | ✓ | ✓ | ✓ |
 | PATCH | `/api/companies/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/companies/:id/contacts` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
