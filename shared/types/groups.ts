@@ -68,6 +68,15 @@ export type GroupDirectoryResponse = {
     limit: number;
 };
 
+// One member company of an operator group with its count for the active directory sort — a row in
+// the See Companies roster. Name is RAW (format with formatCompanyName at the render edge —
+// ARV.RAW-COMPANY-NAME).
+export type GroupMemberCount = {
+    companyId: string;
+    companyName: string;
+    count: number;
+};
+
 // Aggregate profile for one operator group (the expanded group card): the company-profile stats
 // summed across member companies. No contact rows or purchase-to-ARV — those are company-level
 // concepts. Name is RAW (format with formatCompanyName at the render edge — ARV.RAW-COMPANY-NAME).
@@ -80,6 +89,9 @@ export type GroupProfile = {
     propertiesAssignedCount: number;
     acquisition90DayTotal: number;
     acquisition90DayByMonth: { key: string; count: number }[];
+    // The See Companies roster: member companies with per-member counts for the requested sort,
+    // most-active first. Present only when the profile is requested with a `sort` param.
+    roster?: GroupMemberCount[];
 };
 
 // A company a user is associated with through one of their groups — the "My Companies" surface.

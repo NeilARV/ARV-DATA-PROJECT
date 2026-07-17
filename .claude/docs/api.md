@@ -911,21 +911,27 @@ scoping, non-zero count for the sort). Backs `?group=` deep-link validation in t
 ### `GET /api/companies/groups/:id/profile`
 Aggregate profile for one operator group (the expanded group card in the Data-app Groups tab):
 the company-profile stats summed across the group's member companies. Same visibility rules as
-the directory row (2+ members, county-scoped member visibility) but no sort param — the profile
-is sort-independent, so there is no zero-count gate. Group name is RAW (format with
+the directory row (2+ members, county-scoped member visibility). The stats are sort-independent, so
+there is no zero-count gate; passing `sort` additionally attaches the on-demand See Companies
+`roster` (member companies with per-member counts for that sort). Group name is RAW (format with
 `formatCompanyName` at the render edge). Contact rows and Purchase-to-ARV are company-level
 concepts and are deliberately absent.
 
 **Auth**: Public
 
-**Query params**: `county` (repeatable; scopes the stats and member visibility)
+**Query params**: `county` (repeatable; scopes the stats and member visibility) · `sort` (optional;
+same set as the directory, invalid/`new-buyers` → `most-properties`) — when present, adds the
+`roster` (per-member counts for that sort, county-scoped)
 
 **Response `200`** `{ profile: GroupProfile }` where profile is
-`{ id, name, companyCount, propertyCount, propertiesSoldCount, propertiesAssignedCount, acquisition90DayTotal, acquisition90DayByMonth: [{ key, count }] }` —
+`{ id, name, companyCount, propertyCount, propertiesSoldCount, propertiesAssignedCount, acquisition90DayTotal, acquisition90DayByMonth: [{ key, count }], roster?: [{ companyId, companyName, count }] }` —
 `propertyCount` de-duplicates a property owned via two members; `propertiesSoldCount` is YTD
 Arms-Length sales (intra-group transfers included, matching the directory);
 `propertiesAssignedCount` de-duplicates on distinct property; the chart mirrors the company
-profile's full-month buckets with the strict 90-day total alongside.
+profile's full-month buckets with the strict 90-day total alongside. `roster` is present only when
+`sort` is passed: every member company (RAW name) with its county-scoped count for that sort,
+most-active first — zero-count members are listed last so the operator's legal entities stay
+complete.
 **`404`** when the group is disbanded, under two members, has no member in the selected counties, or the id is malformed/unknown.
 
 ---
