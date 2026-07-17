@@ -61,8 +61,7 @@ export function SeeCompaniesDialog({
                     <p className="text-muted-foreground text-sm">No member companies found</p>
                 ) : (
                     roster.map((member) => {
-                        const displayName =
-                            formatCompanyName(member.companyName) ?? member.companyName;
+                        const displayName = formatCompanyName(member.companyName);
                         return (
                             <button
                                 key={member.companyId}
@@ -70,7 +69,10 @@ export function SeeCompaniesDialog({
                                 className="w-full flex items-center justify-between gap-3 p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer text-left transition-colors"
                                 data-testid={`group-member-${member.companyId}`}
                             >
-                                <span className="font-medium text-sm truncate" title={displayName}>
+                                <span
+                                    className="font-medium text-sm truncate"
+                                    title={displayName ?? undefined}
+                                >
                                     {displayName}
                                 </span>
                                 <span className="text-sm font-semibold text-primary whitespace-nowrap">

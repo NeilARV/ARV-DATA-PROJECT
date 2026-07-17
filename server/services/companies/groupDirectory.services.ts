@@ -19,6 +19,13 @@ export const GROUP_DIRECTORY_PAGE_SIZE = 50;
 // mirroring getContacts. Derived from SORT_COUNT_FIELD so the set is defined in exactly one place.
 export const GROUP_DIRECTORY_SORT_OPTIONS = Object.keys(SORT_COUNT_FIELD) as CountedSortOption[];
 
+/** Resolves a raw sort param to a counted directory sort; invalid/`new-buyers`/absent → most-properties. */
+function resolveGroupSort(sort: string | undefined): CountedSortOption {
+    return (GROUP_DIRECTORY_SORT_OPTIONS as readonly string[]).includes(sort ?? '')
+        ? (sort as CountedSortOption)
+        : 'most-properties';
+}
+
 interface GetGroupDirectoryParams {
     county?: string | string[];
     page?: string;
@@ -190,9 +197,7 @@ async function buildGroupRoster(
     sort: string,
     dates: { ytdStartStr: string; todayStr: string },
 ): Promise<GroupMemberCount[]> {
-    const sortOption = (GROUP_DIRECTORY_SORT_OPTIONS as readonly string[]).includes(sort)
-        ? (sort as CountedSortOption)
-        : 'most-properties';
+    const sortOption = resolveGroupSort(sort);
 
     const [members, countMap] = await Promise.all([
         db
@@ -224,9 +229,7 @@ export async function getGroupDirectory(
     } = params;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = clampLimit(limit, { fallback: GROUP_DIRECTORY_PAGE_SIZE, max: 100 });
-    const sortOption = (GROUP_DIRECTORY_SORT_OPTIONS as readonly string[]).includes(sort)
-        ? (sort as CountedSortOption)
-        : 'most-properties';
+    const sortOption = resolveGroupSort(sort);
     const searchTerm = typeof search === 'string' ? search.trim() : '';
 
     const candidates = await fetchCandidateGroups(county, searchTerm);
@@ -280,11 +283,7 @@ export async function getGroupDirectoryRowById(
     id: string,
     params: { county?: string | string[]; sort?: string },
 ): Promise<GroupDirectoryRow | null> {
-    const sortOption = (GROUP_DIRECTORY_SORT_OPTIONS as readonly string[]).includes(
-        params.sort ?? '',
-    )
-        ? (params.sort as CountedSortOption)
-        : 'most-properties';
+    const sortOption = resolveGroupSort(params.sort);
 
     const [candidate] = await fetchCandidateGroups(params.county, '', id);
     if (!candidate) return null;
