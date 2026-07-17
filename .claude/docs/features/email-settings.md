@@ -9,7 +9,7 @@ Users have granular control over which email feeds they receive and for which ma
 
 The intersection of both determines what a user receives. A user subscribed to **San Diego** and **Deals** gets deal notifications for San Diego. Subscribe them to **Vendors** too and they get vendor notifications for San Diego. Unsubscribe from San Diego and neither fires for that market, even if both app toggles remain on.
 
-> **Preferred market vs MSA subscriptions**: These are two different things. The "preferred market" (county + state) selected at signup and on the Profile page is a *browsing preference* — it controls what data the app shows by default. MSA subscriptions control what emails fire. At signup, the county selection is automatically mapped to the corresponding MSA to seed the user's first subscription. Users manage their MSA subscriptions directly from the Profile page.
+> **Preferred market vs county subscriptions**: These are two different things. The "preferred market" (county + state) selected at signup and on the Profile page is a *browsing preference* — it controls what data the app shows by default. County subscriptions control what emails fire. At signup, the home county seeds the user's first subscription (that county only, never the whole MSA — #114); a whitelisted signup additionally inherits its entry's counties, so the seeded set is the union of both (#135). Users manage their county subscriptions directly from the Profile page.
 
 ---
 
@@ -307,6 +307,12 @@ Both exclude addresses already registered in `users` (double-send prevention) an
 - "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
 - `user_msa_subscriptions` table stays unchanged — no county column needed
 - County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 8 — Whitelist Signup Transfer (issue #135)
+*A whitelisted signup inherits its entry's counties instead of silently dropping them.*
+
+- **`seedWhitelistCountySubscriptions`** (`server/services/subscriptions/countySubscriptions.services.ts`) — copies the entry's `email_subscription_list_counties` rows verbatim into `user_county_subscriptions` (`onConflictDoNothing`); the registration controller calls it before deleting the entry (the rows cascade with it), then home-county seeding runs as before — the result is the union of both, deduplicated by the subscription PK
+- Tier grant, RM link, and entry deletion are unchanged; non-whitelisted signups keep home-county-only seeding
 
 ### Patch 7 — Admin County Picker for Whitelist Entries (issue #134)
 *Admins and RMs manage whitelist entries by counties, not a single MSA.*

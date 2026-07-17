@@ -137,7 +137,7 @@ Create a new user account.
 
 **Errors** `400` validation failed · `409` email already registered
 
-**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, a home-county subscription is seeded (the county only, never the whole MSA). A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
+**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, the entry's county rows are copied into the user's county subscriptions, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, a home-county subscription is seeded (the county only, never the whole MSA) — for a whitelisted signup the result is the union of the entry's counties and the home county, deduplicated by the subscription primary key. A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
 
 ---
 
