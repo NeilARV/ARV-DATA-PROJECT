@@ -13,6 +13,22 @@ export type CountySubscription = {
     msaName: string;
 };
 
+/** A county a whitelist entry subscribes to; `msaName` is the county's parent MSA (derived from
+ *  COUNTY_TO_MSA) so clients can group counties by MSA without re-encoding the mapping. */
+export type WhitelistCounty = {
+    county: string;
+    state: string;
+    msaName: string;
+};
+
+/** An email_subscription_list entry as returned by GET /api/admin/whitelist. */
+export type WhitelistEntry = {
+    id: number;
+    email: string;
+    relationshipManagerId: string | null;
+    counties: WhitelistCounty[];
+};
+
 /** A relationship manager (RM) — camelCase contact shape used by both the admin RM list and the
  *  RM embedded on the authenticated user. `roles` is present only on the admin list. */
 export type RelationshipManager = {

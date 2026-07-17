@@ -27,6 +27,23 @@ export const adminPatchUserSchema = z.object({
 
 export type AdminPatchUser = z.infer<typeof adminPatchUserSchema>;
 
+export const updateEmailSubscriptionListSchema = z
+    .object({
+        // The counties replace-list (issue #134) — empty is rejected because a whitelist entry
+        // with no counties would receive nothing; omit the field to leave counties unchanged.
+        counties: z
+            .array(countySubscriptionSelectionSchema)
+            .min(1, 'Select at least one county')
+            .optional(),
+        relationshipManagerId: z.string().uuid().nullable().optional(),
+    })
+    .strict()
+    .refine((d) => d.counties !== undefined || d.relationshipManagerId !== undefined, {
+        message: 'Provide at least one of counties or relationshipManagerId to update',
+    });
+
+export type UpdateEmailSubscriptionList = z.infer<typeof updateEmailSubscriptionListSchema>;
+
 export const updateUserProfileSchema = z
     .object({
         firstName: z.string().min(1, 'First name is required').optional(),
