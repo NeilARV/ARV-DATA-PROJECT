@@ -1,5 +1,9 @@
 import { db } from 'server/storage';
-import { msas, userCountySubscriptions } from '@database/schemas/msas.schema';
+import {
+    msas,
+    userCountySubscriptions,
+    emailSubscriptionListCounties,
+} from '@database/schemas/msas.schema';
 import { eq, inArray } from 'drizzle-orm';
 import { getMsaForCounty, getStateFromMsaName } from '@shared/constants/countyToMsa';
 import type { CountySubscription } from '@shared/types/users';
@@ -71,6 +75,33 @@ export async function replaceUserCountySubscriptions(
     if (resolved.length > 0) {
         await db.insert(userCountySubscriptions).values(resolved.map((r) => ({ userId, ...r })));
     }
+}
+
+/**
+ * Copies a whitelist entry's county rows into the user's subscriptions (issue #135) so the admin's
+ * curation survives signup; rows already present (e.g. the home county) dedupe via the PK. Must run
+ * before the entry is deleted — its county rows cascade with it.
+ * Side effect: writes `user_county_subscriptions`.
+ */
+export async function seedWhitelistCountySubscriptions(
+    userId: string,
+    subscriptionListId: number,
+): Promise<void> {
+    // Rows are copied verbatim — they were resolved against COUNTY_TO_MSA when the admin wrote them.
+    const rows = await db
+        .select({
+            county: emailSubscriptionListCounties.county,
+            state: emailSubscriptionListCounties.state,
+            msaId: emailSubscriptionListCounties.msaId,
+        })
+        .from(emailSubscriptionListCounties)
+        .where(eq(emailSubscriptionListCounties.subscriptionListId, subscriptionListId));
+    if (rows.length === 0) return;
+
+    await db
+        .insert(userCountySubscriptions)
+        .values(rows.map((r) => ({ userId, ...r })))
+        .onConflictDoNothing();
 }
 
 /**
