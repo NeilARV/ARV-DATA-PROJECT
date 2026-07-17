@@ -57,8 +57,9 @@ function groupCountyExists(county: string | string[] | undefined): SQL | null {
 type CandidateGroup = { id: string; name: string; companyCount: number };
 
 /**
- * Multi-company groups (2+ members, evaluated globally) optionally narrowed to a county and a name
- * search. Auto-created singleton groups (one company) are excluded by the >= 2 HAVING gate.
+ * Multi-company groups (2+ members, evaluated globally) optionally narrowed to a county and a
+ * search matching the group name or any member company name. Auto-created singleton groups (one
+ * company) are excluded by the >= 2 HAVING gate.
  */
 async function fetchCandidateGroups(
     county: string | string[] | undefined,
@@ -71,7 +72,17 @@ async function fetchCandidateGroups(
     }
     if (searchTerm.length >= 2) {
         const pattern = `%${searchTerm.toLowerCase()}%`;
-        conditions.push(sql`LOWER(TRIM(${companyGroups.name})) LIKE ${pattern}`);
+        // Users know operators by either the group name or a member LLC, so match both. The EXISTS
+        // is aliased (mc) so it scans all members rather than filtering the joined member rows,
+        // which would skew companyCount and the two-or-more gate.
+        conditions.push(sql`(
+            LOWER(TRIM(${companyGroups.name})) LIKE ${pattern}
+            OR EXISTS (
+                SELECT 1 FROM companies mc
+                WHERE mc.group_id = ${companyGroups.id}
+                AND LOWER(TRIM(mc.company)) LIKE ${pattern}
+            )
+        )`);
     }
     const countyClause = groupCountyExists(county);
     if (countyClause) conditions.push(countyClause);

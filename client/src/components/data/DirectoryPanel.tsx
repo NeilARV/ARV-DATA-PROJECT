@@ -23,23 +23,23 @@ type DirectoryTab = 'companies' | 'groups';
 
 /**
  * The sidebar directory shell: a shared search box and Sort-by control sit above Companies/Groups
- * tabs and drive whichever tab is active. Both panels stay mounted (visibility toggled) so their
+ * tabs. Sort drives the active tab; search drives both tabs at once so each tab header can show a
+ * live match count for the current query. Both panels stay mounted (visibility toggled) so their
  * state/effects persist; switching tabs clears the active company selection (selections are mutually
- * exclusive). The Groups tab loads lazily on first switch and on any sort/search/county change.
+ * exclusive). The Groups tab loads lazily on first switch, on any sort/search/county change while
+ * active, and whenever a search is applied.
  */
 export function DirectoryPanel() {
     const {
         directorySort,
         directorySearch,
         setDirectorySort,
-        setDirectorySearch,
         loadCompanies,
         company,
         setCompany,
-        group,
-        setGroup,
+        total: companiesTotal,
     } = useCompanies();
-    const { loadGroups } = useGroups();
+    const { loadGroups, total: groupsTotal } = useGroups();
     const { filters } = useFilters();
     const nav = useDataNav();
 
@@ -63,14 +63,14 @@ export function DirectoryPanel() {
         setSearchInput(directorySearch);
     }, [directorySearch]);
 
-    // Apply a search value to the active tab. Companies load through loadCompanies; groups reload via
-    // the effect below (keyed on directorySearch).
+    // Apply a search value to BOTH tabs so each header's match count stays live for the current
+    // query. loadCompanies sets the shared directorySearch, which the effect below keys on to
+    // reload groups.
     const applySearch = useCallback(
         (value: string) => {
-            if (activeTab === 'companies') loadCompanies({ search: value });
-            else setDirectorySearch(value);
+            loadCompanies({ search: value });
         },
-        [activeTab, loadCompanies, setDirectorySearch],
+        [loadCompanies],
     );
 
     const handleSearchChange = useCallback(
@@ -137,11 +137,16 @@ export function DirectoryPanel() {
     );
 
     // Load the Groups tab lazily on first switch, and reload it on any sort/search/county change
-    // while it is active. loadGroups de-duplicates unchanged params.
+    // while it is active — or whenever a search is applied, so the Groups match count stays live
+    // even from the Companies tab. loadGroups de-duplicates unchanged params.
     useEffect(() => {
-        if (activeTab !== 'groups') return;
+        if (activeTab !== 'groups' && directorySearch.trim() === '') return;
         loadGroups({ sort: directorySort, search: directorySearch });
     }, [activeTab, filters.counties, directorySort, directorySearch, loadGroups]);
+
+    // Match counts are only meaningful while a query is applied; the debounced input may briefly
+    // differ from directorySearch, so gate on the applied value the totals correspond to.
+    const showMatchCounts = directorySearch.trim() !== '';
 
     return (
         <div
@@ -156,7 +161,7 @@ export function DirectoryPanel() {
                         placeholder={
                             activeTab === 'companies'
                                 ? 'Search companies or contacts...'
-                                : 'Search groups...'
+                                : 'Search groups or member companies...'
                         }
                         value={searchInput}
                         onChange={(e) => handleSearchChange(e.target.value)}
@@ -223,10 +228,10 @@ export function DirectoryPanel() {
                 <Tabs value={activeTab} onValueChange={handleTabChange}>
                     <TabsList className="grid h-9 w-full grid-cols-2">
                         <TabsTrigger value="companies" data-testid="tab-companies">
-                            Companies
+                            {showMatchCounts ? `Companies (${companiesTotal})` : 'Companies'}
                         </TabsTrigger>
                         <TabsTrigger value="groups" data-testid="tab-groups">
-                            Groups
+                            {showMatchCounts ? `Groups (${groupsTotal})` : 'Groups'}
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>

@@ -298,6 +298,54 @@ describe('GET /api/companies/groups — zero-count filtering (integration)', () 
     });
 });
 
+// ── Search ────────────────────────────────────────────────────────────────────
+
+describe('GET /api/companies/groups — search (integration)', () => {
+    it('matches on the group name, case-insensitively', async () => {
+        const res = await getGroups({
+            county: COUNTY,
+            sort: 'most-properties',
+            search: 'gd90 group multi',
+        });
+        expect(res.status).toBe(200);
+        expect(findGroup(res.body, multiId)).toBeDefined();
+        expect(findGroup(res.body, splitId)).toBeUndefined();
+    });
+
+    it('matches on a member company name even when the group name differs', async () => {
+        // "GD90 CO A1" appears only in member a1's company name, not in MULTI's group name.
+        const res = await getGroups({
+            county: COUNTY,
+            sort: 'most-properties',
+            search: 'gd90 co a1',
+        });
+        expect(res.status).toBe(200);
+        expect(findGroup(res.body, multiId)).toBeDefined();
+        expect(findGroup(res.body, splitId)).toBeUndefined();
+    });
+
+    it('returns no seeded groups for a term matching neither group nor member names', async () => {
+        const res = await getGroups({
+            county: COUNTY,
+            sort: 'most-properties',
+            search: 'gd90 nomatch',
+        });
+        expect(res.status).toBe(200);
+        expect(res.body.groups).toHaveLength(0);
+        expect(res.body.total).toBe(0);
+    });
+
+    it('a member-name match still respects the zero-count filter', async () => {
+        // ZERO's member e1 matches, but the group has no activity for the sort and stays hidden.
+        const res = await getGroups({
+            county: COUNTY,
+            sort: 'most-properties',
+            search: 'gd90 co e1',
+        });
+        expect(findGroup(res.body, zeroId)).toBeUndefined();
+    });
+});
+
 // ── Pagination & envelope ─────────────────────────────────────────────────────
 
 describe('GET /api/companies/groups — envelope & pagination (integration)', () => {
@@ -311,11 +359,21 @@ describe('GET /api/companies/groups — envelope & pagination (integration)', ()
     });
 
     it('respects limit and page', async () => {
-        const first = await getGroups({ county: COUNTY, sort: 'most-properties', limit: '1', page: '1' });
+        const first = await getGroups({
+            county: COUNTY,
+            sort: 'most-properties',
+            limit: '1',
+            page: '1',
+        });
         expect(first.body.groups).toHaveLength(1);
         expect(first.body.limit).toBe(1);
 
-        const second = await getGroups({ county: COUNTY, sort: 'most-properties', limit: '1', page: '2' });
+        const second = await getGroups({
+            county: COUNTY,
+            sort: 'most-properties',
+            limit: '1',
+            page: '2',
+        });
         expect(second.body.groups).toHaveLength(1);
         // Different rows across pages.
         expect(second.body.groups[0].id).not.toBe(first.body.groups[0].id);
