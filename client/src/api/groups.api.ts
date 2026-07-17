@@ -1,4 +1,4 @@
-import type { GroupDirectoryResponse, GroupDirectoryRow } from '@shared/types/groups';
+import type { GroupDirectoryResponse, GroupDirectoryRow, GroupProfile } from '@shared/types/groups';
 import type { DirectorySortOption } from '@/types/options';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -48,6 +48,20 @@ export async function fetchGroupDirectoryRow(
         const res = await apiRequest('GET', `/api/companies/groups/${groupId}${query}`);
         const data = await res.json();
         return data.group ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * One group's aggregate profile for the expanded group card.
+ * @returns null when the group is stale (disbanded, under two members) or the request fails.
+ */
+export async function fetchGroupProfile(groupId: string): Promise<GroupProfile | null> {
+    try {
+        const res = await apiRequest('GET', `/api/companies/groups/${groupId}/profile`);
+        const data = await res.json();
+        return data.profile ?? null;
     } catch {
         return null;
     }

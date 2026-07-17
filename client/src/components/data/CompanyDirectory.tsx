@@ -9,7 +9,6 @@ import {
     ChevronUp,
     Trophy,
     Home,
-    TrendingUp,
     Pencil,
     Copy,
     Check,
@@ -24,7 +23,7 @@ import ConfirmationContent from '@/components/modals/Confirmation';
 import { UpdateCompanyDialog } from '../admin/UpdateCompanyDialog';
 import { RankMedal, rankMedalBorderClass } from './RankMedal';
 import { SortCountBadge } from './SortCountBadge';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { AcquisitionActivity } from './AcquisitionActivity';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -564,115 +563,10 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                         </div>
 
                                         {/* 90-Day Acquisition Activity (from property_transactions API) */}
-                                        <div className="space-y-2 pt-2 border-t border-border">
-                                            <div className="flex items-center gap-2">
-                                                <TrendingUp className="w-4 h-4 text-primary" />
-                                                <span className="text-sm font-medium text-foreground">
-                                                    90-Day Acquisition Activity
-                                                </span>
-                                            </div>
-
-                                            {expandedCompanyDetail?.acquisition90DayTotal !==
-                                            undefined ? (
-                                                <>
-                                                    <div className="flex items-center gap-4 text-sm">
-                                                        <div>
-                                                            <span className="text-muted-foreground">
-                                                                Last 90 days:{' '}
-                                                            </span>
-                                                            <span className="font-semibold text-foreground">
-                                                                {
-                                                                    expandedCompanyDetail.acquisition90DayTotal
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-muted-foreground">
-                                                                Avg/month:{' '}
-                                                            </span>
-                                                            <span className="font-semibold text-foreground">
-                                                                {expandedCompanyDetail.acquisition90DayTotal >
-                                                                0
-                                                                    ? (
-                                                                          expandedCompanyDetail.acquisition90DayTotal /
-                                                                          3
-                                                                      ).toFixed(1)
-                                                                    : '0'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {expandedCompanyDetail.acquisition90DayByMonth?.some(
-                                                        (m: { count: number }) => m.count > 0,
-                                                    ) ? (
-                                                        <div className="h-20 w-full">
-                                                            <ResponsiveContainer
-                                                                width="100%"
-                                                                height="100%"
-                                                            >
-                                                                <BarChart
-                                                                    data={expandedCompanyDetail.acquisition90DayByMonth.map(
-                                                                        (m: {
-                                                                            key: string;
-                                                                            count: number;
-                                                                        }) => ({
-                                                                            month: m.key,
-                                                                            count: m.count,
-                                                                        }),
-                                                                    )}
-                                                                    margin={{
-                                                                        top: 5,
-                                                                        right: 5,
-                                                                        bottom: 5,
-                                                                        left: 0,
-                                                                    }}
-                                                                >
-                                                                    <XAxis
-                                                                        dataKey="month"
-                                                                        tick={{
-                                                                            fontSize: 10,
-                                                                            fill: 'hsl(var(--muted-foreground))',
-                                                                        }}
-                                                                        axisLine={false}
-                                                                        tickLine={false}
-                                                                    />
-                                                                    <YAxis hide />
-                                                                    <Tooltip
-                                                                        cursor={false}
-                                                                        contentStyle={{
-                                                                            backgroundColor:
-                                                                                'hsl(var(--background))',
-                                                                            border: '1px solid hsl(var(--border))',
-                                                                            borderRadius: '6px',
-                                                                            fontSize: '12px',
-                                                                        }}
-                                                                        formatter={(
-                                                                            value: number,
-                                                                        ) => [
-                                                                            `${value} properties`,
-                                                                            'Acquired',
-                                                                        ]}
-                                                                    />
-                                                                    <Bar
-                                                                        dataKey="count"
-                                                                        fill="hsl(var(--primary))"
-                                                                        radius={[4, 4, 0, 0]}
-                                                                    />
-                                                                </BarChart>
-                                                            </ResponsiveContainer>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-xs text-muted-foreground italic">
-                                                            No acquisitions in the last 90 days
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <div className="text-xs text-muted-foreground italic">
-                                                    Loading...
-                                                </div>
-                                            )}
-                                        </div>
+                                        <AcquisitionActivity
+                                            total={expandedCompanyDetail?.acquisition90DayTotal}
+                                            byMonth={expandedCompanyDetail?.acquisition90DayByMonth}
+                                        />
 
                                         {/* View Properties — visible to all users */}
                                         <div className="pt-3 border-t border-border space-y-2">
