@@ -7,14 +7,14 @@ import type { ZipCount } from '@shared/types/properties';
 
 export function useZipCounts(options?: { enabled?: boolean }): ZipCount[] {
     const fetchEnabled = options?.enabled ?? true;
-    const { company } = useCompanies();
+    const { company, group } = useCompanies();
     const { filters, sortBy } = useFilters();
 
     const url = useMemo(() => {
         const queryString = buildPropertyQueryParams(
             filters,
             { forMapPins: true },
-            { company, sortBy },
+            { company, group, sortBy },
         );
         return `/api/properties/zip-counts${queryString}`;
     }, [
@@ -23,6 +23,7 @@ export function useZipCounts(options?: { enabled?: boolean }): ZipCount[] {
         filters.statusFilters,
         filters.dateRange,
         company?.id,
+        group?.id,
         sortBy,
     ]);
 

@@ -1,4 +1,4 @@
-import { Building2, ChevronDown } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { RankMedal, rankMedalBorderClass } from './RankMedal';
@@ -8,21 +8,28 @@ import type { DirectorySortOption } from '@/types/options';
 
 type GroupCardProps = {
     group: GroupDirectoryRow;
-    rank: number;
+    /** Position in the ranked list; undefined for a deep-linked group prepended outside its page. */
+    rank?: number;
     sortBy: DirectorySortOption;
+    isSelected?: boolean;
+    onSelect?: () => void;
 };
 
 /**
- * A collapsed operator-group card for the Data-app Groups tab: rank medal | formatted group name +
+ * An operator-group card for the Data-app Groups tab: rank medal | formatted group name +
  * "N companies" | aggregate per-sort count badge | chevron. Mirrors the company card's four-column
  * shell via the shared RankMedal/SortCountBadge primitives so the two never drift visually.
- * Selection (grid/map) and the expanded profile are added by later slices; the card is display-only.
+ * Clicking toggles group selection (filters the grid/map to all member companies).
  */
-export function GroupCard({ group, rank, sortBy }: GroupCardProps) {
+export function GroupCard({ group, rank, sortBy, isSelected = false, onSelect }: GroupCardProps) {
     const medalBorder = rankMedalBorderClass(rank);
 
     return (
-        <Card className={`p-3 ${medalBorder}`} data-testid={`card-group-${group.id}`}>
+        <Card
+            className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary' : ''} ${medalBorder}`}
+            onClick={onSelect}
+            data-testid={`card-group-${group.id}`}
+        >
             <div className="flex items-center gap-2">
                 {/* Col 1: Rank */}
                 <div className="flex-shrink-0 w-5 flex items-center justify-center">
@@ -50,9 +57,13 @@ export function GroupCard({ group, rank, sortBy }: GroupCardProps) {
                     <SortCountBadge sortBy={sortBy} counts={group} />
                 </div>
 
-                {/* Col 4: Chevron (expand affordance — profile wired in a later slice) */}
+                {/* Col 4: Chevron (expanded profile arrives in a later slice) */}
                 <div className="flex-shrink-0 flex items-center">
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    {isSelected ? (
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    )}
                 </div>
             </div>
         </Card>

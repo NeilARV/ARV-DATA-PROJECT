@@ -120,7 +120,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     }
 
     const { setMapCenter, setMapZoom, mapBounds, isRegionLocked } = ctx;
-    const { company, companySelectionInProgressRef } = useCompanies();
+    const { company, group, companySelectionInProgressRef } = useCompanies();
     const { filters, sortBy } = useFilters();
     const { view } = useView();
 
@@ -137,7 +137,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         const queryString = buildPropertyQueryParams(
             filters,
             { forMapPins: true, bounds: mapBounds },
-            { company, sortBy },
+            { company, group, sortBy },
         );
         return `/api/properties/map${queryString}`;
     }, [
@@ -156,6 +156,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         filters.propertyTypes,
         company?.id,
         company?.companyName,
+        group?.id,
         filters.companyRole,
     ]);
 
@@ -165,7 +166,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         const queryString = buildPropertyQueryParams(
             filters,
             { forMapPins: true },
-            { company, sortBy },
+            { company, group, sortBy },
         );
         return `/api/properties/map/extent${queryString}`;
     }, [
@@ -183,6 +184,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         filters.propertyTypes,
         company?.id,
         company?.companyName,
+        group?.id,
         filters.companyRole,
     ]);
 
@@ -275,12 +277,12 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     isOverviewRef.current = isOverview;
 
     // Only a change in *where* you're looking should recenter — not status/date/price/etc. This key
-    // captures the location dimensions (msa + county set/city/zip + selected company); read via a
-    // ref so the effect still only fires on `extent` change but recenters solely when this key has
-    // changed.
+    // captures the location dimensions (msa + county set/city/zip + selected company/group); read
+    // via a ref so the effect still only fires on `extent` change but recenters solely when this
+    // key has changed.
     const locationKey = `${filters.msa}|${filters.counties.join(',')}|${filters.city ?? ''}|${
         filters.zipCode ?? ''
-    }|${company?.id ?? company?.companyName ?? ''}`;
+    }|${company?.id ?? company?.companyName ?? group?.id ?? ''}`;
     const locationKeyRef = useRef(locationKey);
     locationKeyRef.current = locationKey;
     const appliedLocationKeyRef = useRef<string | null>(null);
