@@ -96,6 +96,7 @@ export async function getGroupProfileHandler(req: Request, res: Response) {
         const profile = await GroupDirectoryServices.getGroupProfile(
             req.params.id,
             countyParam(req.query.county),
+            req.query.sort?.toString(),
         );
         if (!profile) {
             return res.status(404).json({ message: 'Group not found' });

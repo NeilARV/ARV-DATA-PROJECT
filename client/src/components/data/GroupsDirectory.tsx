@@ -27,7 +27,7 @@ import type { GroupDirectoryRow } from '@shared/types/groups';
 export function GroupsDirectory() {
     const { groups, total, hasMore, isLoadingGroups, isLoadingMoreGroups, loadMoreGroups } =
         useGroups();
-    const { directorySort, directorySearch, group, setGroup } = useCompanies();
+    const { directorySort, directorySearch, group, setGroup, handleCompanyClick } = useCompanies();
     const { filters, setFilters } = useFilters();
     const { view } = useView();
     const { setProperty } = useProperty();
@@ -107,6 +107,15 @@ export function GroupsDirectory() {
         });
     };
 
+    // Selecting a member from the See Companies roster: switch to that company (which clears the
+    // group). Suppress the group-deselect revert so handleCompanyClick's expanded company filters
+    // survive instead of being reset to the view defaults — mirrors handleGroupClick's own deselect.
+    const handleSelectMember = (companyId: string, companyName: string) => {
+        filterResetHandledRef.current = true;
+        setProperty(null);
+        handleCompanyClick(companyName, companyId);
+    };
+
     // A deep-linked group won't be in the loaded page — prepend it (unranked) so its selected card
     // is visible, mirroring the company directory's ensured-company treatment.
     const displayList = useMemo(() => {
@@ -144,7 +153,13 @@ export function GroupsDirectory() {
                                     isSelected={isSelected}
                                     onSelect={() => handleGroupClick(listGroup)}
                                 />
-                                {isSelected && <GroupProfile group={listGroup} rank={rank} />}
+                                {isSelected && (
+                                    <GroupProfile
+                                        group={listGroup}
+                                        rank={rank}
+                                        onSelectMember={handleSelectMember}
+                                    />
+                                )}
                             </div>
                         );
                     })

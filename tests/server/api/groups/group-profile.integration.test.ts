@@ -40,7 +40,11 @@ let nameCounter = 0;
 
 // Seeded ids, assigned in beforeAll.
 let profileGroupId: string; // 2 members, the main aggregate-assertions group
+let profileM1Id: string; // profile member 1
+let profileM2Id: string; // profile member 2
 let splitGroupId: string; // 2 members split across counties
+let splitS1Id: string; // split member in COUNTY
+let splitS2Id: string; // split member in OTHER_COUNTY
 let otherGroupId: string; // 2 members, all in OTHER_COUNTY
 let singleGroupId: string; // 1 member (singleton — 404)
 
@@ -140,6 +144,8 @@ beforeAll(async () => {
     const m2 = await seedCompany('M2', [[COUNTY, STATE]]);
     const ext = await seedCompany('EXT'); // external, ungrouped — never a member
     profileGroupId = await seedGroup('PROFILE', [m1, m2]);
+    profileM1Id = m1;
+    profileM2Id = m2;
 
     const pA = await seedProperty(COUNTY);
     const pB = await seedProperty(COUNTY);
@@ -190,6 +196,8 @@ beforeAll(async () => {
     const s1 = await seedCompany('S1', [[COUNTY, STATE]]);
     const s2 = await seedCompany('S2', [[OTHER_COUNTY, STATE]]);
     splitGroupId = await seedGroup('SPLIT', [s1, s2]);
+    splitS1Id = s1;
+    splitS2Id = s2;
     const pS1 = await seedProperty(COUNTY);
     const pS2 = await seedProperty(OTHER_COUNTY);
     await seedTx({ propertyId: pS1, buyerId: s1, sellerId: ext, recordingDate: D5 });
@@ -255,6 +263,63 @@ describe('GET /api/companies/groups/:id/profile — aggregate stats (integration
         const res = await getProfile(profileGroupId);
         expect(res.body.profile.contacts).toBeUndefined();
         expect(res.body.profile.purchaseToArvRatio).toBeUndefined();
+    });
+});
+
+// ── See Companies roster ───────────────────────────────────────────────────────
+
+type RosterRow = { companyId: string; companyName: string; count: number };
+const countsById = (roster: RosterRow[]): Record<string, number> =>
+    Object.fromEntries(roster.map((r) => [r.companyId, r.count]));
+
+describe('GET /api/companies/groups/:id/profile — See Companies roster (integration)', () => {
+    it('omits the roster when no sort is requested', async () => {
+        const res = await getProfile(profileGroupId);
+        expect(res.status).toBe(200);
+        expect(res.body.profile.roster).toBeUndefined();
+    });
+
+    it('returns per-member owned counts for most-properties, most-active first', async () => {
+        const res = await getProfile(profileGroupId, { sort: 'most-properties' });
+        expect(res.status).toBe(200);
+        const roster: RosterRow[] = res.body.profile.roster;
+        expect(roster).toHaveLength(2);
+        const byId = countsById(roster);
+        // m2 owns pB + pShared + pIntra = 3; m1 owns pA + pShared = 2. pShared counts for both
+        // members, so the per-member counts (3 + 2) exceed the group's de-duplicated propertyCount 4.
+        expect(byId[profileM2Id]).toBe(3);
+        expect(byId[profileM1Id]).toBe(2);
+        expect(roster[0].companyId).toBe(profileM2Id); // most-active first
+        expect(roster[0].companyName).toMatch(new RegExp(`^${PREFIX} CO`)); // raw name
+    });
+
+    it('counts reflect the active sort and list zero-count members last', async () => {
+        const res = await getProfile(profileGroupId, { sort: 'most-sold-properties' });
+        const roster: RosterRow[] = res.body.profile.roster;
+        expect(roster).toHaveLength(2);
+        const byId = countsById(roster);
+        // m1 sold pSoldExt + pIntra this year (2); m2's only sale was prior-year, so 0 — but m2 is
+        // still listed as a member, sorted last.
+        expect(byId[profileM1Id]).toBe(2);
+        expect(byId[profileM2Id]).toBe(0);
+        expect(roster[roster.length - 1].companyId).toBe(profileM2Id);
+    });
+
+    it('per-member counts are county-scoped while all members stay listed', async () => {
+        const res = await getProfile(splitGroupId, { county: COUNTY, sort: 'most-properties' });
+        const roster: RosterRow[] = res.body.profile.roster;
+        expect(roster).toHaveLength(2); // both members listed regardless of county
+        const byId = countsById(roster);
+        expect(byId[splitS1Id]).toBe(1); // s1 owns pS1 in COUNTY
+        expect(byId[splitS2Id]).toBe(0); // s2's property is in OTHER_COUNTY, excluded by the scope
+    });
+
+    it('falls back to most-properties for an invalid sort', async () => {
+        const res = await getProfile(profileGroupId, { sort: 'bogus' });
+        expect(res.status).toBe(200);
+        const byId = countsById(res.body.profile.roster);
+        expect(byId[profileM2Id]).toBe(3);
+        expect(byId[profileM1Id]).toBe(2);
     });
 });
 
