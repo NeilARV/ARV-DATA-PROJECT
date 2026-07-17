@@ -4,14 +4,12 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { GroupCard } from './GroupCard';
 
-type GroupsDirectoryProps = Record<string, never>;
-
 /**
  * The Groups tab list: operator groups (2+ member companies) ranked by the shared sort, with
  * infinite-scroll pagination and empty-state copy mirroring the company directory. The shared search
  * and Sort-by controls live in the parent DirectoryPanel; this panel renders only the list + footer.
  */
-export default function GroupsDirectory(_props: GroupsDirectoryProps) {
+export function GroupsDirectory() {
     const { groups, total, hasMore, isLoadingGroups, isLoadingMoreGroups, loadMoreGroups } =
         useGroups();
     const { directorySort, directorySearch } = useCompanies();

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyDirectory from './CompanyDirectory';
-import GroupsDirectory from './GroupsDirectory';
+import { GroupsDirectory } from './GroupsDirectory';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGroups } from '@/hooks/useGroups';
 import { useFilters } from '@/hooks/useFilters';
@@ -27,7 +27,7 @@ type DirectoryTab = 'companies' | 'groups';
  * state/effects persist; switching tabs clears the active company selection (selections are mutually
  * exclusive). The Groups tab loads lazily on first switch and on any sort/search/county change.
  */
-export default function DirectoryPanel() {
+export function DirectoryPanel() {
     const {
         directorySort,
         directorySearch,
