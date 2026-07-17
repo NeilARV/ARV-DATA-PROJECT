@@ -256,7 +256,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         if (!spec) return map;
 
         const parts: ReturnType<typeof sql>[] = [...spec.whereParts, ...countyParts()];
-        if (contactIds.length > 0) parts.push(inArray(spec.roleColumn, contactIds) as any);
+        if (contactIds.length > 0) parts.push(inArray(spec.roleColumn, contactIds));
         const countExpr = spec.distinct
             ? sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`
             : sql<number>`count(*)::int`;

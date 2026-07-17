@@ -12,17 +12,10 @@ import type { GroupDirectoryRow } from '@shared/types/groups';
 
 export const GROUP_DIRECTORY_PAGE_SIZE = 50;
 
-// The groups directory supports every directory sort except `new-buyers` (creation-date order has
-// no group-level meaning). Anything else falls back to most-properties, mirroring getContacts.
-export const GROUP_DIRECTORY_SORT_OPTIONS = [
-    'most-properties',
-    'most-sold-properties',
-    'most-sold-properties-all-time',
-    'most-bought-properties',
-    'most-bought-properties-all-time',
-    'buys-wholesale',
-    'wholesalers',
-] as const satisfies readonly CountedSortOption[];
+// The groups directory supports every counted directory sort (everything but `new-buyers`, whose
+// creation-date order has no group-level meaning); anything else falls back to most-properties,
+// mirroring getContacts. Derived from SORT_COUNT_FIELD so the set is defined in exactly one place.
+export const GROUP_DIRECTORY_SORT_OPTIONS = Object.keys(SORT_COUNT_FIELD) as CountedSortOption[];
 
 interface GetGroupDirectoryParams {
     county?: string | string[];
@@ -94,10 +87,9 @@ async function fetchCandidateGroups(
 }
 
 /**
- * Per-sort aggregate count for each candidate group: the existing sort's count query grouped by the
- * buyer/seller company's group id instead of the company id. DISTINCT-property sorts de-duplicate
- * across members (a property touched by two members counts once); intra-group transfers are
- * included. County-scoped on the transaction's location, exactly as the company directory scopes it.
+ * Aggregate count per candidate group: the sort's count query grouped by the buyer/seller company's
+ * group id. DISTINCT sorts de-dup a property touched by two members; intra-group transfers count.
+ * County-scoped on the transaction's location, exactly as the company directory scopes it.
  */
 async function fetchGroupSortCounts(
     sort: CountedSortOption,
@@ -105,8 +97,7 @@ async function fetchGroupSortCounts(
     county: string | string[] | undefined,
     dates: { ytdStartStr: string; todayStr: string },
 ): Promise<Map<string, number>> {
-    // Non-null for every counted sort (buildSortCountSpec only returns null for new-buyers).
-    const spec = buildSortCountSpec(sort, dates)!;
+    const spec = buildSortCountSpec(sort, dates);
     const parts: SQL[] = [...spec.whereParts];
     const countyCondition = countyScopeCondition({ county });
     if (countyCondition) parts.push(countyCondition);

@@ -4,7 +4,7 @@ import { Database } from 'lucide-react';
 import { MarketingHeader } from '@/components/MarketingHeader';
 import { PageLoader } from '@/components/PageLoader';
 import FilterHeader from '@/components/data/FilterHeader';
-import DirectoryPanel from '@/components/data/DirectoryPanel';
+import { DirectoryPanel } from '@/components/data/DirectoryPanel';
 import PropertyMap from '@/components/data/property/PropertyMap';
 import GridView from '@/components/data/views/GridView';
 import TableView from '@/components/data/views/TableView';

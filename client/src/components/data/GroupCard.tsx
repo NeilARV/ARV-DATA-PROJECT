@@ -1,7 +1,7 @@
 import { Building2, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-import { RankMedal } from './RankMedal';
+import { RankMedal, rankMedalBorderClass } from './RankMedal';
 import { SortCountBadge } from './SortCountBadge';
 import type { GroupDirectoryRow } from '@shared/types/groups';
 import type { DirectorySortOption } from '@/types/options';
@@ -19,14 +19,7 @@ type GroupCardProps = {
  * Selection (grid/map) and the expanded profile are added by later slices; the card is display-only.
  */
 export function GroupCard({ group, rank, sortBy }: GroupCardProps) {
-    const medalBorder =
-        rank === 1
-            ? 'border-l-4 border-l-amber-400'
-            : rank === 2
-              ? 'border-l-4 border-l-slate-400'
-              : rank === 3
-                ? 'border-l-4 border-l-amber-700'
-                : '';
+    const medalBorder = rankMedalBorderClass(rank);
 
     return (
         <Card className={`p-3 ${medalBorder}`} data-testid={`card-group-${group.id}`}>

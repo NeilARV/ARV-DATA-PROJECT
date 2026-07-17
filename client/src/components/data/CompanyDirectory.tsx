@@ -22,7 +22,7 @@ import { useAuth } from '@/hooks/use-auth';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import { UpdateCompanyDialog } from '../admin/UpdateCompanyDialog';
-import { RankMedal } from './RankMedal';
+import { RankMedal, rankMedalBorderClass } from './RankMedal';
 import { SortCountBadge } from './SortCountBadge';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card } from '@/components/ui/card';
@@ -342,14 +342,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         const isExpanded = company?.id === listCompany.id;
                         const profile = companyProfiles[listCompany.companyName];
                         const ranking = getRank(index, listCompany);
-                        const medalBorder =
-                            ranking === 1
-                                ? 'border-l-4 border-l-amber-400'
-                                : ranking === 2
-                                  ? 'border-l-4 border-l-slate-400'
-                                  : ranking === 3
-                                    ? 'border-l-4 border-l-amber-700'
-                                    : '';
+                        const medalBorder = rankMedalBorderClass(ranking);
 
                         return (
                             <div

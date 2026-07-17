@@ -40,11 +40,18 @@ export type SortCountSpec = {
 };
 
 /**
- * The building blocks of a single directory sort's count query. Both the per-company directory
- * (grouped by the buyer/seller id) and the groups directory (grouped by the company's group id)
- * build their count query from this, so the two surfaces can never disagree on what a sort counts.
- * @returns null for `new-buyers` (no count query — ordered by creation date instead).
+ * The role column, DISTINCT flag, and sort-specific predicate parts for one directory sort's count
+ * query; county and id filters are added by the caller.
+ * @returns null for `new-buyers`, which is ordered by creation date rather than counted.
  */
+export function buildSortCountSpec(
+    sort: CountedSortOption,
+    dates: { ytdStartStr: string; todayStr: string },
+): SortCountSpec;
+export function buildSortCountSpec(
+    sort: DirectorySortOption,
+    dates: { ytdStartStr: string; todayStr: string },
+): SortCountSpec | null;
 export function buildSortCountSpec(
     sort: DirectorySortOption,
     dates: { ytdStartStr: string; todayStr: string },
