@@ -17,6 +17,10 @@ router.get('/wholesale-leaderboard', CompaniesController.getWholesaleLeaderboard
 // Get leaderboard (top zipcode and buyers in MSA)
 router.get('/leaderboard', CompaniesController.getLeaderboardHandler);
 
+// Public groups directory (Data-app Groups tab). Registered before /:id so the literal segment
+// wins; the admin group-mutation router (/api/groups) is separate and untouched.
+router.get('/groups', CompaniesController.getGroupDirectoryHandler);
+
 // Get company by id
 router.get('/:id', CompaniesController.getCompanyByIdHandler);
 

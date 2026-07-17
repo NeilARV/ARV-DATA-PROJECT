@@ -43,6 +43,31 @@ export type GroupDetail = {
     members: GroupMemberDetail[];
 };
 
+// A row in the public Groups directory (the Data-app Groups tab). Multi-company groups only.
+// Exactly one count is populated per active sort, mirroring CompanyContactWithCounts; the rest are
+// 0. Name is RAW (format with formatCompanyName at the render edge — ARV.RAW-COMPANY-NAME).
+export type GroupDirectoryRow = {
+    id: string;
+    name: string;
+    companyCount: number;
+    propertyCount: number;
+    propertiesSoldCount: number;
+    propertiesSoldCountAllTime: number;
+    propertiesBoughtCount: number;
+    propertiesBoughtCountAllTime: number;
+    wholesaleBuyCount: number;
+    wholesalerCount: number;
+};
+
+// One page of the Groups directory, mirroring the company directory's envelope (no hasMore — the
+// client derives it from total).
+export type GroupDirectoryResponse = {
+    groups: GroupDirectoryRow[];
+    total: number;
+    page: number;
+    limit: number;
+};
+
 // A company a user is associated with through one of their groups — the "My Companies" surface.
 // A user's reach is every company across every group they belong to.
 export type UserGroupCompany = {

@@ -1,13 +1,10 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-    X,
     Building2,
     Mail,
     User,
-    Search,
     ChevronDown,
     ChevronUp,
     Trophy,
@@ -29,13 +26,6 @@ import { RankMedal } from './RankMedal';
 import { SortCountBadge } from './SortCountBadge';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card } from '@/components/ui/card';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { DEFAULT_DATE_RANGE } from '@/lib/propertyFilters';
@@ -48,7 +38,6 @@ import type {
 import { fetchCompanyById } from '@/api/companies.api';
 
 type CompanyDirectoryProps = Record<string, never>;
-import type { DirectorySortOption } from '@/types/options';
 import {
     BUYERS_FEED_STATUS_FILTERS,
     COMPANY_DIRECTORY_SORT_FILTERS,
@@ -81,8 +70,6 @@ const companyProfiles: Record<
     // Add more company profiles here as needed
 };
 
-const SEARCH_DEBOUNCE_MS = 300;
-
 /**
  * Formats a stored purchase-to-ARV ratio (raw decimal string, e.g. "0.7143") as a
  * whole-number percent ("71%"). Returns "Not Available" when there is no value
@@ -97,7 +84,6 @@ function formatPurchaseToArvRatio(value: string | null | undefined): string {
 
 export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     const { filters, setFilters } = useFilters();
-    const [searchInput, setSearchInput] = useState('');
     const [_statusFilters, setStatusFilters] = useState<Set<string>>(
         new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS),
     );
@@ -137,31 +123,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     const scrollSentinelRef = useRef<HTMLDivElement>(null);
     const listScrollContainerRef = useRef<HTMLDivElement>(null);
     const filterResetHandledRef = useRef(false);
-
-    // Sync local search input with context (for controlled input) and debounce server search
-    useEffect(() => {
-        setSearchInput(directorySearch);
-    }, [directorySearch]);
-
-    const debouncedSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const handleSearchChange = useCallback(
-        (value: string) => {
-            setSearchInput(value);
-            if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
-            debouncedSearchRef.current = setTimeout(() => {
-                loadCompanies({ search: value });
-                debouncedSearchRef.current = null;
-            }, SEARCH_DEBOUNCE_MS);
-        },
-        [loadCompanies],
-    );
-
-    const handleSortChange = useCallback(
-        (sort: DirectorySortOption) => {
-            loadCompanies({ sort });
-        },
-        [loadCompanies],
-    );
 
     useInfiniteScroll({
         ref: scrollSentinelRef,
@@ -365,83 +326,8 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     return (
         <div
             className="flex-1 min-h-0 bg-background flex flex-col overflow-hidden"
-            data-testid="sidebar-directory"
+            data-testid="company-directory"
         >
-            <div className="p-4 border-b border-border space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        type="text"
-                        placeholder="Search companies or contacts..."
-                        value={searchInput}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        className="pl-9"
-                        data-testid="input-directory-search"
-                    />
-                    {searchInput && (
-                        <X
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
-                            onClick={() => {
-                                setSearchInput('');
-                                loadCompanies({ search: '' }); // explicitly load all so context directorySearch and list update
-                            }}
-                        />
-                    )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        Sort by:
-                    </span>
-                    <Select
-                        value={sortBy}
-                        onValueChange={(value) => handleSortChange(value as DirectorySortOption)}
-                    >
-                        <SelectTrigger className="h-8 text-sm" data-testid="select-directory-sort">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="most-properties" data-testid="sort-most-properties">
-                                Most Properties Owned
-                            </SelectItem>
-                            <SelectItem
-                                value="most-sold-properties"
-                                data-testid="sort-most-sold-properties"
-                            >
-                                Most Sold Properties (YTD)
-                            </SelectItem>
-                            <SelectItem
-                                value="most-sold-properties-all-time"
-                                data-testid="sort-most-sold-properties-all-time"
-                            >
-                                Most Sold Properties (All-Time)
-                            </SelectItem>
-                            <SelectItem
-                                value="most-bought-properties"
-                                data-testid="sort-most-bought-properties"
-                            >
-                                Most Bought Properties (YTD)
-                            </SelectItem>
-                            <SelectItem
-                                value="most-bought-properties-all-time"
-                                data-testid="sort-most-bought-properties-all-time"
-                            >
-                                Most Bought Properties (All-Time)
-                            </SelectItem>
-                            {/* <SelectItem value="new-buyers" data-testid="sort-new-buyers">
-                New Buyers
-              </SelectItem> */}
-                            <SelectItem value="buys-wholesale" data-testid="sort-buys-wholesale">
-                                Buys from Wholesalers
-                            </SelectItem>
-                            <SelectItem value="wholesalers" data-testid="sort-wholesalers">
-                                Wholesalers
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-
             <div ref={listScrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {isLoading ? (
                     <div className="text-center text-muted-foreground py-8">

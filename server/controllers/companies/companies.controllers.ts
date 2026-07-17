@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { CompaniesServices } from 'server/services/companies';
+import { CompaniesServices, GroupDirectoryServices } from 'server/services/companies';
 import {
     updateCompanySchema,
     updateCompanyContactSchema,
@@ -43,6 +43,23 @@ export async function getContactsHandler(req: Request, res: Response) {
     } catch (error) {
         console.error('Error fetching companies:', error);
         return res.status(500).json({ message: 'Error fetching companies' });
+    }
+}
+
+export async function getGroupDirectoryHandler(req: Request, res: Response) {
+    try {
+        const { county, page, limit, sort, search } = req.query;
+        const result = await GroupDirectoryServices.getGroupDirectory({
+            county: countyParam(county),
+            page: page?.toString(),
+            limit: limit?.toString(),
+            sort: sort?.toString(),
+            search: search?.toString(),
+        });
+        return res.json(result);
+    } catch (error) {
+        console.error('Error fetching group directory:', error);
+        return res.status(500).json({ message: 'Error fetching group directory' });
     }
 }
 

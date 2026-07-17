@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { MapProvider } from '@/hooks/useMap';
 import { FiltersProvider } from '@/hooks/useFilters';
 import { CompaniesProvider } from '@/hooks/useCompanies';
+import { GroupsProvider } from '@/hooks/useGroups';
 import { PropertiesProvider } from '@/hooks/useProperties';
 import { PropertyProvider } from '@/hooks/useProperty';
 
@@ -23,9 +24,11 @@ export function DataProviders({ children, filtersDefaultOverrides }: DataProvide
         <MapProvider>
             <FiltersProvider defaultOverrides={filtersDefaultOverrides}>
                 <CompaniesProvider>
-                    <PropertiesProvider>
-                        <PropertyProvider>{children}</PropertyProvider>
-                    </PropertiesProvider>
+                    <GroupsProvider>
+                        <PropertiesProvider>
+                            <PropertyProvider>{children}</PropertyProvider>
+                        </PropertiesProvider>
+                    </GroupsProvider>
                 </CompaniesProvider>
             </FiltersProvider>
         </MapProvider>

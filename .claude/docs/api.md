@@ -866,6 +866,33 @@ Top zip codes and buyers within an MSA.
 
 ---
 
+### `GET /api/companies/groups`
+Public groups directory (Data-app Groups tab): multi-company operator groups ranked by the active
+sort, scoped to the selected county. Mirrors the company directory's sort/search/county/pagination
+contract. Distinct from the admin `/api/groups` router (which owns group mutation and is role-gated).
+
+**Auth**: Public
+
+**Query params**
+| Param | Type | Description |
+|---|---|---|
+| `county` | string \| string[] | Filter by county (repeatable); a group appears when ≥1 member operates in a selected county |
+| `search` | string | Search by group name (min 2 chars) |
+| `sort` | string | One of `most-properties`, `most-sold-properties`, `most-sold-properties-all-time`, `most-bought-properties`, `most-bought-properties-all-time`, `buys-wholesale`, `wholesalers` (invalid/`new-buyers` → `most-properties`) |
+| `page` | number | Page number |
+| `limit` | number | Results per page (max 100) |
+
+**Behavior**: Only groups with **two or more** member companies appear (the gate is evaluated
+globally; auto-created singletons never appear). Aggregate counts are computed by grouping the
+per-sort count queries by `group_id` — de-duplicated on the distinct-property sorts, intra-group
+transfers included. Stats are county-scoped; a group with a zero count for the active sort is hidden.
+Group names are RAW (format with `formatCompanyName` at the render edge).
+
+**Response `200`** `{ groups: GroupDirectoryRow[], total: number, page: number, limit: number }` where
+each row is `{ id, name, companyCount, propertyCount, propertiesSoldCount, propertiesSoldCountAllTime, propertiesBoughtCount, propertiesBoughtCountAllTime, wholesaleBuyCount, wholesalerCount }` with exactly one count populated for the active sort.
+
+---
+
 ### `GET /api/companies/:id`
 Get a single company with contact info and transaction history.
 
