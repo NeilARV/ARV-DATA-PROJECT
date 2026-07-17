@@ -30,55 +30,78 @@ type BadgeSpec = {
     testId: string;
 };
 
+/**
+ * The unit word for the active sort's count (e.g. "sold", "bought", "properties"), pluralized for
+ * `count`. Shared by the card badge and the See Companies roster so the metric reads the same
+ * everywhere.
+ */
+export function sortCountLabel(sortBy: DirectorySortOption, count: number): string {
+    switch (sortBy) {
+        case 'most-sold-properties':
+        case 'most-sold-properties-all-time':
+            return 'sold';
+        case 'most-bought-properties':
+        case 'most-bought-properties-all-time':
+            return 'bought';
+        case 'buys-wholesale':
+            return 'wholesale';
+        case 'wholesalers':
+            return 'wholesales';
+        default:
+            // most-properties and new-buyers show the raw property count.
+            return count === 1 ? 'property' : 'properties';
+    }
+}
+
 /** Picks the single count badge for the active sort, or null when that sort's count is zero. */
 function selectBadge(sortBy: DirectorySortOption, counts: SortCounts): BadgeSpec | null {
+    const label = (count: number) => sortCountLabel(sortBy, count);
     switch (sortBy) {
         case 'most-sold-properties': {
             const count = counts.propertiesSoldCount ?? 0;
             return count > 0
-                ? { count, label: 'sold', tone: 'red', testId: 'text-sold-count' }
+                ? { count, label: label(count), tone: 'red', testId: 'text-sold-count' }
                 : null;
         }
         case 'most-sold-properties-all-time': {
             const count = counts.propertiesSoldCountAllTime ?? 0;
             return count > 0
-                ? { count, label: 'sold', tone: 'red', testId: 'text-sold-count-all-time' }
+                ? { count, label: label(count), tone: 'red', testId: 'text-sold-count-all-time' }
                 : null;
         }
         case 'most-bought-properties': {
             const count = counts.propertiesBoughtCount ?? 0;
             return count > 0
-                ? { count, label: 'bought', tone: 'green', testId: 'text-bought-count' }
+                ? { count, label: label(count), tone: 'green', testId: 'text-bought-count' }
                 : null;
         }
         case 'most-bought-properties-all-time': {
             const count = counts.propertiesBoughtCountAllTime ?? 0;
             return count > 0
-                ? { count, label: 'bought', tone: 'green', testId: 'text-bought-count-all-time' }
+                ? {
+                      count,
+                      label: label(count),
+                      tone: 'green',
+                      testId: 'text-bought-count-all-time',
+                  }
                 : null;
         }
         case 'buys-wholesale': {
             const count = counts.wholesaleBuyCount ?? 0;
             return count > 0
-                ? { count, label: 'wholesale', tone: 'purple', testId: 'text-wholesale-buy-count' }
+                ? { count, label: label(count), tone: 'purple', testId: 'text-wholesale-buy-count' }
                 : null;
         }
         case 'wholesalers': {
             const count = counts.wholesalerCount ?? 0;
             return count > 0
-                ? { count, label: 'wholesales', tone: 'purple', testId: 'text-wholesaler-count' }
+                ? { count, label: label(count), tone: 'purple', testId: 'text-wholesaler-count' }
                 : null;
         }
         default: {
-            // most-properties and new-buyers show the raw property-count pill.
             const count = counts.propertyCount;
             return count > 0
-                ? {
-                      count,
-                      label: count === 1 ? 'property' : 'properties',
-                      tone: 'primary',
-                      testId: 'text-property-count',
-                  }
+                ? { count, label: label(count), tone: 'primary', testId: 'text-property-count' }
                 : null;
         }
     }

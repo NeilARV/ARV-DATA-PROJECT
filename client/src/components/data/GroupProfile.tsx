@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Home, RefreshCw, Trophy, Eye, Settings } from 'lucide-react';
+import { Home, RefreshCw, Trophy, Eye, Settings, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import AppDialog from '@/components/modals/Dialog';
 import GroupDetailDialog from '@/components/admin/GroupDetailDialog';
 import { AcquisitionActivity } from './AcquisitionActivity';
+import { SeeCompaniesDialog } from './SeeCompaniesDialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useView } from '@/hooks/useView';
 import { useCompanies } from '@/hooks/useCompanies';
@@ -17,14 +19,19 @@ type GroupProfileProps = {
     group: GroupDirectoryRow;
     /** Position in the ranked list; undefined for a deep-linked group prepended outside its page. */
     rank?: number;
+    /**
+     * Selects a member company from the See Companies roster: switches to the Companies tab and
+     * filters the grid to it. Owned by GroupsDirectory so it can suppress the group-deselect revert.
+     */
+    onSelectMember: (companyId: string, companyName: string) => void;
 };
 
 /**
  * Expanded aggregate profile for a selected operator group: owned/YTD-sold/assigned stats summed
- * across member companies, ranking among groups, the shared 90-day chart, and View Properties.
- * Admin/owner additionally get a Manage Group link into the existing admin group dialog.
+ * across member companies, ranking among groups, the shared 90-day chart, See Companies, and View
+ * Properties. Admin/owner additionally get a Manage Group link into the existing admin group dialog.
  */
-export function GroupProfile({ group, rank }: GroupProfileProps) {
+export function GroupProfile({ group, rank, onSelectMember }: GroupProfileProps) {
     const { isAdmin, isOwner } = useAuth();
     const { setView } = useView();
     const { setGroup, directorySort, directorySearch } = useCompanies();
@@ -33,6 +40,7 @@ export function GroupProfile({ group, rank }: GroupProfileProps) {
     const nav = useDataNav();
     const queryClient = useQueryClient();
     const [isManageOpen, setIsManageOpen] = useState(false);
+    const [isCompaniesOpen, setIsCompaniesOpen] = useState(false);
 
     const { data: profile } = useQuery({
         queryKey: ['/api/companies/groups', group.id, 'profile'],
@@ -129,8 +137,21 @@ export function GroupProfile({ group, rank }: GroupProfileProps) {
                 byMonth={profile?.acquisition90DayByMonth}
             />
 
-            {/* View Properties — visible to all users */}
+            {/* See Companies + View Properties — visible to all users */}
             <div className="pt-3 border-t border-border space-y-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsCompaniesOpen(true);
+                    }}
+                    data-testid="button-see-group-companies"
+                >
+                    <Building2 className="w-4 h-4 mr-2" />
+                    See Companies
+                </Button>
                 <Button
                     variant="outline"
                     size="sm"
@@ -175,6 +196,21 @@ export function GroupProfile({ group, rank }: GroupProfileProps) {
                 groupId={isManageOpen ? group.id : null}
                 onClose={handleManageClose}
             />
+
+            <AppDialog open={isCompaniesOpen} onClose={() => setIsCompaniesOpen(false)}>
+                {isCompaniesOpen && (
+                    <SeeCompaniesDialog
+                        groupId={group.id}
+                        groupName={group.name}
+                        counties={filters.counties}
+                        sort={directorySort}
+                        onSelectMember={(companyId, companyName) => {
+                            setIsCompaniesOpen(false);
+                            onSelectMember(companyId, companyName);
+                        }}
+                    />
+                )}
+            </AppDialog>
         </div>
     );
 }

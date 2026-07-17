@@ -55,11 +55,21 @@ export async function fetchGroupDirectoryRow(
 
 /**
  * One group's aggregate profile for the expanded group card.
+ * @param params.sort when set, the response includes the See Companies `roster` (member companies
+ *   with per-member counts for that sort, county-scoped by `counties`).
  * @returns null when the group is stale (disbanded, under two members) or the request fails.
  */
-export async function fetchGroupProfile(groupId: string): Promise<GroupProfile | null> {
+export async function fetchGroupProfile(
+    groupId: string,
+    params?: { counties?: string[]; sort?: DirectorySortOption },
+): Promise<GroupProfile | null> {
+    const searchParams = new URLSearchParams();
+    params?.counties?.forEach((county) => searchParams.append('county', county));
+    if (params?.sort) searchParams.set('sort', params.sort);
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
     try {
-        const res = await apiRequest('GET', `/api/companies/groups/${groupId}/profile`);
+        const res = await apiRequest('GET', `/api/companies/groups/${groupId}/profile${query}`);
         const data = await res.json();
         return data.profile ?? null;
     } catch {
