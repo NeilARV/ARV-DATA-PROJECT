@@ -331,18 +331,21 @@ List all entries on the email subscription whitelist.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
 
-**Response `200`** Array of whitelist entries:
+**Response `200`** Entries with their subscribed counties (each carrying its parent MSA name):
 ```json
-[
-  {
-    "id": 1,
-    "email": "user@example.com",
-    "msa": 3,
-    "relationshipManagerId": "uuid-or-null",
-    "createdAt": "2024-01-01T00:00:00Z",
-    "updatedAt": "2024-01-01T00:00:00Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": 1,
+      "email": "user@example.com",
+      "relationshipManagerId": "uuid-or-null",
+      "counties": [
+        { "county": "San Diego", "state": "CA", "msaName": "San Diego-Chula Vista-Carlsbad, CA" }
+      ]
+    }
+  ],
+  "count": 1
+}
 ```
 
 ---
@@ -356,21 +359,23 @@ Add an email to the subscription whitelist.
 ```json
 {
   "email": "user@example.com",
-  "msaName": "San Diego",
+  "counties": [{ "county": "San Diego", "state": "CA" }],
   "relationshipManagerId": "uuid-or-null"
 }
 ```
 
-`msaName` and `relationshipManagerId` are optional.
+`counties` is a non-empty `(county, state)` replace-list; the server derives each county's MSA from
+`COUNTY_TO_MSA` and silently drops untracked counties (same resolution contract as the user
+subscription replace-list). `relationshipManagerId` is optional.
 
 **Response `201`** `{ "message": "Email added to whitelist successfully" }`
 
-**Errors** `400` invalid data or invalid MSA · `409` email already on whitelist
+**Errors** `400` invalid data or empty counties list · `409` email already on whitelist
 
 ---
 
 ### `PATCH /api/admin/whitelist/:id`
-Update an existing whitelist entry's MSA or relationship manager.
+Update an existing whitelist entry's counties and/or relationship manager.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
 
@@ -379,17 +384,20 @@ Update an existing whitelist entry's MSA or relationship manager.
 **Body** (at least one required)
 ```json
 {
-  "msaName": "Denver",
+  "counties": [{ "county": "Denver", "state": "CO" }],
   "relationshipManagerId": "uuid-or-null"
 }
 ```
+
+`counties` replaces the entry's county set under the same resolution contract as create (non-empty,
+untracked counties dropped server-side); omit it to leave counties unchanged.
 
 **Response `200`**
 ```json
 { "message": "Whitelist entry updated", "id": 1, "email": "user@example.com", "relationshipManagerId": "uuid-or-null" }
 ```
 
-**Errors** `400` invalid id or invalid MSA · `404` entry not found
+**Errors** `400` invalid id or invalid body (empty counties list) · `404` entry not found
 
 ---
 

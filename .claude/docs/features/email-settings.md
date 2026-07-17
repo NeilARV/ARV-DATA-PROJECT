@@ -221,7 +221,7 @@ The panel makes two parallel API calls on save:
 
 ## Open Questions
 
-1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Since issue #133 their counties (`email_subscription_list_counties`) govern "where" exactly like users' subscriptions; nothing governs "what" — app toggles and status/deal-type filters do not apply to whitelist entries.
+1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Since issue #133 their counties (`email_subscription_list_counties`) govern "where" exactly like users' subscriptions — managed by admins/RMs through the Email List tab's county picker (issue #134); nothing governs "what" — app toggles and status/deal-type filters do not apply to whitelist entries.
 
 2. **Per-user sent property tracking (V2)**: `sent_property_ids` is global per MSA. A wholesale property sent to a wholesale-only user gets marked sent globally — a sold-only user subscribed later won't see it. Acceptable for V1.
 
@@ -307,6 +307,13 @@ Both exclude addresses already registered in `users` (double-send prevention) an
 - "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
 - `user_msa_subscriptions` table stays unchanged — no county column needed
 - County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 7 — Admin County Picker for Whitelist Entries (issue #134)
+*Admins and RMs manage whitelist entries by counties, not a single MSA.*
+
+- **`POST`/`PATCH /api/admin/whitelist`** — accept a `counties` `(county, state)` replace-list resolved server-side via `resolveCountySelections` (same contract as the user replace-list: untracked counties silently dropped, MSA id derived from `COUNTY_TO_MSA`); an empty list is rejected with 400 on both create and update; the parent `msa` column is no longer written (dropped in #136)
+- **`GET /api/admin/whitelist`** — each entry carries `counties` (`{ county, state, msaName }[]`) so the client groups without re-encoding the mapping
+- **Email List tab** — add + per-row edit open the shared `CountySubscriptionAccordion` in a dialog (San Diego pre-selected on add; edit seeded with current counties behind the existing confirmation step); the table shows a compact per-MSA summary (`"San Diego (all)"`, `"Los Angeles: Orange"`)
 
 ### Patch 6 — County-Aware Whitelist Targeting (issue #133)
 *Whitelist subscribers receive email under the exact contract registered users get.*
