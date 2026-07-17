@@ -24,6 +24,8 @@ export const mapQuerySchema = z
         status: stringOrArray.optional(),
         dateRange: z.string().optional(),
         companyId: z.string().optional(),
+        // Operator-group filter; companyId wins when both are present.
+        groupId: z.string().optional(),
         companyRole: z.enum(['buyer', 'seller']).optional(),
         zipcode: z.string().optional(),
         city: z.string().optional(),

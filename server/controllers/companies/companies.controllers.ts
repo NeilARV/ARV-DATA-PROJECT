@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { CompaniesServices, GroupDirectoryServices } from 'server/services/companies';
 import {
     updateCompanySchema,
@@ -60,6 +61,28 @@ export async function getGroupDirectoryHandler(req: Request, res: Response) {
     } catch (error) {
         console.error('Error fetching group directory:', error);
         return res.status(500).json({ message: 'Error fetching group directory' });
+    }
+}
+
+export async function getGroupDirectoryRowHandler(req: Request, res: Response) {
+    try {
+        // A malformed uuid is just an invalid link — the same 404 as a disbanded group, not a 500
+        // from the DB uuid cast.
+        if (!z.string().uuid().safeParse(req.params.id).success) {
+            return res.status(404).json({ message: 'Group not found' });
+        }
+        const { county, sort } = req.query;
+        const group = await GroupDirectoryServices.getGroupDirectoryRowById(req.params.id, {
+            county: countyParam(county),
+            sort: sort?.toString(),
+        });
+        if (!group) {
+            return res.status(404).json({ message: 'Group not found' });
+        }
+        return res.json({ group });
+    } catch (error) {
+        console.error('Error fetching group directory row:', error);
+        return res.status(500).json({ message: 'Error fetching group directory row' });
     }
 }
 
