@@ -68,6 +68,20 @@ export type GroupDirectoryResponse = {
     limit: number;
 };
 
+// Aggregate profile for one operator group (the expanded group card): the company-profile stats
+// summed across member companies. No contact rows or purchase-to-ARV — those are company-level
+// concepts. Name is RAW (format with formatCompanyName at the render edge — ARV.RAW-COMPANY-NAME).
+export type GroupProfile = {
+    id: string;
+    name: string;
+    companyCount: number;
+    propertyCount: number;
+    propertiesSoldCount: number;
+    propertiesAssignedCount: number;
+    acquisition90DayTotal: number;
+    acquisition90DayByMonth: { key: string; count: number }[];
+};
+
 // A company a user is associated with through one of their groups — the "My Companies" surface.
 // A user's reach is every company across every group they belong to.
 export type UserGroupCompany = {

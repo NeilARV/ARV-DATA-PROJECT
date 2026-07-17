@@ -20,6 +20,7 @@ import { clampLimit } from 'server/utils/clampLimit';
 import { countyScopeCondition } from 'server/utils/countyFilter';
 import { normalizeDateToYMD } from 'server/utils/normalization';
 import { buildSortCountSpec, DIRECTORY_SORT_OPTIONS } from './sortCounts';
+import { buildAcquisitionWindow, tallyAcquisitionChart } from './acquisitionChart';
 import type { DirectorySortOption } from './sortCounts';
 
 export const CONTACTS_PAGE_SIZE = 50;
@@ -520,18 +521,8 @@ export async function getCompanyById(id: string, county?: string | string[]) {
     if (contact.length === 0) return null;
     const result = contact[0];
 
-    const now = new Date();
-    const ytdStartStr = `${now.getFullYear()}-01-01`;
-    const todayStr = normalizeDateToYMD(now)!;
-    const ninetyDaysAgo = new Date(now);
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    const ninetyDaysAgoStr = normalizeDateToYMD(ninetyDaysAgo)!;
-    // The bar graph spans the same months as the 90-day window (first day of the
-    // earliest 90-day month → today) but counts the FULL month, not just the portion
-    // inside the 90 days — so its query is a strict superset of the 90-day window, and
-    // the 90-day total is recovered by filtering that result below (one query, not two).
-    const chartStart = new Date(ninetyDaysAgo.getFullYear(), ninetyDaysAgo.getMonth(), 1);
-    const chartStartStr = normalizeDateToYMD(chartStart)!;
+    const dateWindow = buildAcquisitionWindow();
+    const { ytdStartStr, todayStr, chartStartStr } = dateWindow;
 
     const countyCondition = countyScopeCondition({ county }) ?? undefined;
 
@@ -636,39 +627,10 @@ export async function getCompanyById(id: string, county?: string | string[]) {
 
     const primaryContact = contactsList[0] ?? null;
 
-    const monthNames = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-    ];
-    const months: { key: string; count: number }[] = [];
-    const cursor = new Date(ninetyDaysAgo.getFullYear(), ninetyDaysAgo.getMonth(), 1);
-    const endMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    while (cursor <= endMonth) {
-        months.push({ key: monthNames[cursor.getMonth()], count: 0 });
-        cursor.setMonth(cursor.getMonth() + 1);
-    }
-    // One pass over the chart superset: tally each FULL month for the bar graph, and
-    // separately count only the rows inside the strict 90-day window for the total.
-    let acquisition90DayTotal = 0;
-    chartAcquisitions.forEach((row) => {
-        const dateStr = normalizeDateToYMD(row.recordingDate as string | Date | null);
-        if (!dateStr) return;
-        const [, m] = dateStr.split('-').map(Number);
-        const monthKey = monthNames[m - 1];
-        const existing = months.find((mo) => mo.key === monthKey);
-        if (existing) existing.count++;
-        if (dateStr >= ninetyDaysAgoStr) acquisition90DayTotal++;
-    });
+    const { acquisition90DayTotal, acquisition90DayByMonth } = tallyAcquisitionChart(
+        chartAcquisitions,
+        dateWindow,
+    );
 
     return {
         ...result,
@@ -681,7 +643,7 @@ export async function getCompanyById(id: string, county?: string | string[]) {
         propertiesSoldCountAllTime: sellerCountAllTimeResult?.count ?? 0,
         propertiesAssignedCount,
         acquisition90DayTotal,
-        acquisition90DayByMonth: months,
+        acquisition90DayByMonth,
     };
 }
 

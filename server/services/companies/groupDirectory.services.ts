@@ -1,14 +1,16 @@
 import { db } from 'server/storage';
 import { companies, companyGroups } from '@database/schemas/companies.schema';
 import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
-import { sql, eq, and, inArray } from 'drizzle-orm';
+import { sql, eq, and, gte, lte, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import { clampLimit } from 'server/utils/clampLimit';
 import { countyScopeCondition } from 'server/utils/countyFilter';
 import { normalizeDateToYMD } from 'server/utils/normalization';
 import { buildSortCountSpec, SORT_COUNT_FIELD } from './sortCounts';
+import { buildAcquisitionWindow, tallyAcquisitionChart } from './acquisitionChart';
 import type { CountedSortOption } from './sortCounts';
-import type { GroupDirectoryRow } from '@shared/types/groups';
+import type { GroupDirectoryRow, GroupProfile } from '@shared/types/groups';
 
 export const GROUP_DIRECTORY_PAGE_SIZE = 50;
 
@@ -241,5 +243,92 @@ export async function getGroupDirectoryRowById(
         wholesaleBuyCount: 0,
         wholesalerCount: 0,
         [countField]: count,
+    };
+}
+
+/**
+ * Aggregate profile for one operator group (the expanded group card): the company-profile stats
+ * summed across member companies — owned de-duplicated across members, YTD Arms-Length sold
+ * including intra-group transfers, assigned de-duplicated on property, and the 90-day acquisition
+ * chart. Null under the directory row's visibility rules: disbanded, under two members, or no
+ * member in the selected counties.
+ */
+export async function getGroupProfile(
+    id: string,
+    county?: string | string[],
+): Promise<GroupProfile | null> {
+    const [candidate] = await fetchCandidateGroups(county, '', id);
+    if (!candidate) return null;
+
+    const dateWindow = buildAcquisitionWindow();
+    const countyCondition = countyScopeCondition({ county });
+
+    // Each stat resolves its role column to the group through the member company's group_id, so a
+    // transaction counts when EITHER member is on that side — the group-grain twin of getCompanyById.
+    const memberStatQuery = (roleColumn: PgColumn, countExpr: SQL<number>, extraParts: SQL[]) =>
+        db
+            .select({ count: countExpr })
+            .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .innerJoin(companies, eq(companies.id, roleColumn))
+            .where(
+                and(
+                    eq(companies.groupId, id),
+                    ...extraParts,
+                    ...(countyCondition ? [countyCondition] : []),
+                ),
+            );
+
+    const distinctPropertyCount = sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`;
+    const rowCount = sql<number>`count(*)::int`;
+    const armsLength = sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`;
+
+    const [[owned], [soldYtd], [assigned], chartAcquisitions] = await Promise.all([
+        // Current owner: a member is the buyer on the most-recent (sort_order=1) transaction; a
+        // property bought via two members counts once.
+        memberStatQuery(propertyTransactions.buyerId, distinctPropertyCount, [
+            sql`${propertyTransactions.sortOrder} = 1`,
+        ]),
+        // YTD sold counts transaction rows (not distinct), matching getCompanyById and the
+        // directory's most-sold sort — intra-group transfers included.
+        memberStatQuery(propertyTransactions.sellerId, rowCount, [
+            armsLength,
+            gte(propertyTransactions.recordingDate, dateWindow.ytdStartStr),
+            lte(propertyTransactions.recordingDate, dateWindow.todayStr),
+        ]),
+        memberStatQuery(propertyTransactions.assignorId, distinctPropertyCount, []),
+        // Chart superset: every member acquisition from the earliest displayed month through today;
+        // the strict 90-day total is recovered in the tally.
+        db
+            .select({ recordingDate: propertyTransactions.recordingDate })
+            .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .innerJoin(companies, eq(companies.id, propertyTransactions.buyerId))
+            .where(
+                and(
+                    eq(companies.groupId, id),
+                    gte(propertyTransactions.recordingDate, dateWindow.chartStartStr),
+                    lte(propertyTransactions.recordingDate, dateWindow.todayStr),
+                    ...(countyCondition ? [countyCondition] : []),
+                ),
+            ),
+    ]);
+
+    const { acquisition90DayTotal, acquisition90DayByMonth } = tallyAcquisitionChart(
+        chartAcquisitions,
+        dateWindow,
+    );
+
+    return {
+        id: candidate.id,
+        name: candidate.name,
+        companyCount: candidate.companyCount,
+        propertyCount: owned?.count ?? 0,
+        propertiesSoldCount: soldYtd?.count ?? 0,
+        propertiesAssignedCount: assigned?.count ?? 0,
+        acquisition90DayTotal,
+        acquisition90DayByMonth,
     };
 }

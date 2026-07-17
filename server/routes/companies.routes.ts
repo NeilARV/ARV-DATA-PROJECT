@@ -21,6 +21,9 @@ router.get('/leaderboard', CompaniesController.getLeaderboardHandler);
 // wins; the admin group-mutation router (/api/groups) is separate and untouched.
 router.get('/groups', CompaniesController.getGroupDirectoryHandler);
 
+// One group's aggregate profile (the expanded group card); 404 when stale/invisible.
+router.get('/groups/:id/profile', CompaniesController.getGroupProfileHandler);
+
 // One group's directory row (deep-link validation for ?group= URLs); 404 when stale/invisible.
 router.get('/groups/:id', CompaniesController.getGroupDirectoryRowHandler);
 
