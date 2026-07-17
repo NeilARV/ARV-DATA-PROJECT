@@ -12,7 +12,7 @@ import {
     NORMALIZED_COUNTY_TO_MSA,
     type MsaRegion,
 } from '@/constants/mapRegions.constants';
-import { getZipCodesForCounty } from '@/lib/county';
+import { getZipCodesForCounties } from '@/lib/county';
 import { matchesFiltersForPin } from '@/lib/propertyFilters';
 import { buildPropertyQueryParams } from '@/lib/propertyQueryParams';
 import { apiRequest } from '@/lib/queryClient';
@@ -143,7 +143,8 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     }, [
         fetchMapPins,
         mapBounds,
-        filters.county,
+        filters.msa,
+        filters.counties,
         filters.statusFilters,
         filters.dateRange,
         filters.zipCode,
@@ -169,7 +170,8 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         return `/api/properties/map/extent${queryString}`;
     }, [
         fetchMapPins,
-        filters.county,
+        filters.msa,
+        filters.counties,
         filters.statusFilters,
         filters.dateRange,
         filters.zipCode,
@@ -257,8 +259,8 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     // Zip code list for the client-side location filter.
     const zipCodeList = useMemo(() => {
         if (!fetchMapPins) return [];
-        return getZipCodesForCounty(filters.county ?? 'San Diego');
-    }, [fetchMapPins, filters.county]);
+        return getZipCodesForCounties(filters.counties);
+    }, [fetchMapPins, filters.counties]);
 
     // The pin endpoint filters by county/status/company/date/location; price/beds/baths/type are
     // applied here over the viewport pins.
@@ -273,11 +275,12 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     isOverviewRef.current = isOverview;
 
     // Only a change in *where* you're looking should recenter — not status/date/price/etc. This key
-    // captures the location dimensions (county/city/zip + selected company); read via a ref so the
-    // effect still only fires on `extent` change but recenters solely when this key has changed.
-    const locationKey = `${filters.county ?? ''}|${filters.city ?? ''}|${filters.zipCode ?? ''}|${
-        company?.id ?? company?.companyName ?? ''
-    }`;
+    // captures the location dimensions (msa + county set/city/zip + selected company); read via a
+    // ref so the effect still only fires on `extent` change but recenters solely when this key has
+    // changed.
+    const locationKey = `${filters.msa}|${filters.counties.join(',')}|${filters.city ?? ''}|${
+        filters.zipCode ?? ''
+    }|${company?.id ?? company?.companyName ?? ''}`;
     const locationKeyRef = useRef(locationKey);
     locationKeyRef.current = locationKey;
     const appliedLocationKeyRef = useRef<string | null>(null);

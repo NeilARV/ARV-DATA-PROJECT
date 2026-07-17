@@ -3,10 +3,17 @@ import { useLocation, useSearch } from 'wouter';
 
 import { useAuth } from '@/hooks/use-auth';
 
-import { getMsaNameFromCounty } from '@/lib/county';
+import {
+    DEFAULT_MSA_COUNTY_SELECTION,
+    defaultSelectionForUser,
+    isSameSelection,
+    parseLegacyDealsFilterParams,
+    parseMsaCountyParams,
+    writeMsaCountyParams,
+} from '@/lib/msaCountySelection';
 
+import type { MsaCountySelection } from '@/types/filters';
 import type { DealTypeFilter } from '@/components/deals/DealsToolbar';
-import type { LocationFilter } from '@/types/deals';
 import { isDealType, type DealTab } from '@shared/types/deals';
 
 // ── Shared first-load default ───────────────────────────────────────────────
@@ -44,21 +51,22 @@ export function useDataNav() {
     const { user } = useAuth();
 
     const params = new URLSearchParams(search);
-    const county = params.get('county');
+    const parsedSelection = parseMsaCountyParams(params);
     const propertyId = params.get('property');
     const companyId = params.get('company');
 
-    useFirstLoadDefault(county !== null, !!user, () => {
+    useFirstLoadDefault(parsedSelection !== null, !!user, () => {
         const p = new URLSearchParams(search);
-        p.set('county', user?.county ?? 'San Diego');
+        writeMsaCountyParams(p, defaultSelectionForUser(user?.county, user?.countySubscriptions));
         setLocation(buildDataUrl(p), { replace: true });
     });
 
-    const setCounty = useCallback(
-        (c: string) => {
+    const setSelection = useCallback(
+        (selection: MsaCountySelection) => {
             const p = new URLSearchParams(search);
-            if (p.get('county') === c) return;
-            p.set('county', c);
+            const current = parseMsaCountyParams(p);
+            if (current && isSameSelection(current, selection)) return;
+            writeMsaCountyParams(p, selection);
             p.delete('property');
             p.delete('company');
             setLocation(buildDataUrl(p));
@@ -91,53 +99,24 @@ export function useDataNav() {
     );
 
     return {
-        county: county ?? 'San Diego',
+        selection: parsedSelection ?? DEFAULT_MSA_COUNTY_SELECTION,
         propertyId,
         companyId,
-        setCounty,
+        setSelection,
         setPropertyId,
         setCompanyId,
     };
 }
 
 // ── Deals nav (/deals) ──────────────────────────────────────────────────────
-// Rebuilds the query string from scratch — every param must be threaded through here from every
-// setter, or changing one filter silently drops the others from the URL.
-function buildDealsUrl(
-    tab: DealTab,
-    filter: LocationFilter | null,
-    type: DealTypeFilter,
-    dealId?: number | null,
-): string {
-    const params = new URLSearchParams();
-    if (tab === 'mine') params.set('tab', 'mine');
-    if (type !== 'all') params.set('type', type);
-    if (filter) {
-        params.set('filterType', filter.type);
-        params.set('filterValue', filter.value);
-        if (filter.type === 'county' || filter.type === 'city')
-            params.set('filterState', filter.state);
-    }
-    if (dealId != null) params.set('dealId', String(dealId));
+function buildDealsUrl(params: URLSearchParams): string {
     const qs = params.toString();
     return qs ? `/deals?${qs}` : '/deals';
 }
 
-function parseDealsFilter(params: URLSearchParams): LocationFilter | null {
-    const type = params.get('filterType');
-    const value = params.get('filterValue');
-    if (!type || !value) return null;
-    if (type === 'county') {
-        const state = params.get('filterState') ?? '';
-        return { type: 'county', value, state };
-    }
-    if (type === 'msa') return { type: 'msa', value };
-    if (type === 'city') {
-        const state = params.get('filterState') ?? '';
-        return { type: 'city', value, state };
-    }
-    if (type === 'zip') return { type: 'zip', value };
-    return null;
+// Legacy ?filterType= deep links (old deal emails) still resolve to a selection.
+function parseDealsSelection(params: URLSearchParams): MsaCountySelection | null {
+    return parseMsaCountyParams(params) ?? parseLegacyDealsFilterParams(params);
 }
 
 export function useDealsNav() {
@@ -148,41 +127,48 @@ export function useDealsNav() {
     const params = new URLSearchParams(search);
     const rawTab = params.get('tab');
     const tab: DealTab = rawTab === 'mine' ? 'mine' : 'all';
+    const parsedSelection = parseDealsSelection(params);
     const rawType = params.get('type');
     const typeFilter: DealTypeFilter = isDealType(rawType) ? rawType : 'all';
-    const locationFilter = parseDealsFilter(params);
-    const hasExplicitFilter = params.has('filterType');
 
     const rawDealId = params.get('dealId');
     const dealId: number | null = rawDealId ? Number(rawDealId) || null : null;
 
-    useFirstLoadDefault(hasExplicitFilter, !!user?.county, () => {
-        const msaName = getMsaNameFromCounty(user?.county ?? '');
-        if (!msaName) return;
-        setLocation(buildDealsUrl(tab, { type: 'msa', value: msaName }, typeFilter, dealId), {
-            replace: true,
-        });
+    useFirstLoadDefault(parsedSelection !== null, !!user, () => {
+        const p = new URLSearchParams(search);
+        writeMsaCountyParams(p, defaultSelectionForUser(user?.county, user?.countySubscriptions));
+        setLocation(buildDealsUrl(p), { replace: true });
     });
+
+    const setSelection = useCallback(
+        (selection: MsaCountySelection) => {
+            const p = new URLSearchParams(search);
+            const current = parseDealsSelection(p);
+            if (current && isSameSelection(current, selection)) return;
+            writeMsaCountyParams(p, selection);
+            setLocation(buildDealsUrl(p));
+        },
+        [search, setLocation],
+    );
 
     const setTab = useCallback(
         (newTab: DealTab) => {
-            setLocation(buildDealsUrl(newTab, locationFilter, typeFilter, dealId));
+            const p = new URLSearchParams(search);
+            if (newTab === 'mine') p.set('tab', 'mine');
+            else p.delete('tab');
+            setLocation(buildDealsUrl(p));
         },
-        [setLocation, locationFilter, typeFilter, dealId],
+        [search, setLocation],
     );
 
     const setTypeFilter = useCallback(
         (type: DealTypeFilter) => {
-            setLocation(buildDealsUrl(tab, locationFilter, type, dealId));
+            const p = new URLSearchParams(search);
+            if (type !== 'all') p.set('type', type);
+            else p.delete('type');
+            setLocation(buildDealsUrl(p));
         },
-        [setLocation, tab, locationFilter, dealId],
-    );
-
-    const setLocationFilter = useCallback(
-        (filter: LocationFilter | null) => {
-            setLocation(buildDealsUrl(tab, filter, typeFilter, dealId));
-        },
-        [setLocation, tab, typeFilter, dealId],
+        [search, setLocation],
     );
 
     const setDealId = useCallback(
@@ -190,20 +176,19 @@ export function useDealsNav() {
             const p = new URLSearchParams(search);
             if (id !== null) p.set('dealId', String(id));
             else p.delete('dealId');
-            const qs = p.toString();
-            setLocation(qs ? `/deals?${qs}` : '/deals', opts);
+            setLocation(buildDealsUrl(p), opts);
         },
         [search, setLocation],
     );
 
     return {
         tab,
+        selection: parsedSelection ?? DEFAULT_MSA_COUNTY_SELECTION,
         typeFilter,
-        locationFilter,
         dealId,
         setTab,
+        setSelection,
         setTypeFilter,
-        setLocationFilter,
         setDealId,
     };
 }

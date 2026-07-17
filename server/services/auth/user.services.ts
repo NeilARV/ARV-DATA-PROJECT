@@ -8,9 +8,8 @@ import {
     subscriptions,
     sessions,
 } from '@database/schemas/users.schema';
-import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { db } from 'server/storage';
-import { eq, ne, sql, inArray, and, isNull } from 'drizzle-orm';
+import { eq, ne, sql, and, isNull } from 'drizzle-orm';
 import type { UpdateNotificationPreferences } from '@database/updates';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
@@ -56,27 +55,24 @@ export async function createUser(data: SignupData) {
 }
 
 /**
- * Updates a user's profile fields and (optionally) replaces their MSA subscriptions.
- * If the email is changing, clears emailVerifiedAt — the stamp attests to the address
+ * Updates a user's profile fields. Subscriptions are replaced separately (county table) by the
+ * controller. If the email is changing, clears emailVerifiedAt — the stamp attests to the address
  * it was earned on, so a new address must be re-verified.
  * @returns the updated user (without password hash) and whether the email changed,
  * or null if no user matched.
  */
 export async function updateUser(
     userId: string,
-    updateData: {
+    dbUpdateData: {
         firstName?: string;
         lastName?: string;
         email?: string;
         phone?: string;
         notifications?: boolean;
-        msaSubscriptions?: string[];
         county?: string | null;
         state?: string | null;
     },
 ): Promise<{ user: Omit<UserRow, 'passwordHash'>; hasEmailChanged: boolean } | null> {
-    const { msaSubscriptions, ...dbUpdateData } = updateData;
-
     // Compare normalized (matching getUserByEmail) so a case-only rewrite of the
     // same mailbox keeps its verification stamp. This pre-read only decides whether
     // the caller sends a verification email; the stamp itself is cleared atomically
@@ -110,61 +106,8 @@ export async function updateUser(
 
     if (!updatedUser) return null;
 
-    if (msaSubscriptions !== undefined) {
-        await syncUserMsaSubscriptions(userId, msaSubscriptions);
-    }
-
     const { passwordHash: _, ...userWithoutPassword } = updatedUser;
     return { user: userWithoutPassword, hasEmailChanged };
-}
-
-/**
- * Replaces the user's MSA subscriptions with the given list (by MSA name).
- * Resolves names to msas.id, then deletes existing subscriptions and inserts the new set.
- */
-async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Promise<void> {
-    if (msaNames.length === 0) {
-        await db.delete(userMsaSubscriptions).where(eq(userMsaSubscriptions.userId, userId));
-        return;
-    }
-
-    const msaRows = await db.select({ id: msas.id }).from(msas).where(inArray(msas.name, msaNames));
-
-    const msaIds = msaRows.map((r) => r.id);
-    if (msaIds.length === 0) {
-        await db.delete(userMsaSubscriptions).where(eq(userMsaSubscriptions.userId, userId));
-        return;
-    }
-
-    await db.delete(userMsaSubscriptions).where(eq(userMsaSubscriptions.userId, userId));
-
-    await db.insert(userMsaSubscriptions).values(
-        msaIds.map((msaId) => ({
-            userId,
-            msaId,
-        })),
-    );
-}
-
-/**
- * Adds a single MSA subscription for a user.
- */
-export async function addUserMsaSubscription(userId: string, msaId: number): Promise<void> {
-    await db.insert(userMsaSubscriptions).values({ userId, msaId });
-}
-
-/**
- * Looks up an MSA id by its exact name.
- * @param name the MSA name (e.g. "Denver")
- * @returns the MSA id, or null if no row matches.
- */
-export async function getMsaIdByName(name: string): Promise<number | null> {
-    const [msaRow] = await db
-        .select({ id: msas.id })
-        .from(msas)
-        .where(eq(msas.name, name))
-        .limit(1);
-    return msaRow?.id ?? null;
 }
 
 /**
@@ -356,18 +299,6 @@ export async function getRelationshipManagerForUser(userId: string): Promise<{
         .limit(1);
     const rm = rows[0];
     return rm ?? null;
-}
-
-/**
- * Returns MSA names the user is subscribed to (for profile / me response).
- */
-export async function getUserMsaSubscriptionNames(userId: string): Promise<string[]> {
-    const rows = await db
-        .select({ name: msas.name })
-        .from(userMsaSubscriptions)
-        .innerJoin(msas, eq(userMsaSubscriptions.msaId, msas.id))
-        .where(eq(userMsaSubscriptions.userId, userId));
-    return rows.map((r) => r.name);
 }
 
 /**

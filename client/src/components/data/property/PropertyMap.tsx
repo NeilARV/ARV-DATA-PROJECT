@@ -22,7 +22,7 @@ import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGeoMap, type MsaRegionBubble } from '@/hooks/useMap';
 import { useProperty } from '@/hooks/useProperty';
-import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
+import { getSelectionMapCenter } from '@/lib/county';
 import { MAP_ZOOM_COUNTY, MAP_ZOOM_FLOOR, MAP_DECLUSTER_ZOOM } from '@/constants/map.constants';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import type { LeafletMouseEvent } from 'leaflet';
@@ -67,7 +67,7 @@ export default function PropertyMap() {
 
     // MapContainer reads center/zoom once at mount; CameraController drives changes after that.
     const initialCenter =
-        mapCenter ?? getCountyCenter(filters.county ?? 'San Diego') ?? getDefaultMapCenter();
+        mapCenter ?? getSelectionMapCenter({ msa: filters.msa, counties: filters.counties });
     const initialZoom = mapZoom ?? MAP_ZOOM_COUNTY;
 
     const tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';

@@ -7,6 +7,10 @@ import {
 } from '@database/validation/users.validation';
 import { updateUserProfileSchema, updateNotificationPreferencesSchema } from '@database/updates';
 import { EmailVerificationServices, SessionServices, UserServices } from 'server/services/auth';
+import {
+    getUserCountySubscriptions,
+    replaceUserCountySubscriptions,
+} from 'server/services/subscriptions/countySubscriptions.services';
 import { generateTempPassword } from 'server/utils/generateTempPassword';
 import { sendTempPasswordEmail } from 'server/services/postmark/passwordReset.services';
 
@@ -82,16 +86,17 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
             return;
         }
 
-        const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
-            UserServices.getUserMsaSubscriptionNames(user.id),
-            UserServices.getRelationshipManagerForUser(user.id),
-            UserServices.getUserNotificationPreferences(user.id),
-        ]);
+        const [countySubscriptions, relationshipManager, notificationPreferences] =
+            await Promise.all([
+                getUserCountySubscriptions(user.id),
+                UserServices.getRelationshipManagerForUser(user.id),
+                UserServices.getUserNotificationPreferences(user.id),
+            ]);
         const { passwordHash: _, ...userWithoutPassword } = user;
         res.json({
             user: {
                 ...userWithoutPassword,
-                msaSubscriptions,
+                countySubscriptions,
                 relationshipManager,
                 notificationPreferences,
             },
@@ -124,11 +129,12 @@ export async function updateProfile(
             return;
         }
 
-        const updateData = validation.data;
+        // Subscriptions are replaced separately (county table), not part of the users-row update.
+        const { countySubscriptions, ...profileData } = validation.data;
 
         // Check if email is being updated and if it's already taken by another user
-        if (updateData.email) {
-            const [existingUser] = await UserServices.getUserByEmail(updateData.email);
+        if (profileData.email) {
+            const [existingUser] = await UserServices.getUserByEmail(profileData.email);
             if (existingUser && existingUser.id !== req.session.userId) {
                 res.status(409).json({ message: 'An account with this email already exists' });
                 return;
@@ -136,7 +142,7 @@ export async function updateProfile(
         }
 
         // Update user profile (only allow updating own profile)
-        const result = await UserServices.updateUser(req.session.userId, updateData);
+        const result = await UserServices.updateUser(req.session.userId, profileData);
 
         if (!result) {
             res.status(404).json({ message: 'User not found' });
@@ -145,16 +151,21 @@ export async function updateProfile(
 
         const { user: updatedUser, hasEmailChanged } = result;
 
-        const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
-            UserServices.getUserMsaSubscriptionNames(updatedUser.id),
-            UserServices.getRelationshipManagerForUser(updatedUser.id),
-            UserServices.getUserNotificationPreferences(updatedUser.id),
-        ]);
+        if (countySubscriptions !== undefined) {
+            await replaceUserCountySubscriptions(updatedUser.id, countySubscriptions);
+        }
+
+        const [refreshedCountySubscriptions, relationshipManager, notificationPreferences] =
+            await Promise.all([
+                getUserCountySubscriptions(updatedUser.id),
+                UserServices.getRelationshipManagerForUser(updatedUser.id),
+                UserServices.getUserNotificationPreferences(updatedUser.id),
+            ]);
         res.json({
             success: true,
             user: {
                 ...updatedUser,
-                msaSubscriptions,
+                countySubscriptions: refreshedCountySubscriptions,
                 relationshipManager,
                 notificationPreferences,
             },

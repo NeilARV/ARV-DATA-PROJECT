@@ -7,9 +7,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import DealsLocationSearch, { msaShortName } from '@/components/deals/DealsLocationSearch';
-import { getMsaNameFromCounty } from '@/lib/county';
-import type { LocationFilter } from '@/types/deals';
+import { MsaCountyPicker } from '@/components/MsaCountyPicker';
+import { msaShortName } from '@/lib/county';
+import type { MsaCountySelection } from '@/types/filters';
 import type { DealType } from '@shared/types/deals';
 
 export type DealTypeFilter = DealType | 'all';
@@ -22,39 +22,25 @@ const TYPE_OPTIONS: { value: DealTypeFilter; label: string }[] = [
     { value: 'sold', label: 'Sold' },
 ];
 
-/**
- * The marketplace heading for the market being browsed — the MSA when the filter names one
- * (directly, or via its county), otherwise the generic marketplace title.
- */
-function marketplaceTitle(filter: LocationFilter | null): string {
-    const msa =
-        filter?.type === 'msa'
-            ? filter.value
-            : filter?.type === 'county'
-              ? getMsaNameFromCounty(filter.value)
-              : undefined;
-    return msa ? `${msaShortName(msa)} Deals Marketplace` : 'Deals Marketplace';
-}
-
 type DealsToolbarProps = {
     typeFilter: DealTypeFilter;
-    locationFilter: LocationFilter | null;
+    selection: MsaCountySelection;
     onTypeFilterChange: (type: DealTypeFilter) => void;
-    onLocationFilterChange: (filter: LocationFilter | null) => void;
+    onSelectionChange: (selection: MsaCountySelection) => void;
     onAddDeal: () => void;
 };
 
 /**
  * The deals filter bar: the marketplace title (named for the MSA being browsed) sits on the left,
- * the location search sits centered with the deal-type dropdown beside it, and the primary Add
- * action is pinned to the far right. Equal flex zones keep the search cluster optically centered.
+ * the county picker sits centered with the deal-type dropdown beside it, and the primary Add
+ * action is pinned to the far right. Equal flex zones keep the picker cluster optically centered.
  * Scope (all vs mine) lives on the list column, not here.
  */
 export default function DealsToolbar({
     typeFilter,
-    locationFilter,
+    selection,
     onTypeFilterChange,
-    onLocationFilterChange,
+    onSelectionChange,
     onAddDeal,
 }: DealsToolbarProps) {
     return (
@@ -62,11 +48,11 @@ export default function DealsToolbar({
             {/* Left zone: the page title, truncating before it can push the cluster off-center. */}
             <div className="flex min-w-0 items-center lg:flex-1">
                 <h1 className="truncate text-xl font-semibold lg:text-2xl">
-                    {marketplaceTitle(locationFilter)}
+                    {`${msaShortName(selection.msa)} Deals Marketplace`}
                 </h1>
             </div>
 
-            {/* Centered cluster: type filter next to the search. */}
+            {/* Centered cluster: type filter next to the county picker. */}
             <div className="flex flex-wrap items-center justify-center gap-2">
                 <Select
                     value={typeFilter}
@@ -84,11 +70,7 @@ export default function DealsToolbar({
                     </SelectContent>
                 </Select>
 
-                {/* Fixed width so the search sits beside the dropdown instead of pushing it to
-                    a second row (DealsLocationSearch is w-full by default). */}
-                <div className="w-full sm:w-72 lg:w-80">
-                    <DealsLocationSearch value={locationFilter} onChange={onLocationFilterChange} />
-                </div>
+                <MsaCountyPicker selection={selection} onSelectionChange={onSelectionChange} />
             </div>
 
             {/* Right zone: primary action pinned far right. */}

@@ -17,7 +17,14 @@ export function useZipCounts(options?: { enabled?: boolean }): ZipCount[] {
             { company, sortBy },
         );
         return `/api/properties/zip-counts${queryString}`;
-    }, [filters.county, filters.statusFilters, filters.dateRange, company?.id, sortBy]);
+    }, [
+        filters.msa,
+        filters.counties,
+        filters.statusFilters,
+        filters.dateRange,
+        company?.id,
+        sortBy,
+    ]);
 
     const { data = [] } = useQuery<ZipCount[]>({
         queryKey: [url],

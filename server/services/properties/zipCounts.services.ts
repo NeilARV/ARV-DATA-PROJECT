@@ -1,9 +1,10 @@
 import { db } from 'server/storage';
 import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
-import { eq, sql, and, or, inArray } from 'drizzle-orm';
+import { eq, sql, and, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
+import { countyScopeCondition } from 'server/utils/countyFilter';
 import type { ZipCount } from '@shared/types/properties';
 
 /**
@@ -15,13 +16,24 @@ import type { ZipCount } from '@shared/types/properties';
  *   Phase 2 — aggregate zip counts from addresses using inArray on qualifying IDs;
  *              avoids per-row EXISTS scans across the full properties table.
  */
-export async function getZipCounts(
-    county?: string,
-    statusFilter?: string | string[],
-    dateRange?: string,
-    companyId?: string,
-    companyRole?: string,
-): Promise<ZipCount[]> {
+interface GetZipCountsFilters {
+    county?: string | string[];
+    /** Restricts county matching to this MSA's tracked counties (see countyScopeCondition). */
+    msa?: string;
+    statusFilter?: string | string[];
+    dateRange?: string;
+    companyId?: string;
+    companyRole?: string;
+}
+
+export async function getZipCounts({
+    county,
+    msa,
+    statusFilter,
+    dateRange,
+    companyId,
+    companyRole,
+}: GetZipCountsFilters): Promise<ZipCount[]> {
     const companyIdTrimmed = companyId?.trim() ?? '';
     const hasCompanyFilter = companyIdTrimmed !== '';
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
@@ -29,15 +41,8 @@ export async function getZipCounts(
     // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
     const idConditions = [];
 
-    if (county) {
-        const normalizedCounty = county.trim().toLowerCase();
-        idConditions.push(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-            ),
-        );
-    }
+    const countyCondition = countyScopeCondition({ county, msa });
+    if (countyCondition) idConditions.push(countyCondition);
 
     if (statusFilter) {
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];

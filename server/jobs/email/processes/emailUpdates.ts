@@ -1,16 +1,15 @@
 import { db } from 'server/storage';
-import { users } from '@database/schemas/users.schema';
-import { userNotificationPreferences } from '@database/schemas/users.schema';
-import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
+import { msas } from '@database/schemas/msas.schema';
 import { properties, addresses, structures } from '@database/schemas/properties.schema';
 import { sentPropertyIds as sentPropertyIdsTable } from '@database/schemas/sync.schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { StreetviewServices } from 'server/services/properties';
-import { getAppBaseUrl } from 'server/utils/appBaseUrl';
 import {
-    sendTemplateToUsers,
-    getWhitelistRecipientsForMsa,
-} from 'server/services/postmark/email.services';
+    resolveDataAppRecipients,
+    resolveWhitelistDataAppRecipients,
+} from 'server/services/email/recipientResolver';
+import { getAppBaseUrl } from 'server/utils/appBaseUrl';
+import { sendTemplateToUsers } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { formatAddress } from '@shared/utils/formatAddress';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
@@ -205,6 +204,11 @@ function matchesStatusFilter(statuses: string[], filter: string[]): boolean {
     return filter.some((f) => normalized.includes(f));
 }
 
+// Subscription rows hold COUNTY_TO_MSA's canonical casing; addresses.county is raw SFR data.
+function normalizeCounty(county: string): string {
+    return county.trim().toLowerCase();
+}
+
 /**
  * Picks up to `count` entries from `candidates` whose Street View URL is in the cache,
  * prioritizing ARV-funded properties first. If there are enough ARV-funded candidates to
@@ -245,8 +249,9 @@ function pickPropertiesFromCache(
 }
 
 /**
- * Sends property-update emails to all users subscribed to this MSA who have Data App emails enabled.
- * Each user may receive a personalized property set based on their dataAppStatusFilter.
+ * Sends property-update emails to all subscribers of this MSA's counties with Data App emails
+ * enabled, plus whitelist entries subscribed to any of them; every recipient's property set is
+ * filtered to their subscribed counties (users additionally by dataAppStatusFilter).
  */
 export async function sendEmailUpdatesForMsa(
     msaName: string,
@@ -254,53 +259,26 @@ export async function sendEmailUpdatesForMsa(
     state: string,
 ): Promise<void> {
     try {
-        // Users subscribed to this MSA with master notifications on and Data App enabled
-        // (LEFT JOIN preferences: users with no prefs row default to enabled)
-        const usersToEmail = await db
-            .select({
-                id: users.id,
-                firstName: users.firstName,
-                email: users.email,
-                dataAppStatusFilter: userNotificationPreferences.dataAppStatusFilter,
-            })
-            .from(users)
-            .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
-            .innerJoin(msas, eq(userMsaSubscriptions.msaId, msas.id))
-            .innerJoin(
-                userNotificationPreferences,
-                eq(users.id, userNotificationPreferences.userId),
-            )
-            .where(
-                and(
-                    eq(msas.name, msaName),
-                    eq(users.notifications, true),
-                    eq(userNotificationPreferences.dataAppEnabled, true),
-                ),
-            );
-
-        // Dedupe by user id
-        const seen = new Set<string>();
-        const uniqueUsers = usersToEmail.filter((u) => {
-            if (seen.has(u.id)) return false;
-            seen.add(u.id);
-            return true;
-        });
-
-        // Resolve MSA ID for whitelist lookup
+        // The MSA row keys both recipient resolution and the whitelist lookup.
         const [msaRow] = await db
             .select({ id: msas.id })
             .from(msas)
             .where(eq(msas.name, msaName))
             .limit(1);
 
-        const whitelistRecipients = msaRow ? await getWhitelistRecipientsForMsa(msaRow.id) : [];
+        const [recipients, whitelistRecipients] = msaRow
+            ? await Promise.all([
+                  resolveDataAppRecipients(msaRow.id),
+                  resolveWhitelistDataAppRecipients(msaRow.id),
+              ])
+            : [[], []];
 
-        if (uniqueUsers.length === 0 && whitelistRecipients.length === 0) {
+        if (recipients.length === 0 && whitelistRecipients.length === 0) {
             console.log(`[EMAIL ${msaName}]: No users or whitelist recipients for this MSA`);
             return;
         }
 
-        // Candidate pool — all statuses, no sold exclusion (per-user filter applied below)
+        // Candidate pool — the whole MSA, all statuses (per-user county/status filters applied below)
         const candidateProperties = await db
             .select({
                 address: addresses.formattedStreetAddress,
@@ -417,44 +395,55 @@ export async function sendEmailUpdatesForMsa(
             if (!url) noStreetViewIds.push(p.propertyId);
         }
 
-        // Build per-user property sets
-        const userPropertiesMap = new Map<string, PropertyForTemplate[]>(); // email → properties
+        // Build per-recipient property sets — users and whitelist entries alike (issue #133)
+        const propertiesByEmail = new Map<string, PropertyForTemplate[]>();
         const sentPropertyIdSet = new Set<string>(noStreetViewIds);
-        let emailsSent = 0;
 
-        for (const u of uniqueUsers) {
-            const filter = (u.dataAppStatusFilter ?? []) as string[];
-            const { templates: userProperties, pickedIds } = pickPropertiesFromCache(
-                filteredCandidates,
+        // County filter ("where") composes with the status filter ("what"): only properties
+        // in the recipient's subscribed counties within this MSA are eligible.
+        const pickForCounties = (counties: string[], statusFilter: string[]) => {
+            const subscribedCounties = new Set(counties.map(normalizeCounty));
+            const countyCandidates = filteredCandidates.filter(
+                (p) => p.county != null && subscribedCounties.has(normalizeCounty(p.county)),
+            );
+            return pickPropertiesFromCache(
+                countyCandidates,
                 streetViewCache,
-                filter,
+                statusFilter,
                 PROPERTY_COUNT_TARGET,
             );
+        };
 
+        for (const u of recipients) {
+            const { templates, pickedIds } = pickForCounties(u.counties, u.dataAppStatusFilter);
             for (const id of pickedIds) sentPropertyIdSet.add(id);
 
-            if (userProperties.length === 0) {
+            if (templates.length === 0) {
                 console.log(
-                    `[EMAIL ${msaName}]: Skipping ${u.email} — no properties match their status filter`,
+                    `[EMAIL ${msaName}]: Skipping ${u.email} — no properties match their county/status filters`,
                 );
                 continue;
             }
-
-            userPropertiesMap.set(u.email, userProperties);
-            emailsSent++;
+            propertiesByEmail.set(u.email, templates);
         }
 
-        // Whitelist recipients get the unfiltered set (first 3 with Street View, any status)
-        const { templates: defaultProperties, pickedIds: defaultPickedIds } =
-            pickPropertiesFromCache(filteredCandidates, streetViewCache, [], PROPERTY_COUNT_TARGET);
-        for (const id of defaultPickedIds) sentPropertyIdSet.add(id);
+        // Whitelist entries have no preferences row: county governs "where", nothing governs "what".
+        for (const w of whitelistRecipients) {
+            const { templates, pickedIds } = pickForCounties(w.counties, []);
+            for (const id of pickedIds) sentPropertyIdSet.add(id);
 
-        if (
-            emailsSent === 0 &&
-            (whitelistRecipients.length === 0 || defaultProperties.length === 0)
-        ) {
+            if (templates.length === 0) {
+                console.log(
+                    `[EMAIL ${msaName}]: Skipping whitelist ${w.email} — no properties in their counties`,
+                );
+                continue;
+            }
+            propertiesByEmail.set(w.email, templates);
+        }
+
+        if (propertiesByEmail.size === 0) {
             console.log(
-                `[EMAIL ${msaName}]: No properties with Street View images found, skipping send`,
+                `[EMAIL ${msaName}]: No recipient has matching properties with Street View images, skipping send`,
             );
             // Still mark no-Street-View properties so they're not re-evaluated on future runs
             if (noStreetViewIds.length > 0) {
@@ -467,7 +456,7 @@ export async function sendEmailUpdatesForMsa(
         }
 
         // Mark only the properties that were actually sent (or have no Street View).
-        // Properties with Street View that matched no user's filter stay available for future runs.
+        // Properties with Street View that matched no recipient's filter stay available for future runs.
         if (sentPropertyIdSet.size > 0) {
             await db
                 .insert(sentPropertyIdsTable)
@@ -475,28 +464,26 @@ export async function sendEmailUpdatesForMsa(
                 .onConflictDoNothing();
         }
 
-        // Build recipient list — only include users who have a personalized property set
+        // Build recipient list — only recipients with a personalized property set
         const firstNameByEmail = new Map<string, string>();
-        for (const u of uniqueUsers) {
-            firstNameByEmail.set(u.email, u.firstName ?? 'there');
+        for (const u of recipients) {
+            firstNameByEmail.set(u.email, u.firstName);
         }
 
-        const userRecipients = uniqueUsers
-            .filter((u) => userPropertiesMap.has(u.email))
-            .map((u) => ({ email: u.email, userId: u.id }));
-
-        const emailRecipients = [...userRecipients, ...whitelistRecipients];
-
-        if (emailRecipients.length === 0) {
-            console.log(`[EMAIL ${msaName}]: All recipients skipped, nothing to send`);
-            return;
-        }
+        const emailRecipients = [
+            ...recipients
+                .filter((u) => propertiesByEmail.has(u.email))
+                .map((u) => ({ email: u.email, userId: u.userId })),
+            ...whitelistRecipients
+                .filter((w) => propertiesByEmail.has(w.email))
+                .map((w) => ({ email: w.email, rmEmail: w.rmEmail })),
+        ];
 
         const { sent: sentCount, failed: failedRecipients } = await sendTemplateToUsers({
             recipients: emailRecipients,
             templateAlias: POSTMARK_TEMPLATES.PROPERTY_UPDATE,
             templateModelForRecipient: (r) => {
-                const props = userPropertiesMap.get(r.email) ?? defaultProperties;
+                const props = propertiesByEmail.get(r.email) ?? [];
                 return {
                     name: firstNameByEmail.get(r.email) ?? 'there',
                     city,

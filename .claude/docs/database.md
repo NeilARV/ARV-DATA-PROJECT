@@ -170,7 +170,6 @@ Many-to-many: users ↔ relationship managers.
 |--------|------|-------------|
 | `id` | `bigserial` | PK |
 | `email` | `text` | NOT NULL, UNIQUE |
-| `msa` | `integer` | nullable (references `msas.id` logically) |
 | `relationship_manager_id` | `uuid` | FK → `users.id` (set null) |
 | `created_at` | `timestamp with time zone` | NOT NULL, default now |
 | `updated_at` | `timestamp with time zone` | NOT NULL, default now |
@@ -191,17 +190,35 @@ Metropolitan Statistical Areas (Denver, Miami, San Diego, LA, SF, Port St. Lucie
 
 ---
 
-### `user_msa_subscriptions`
-Many-to-many: users ↔ MSAs they subscribe to.
+### `user_county_subscriptions`
+County-grained subscriptions (issue #113) — the subscription unit since `user_msa_subscriptions` was dropped (#118). `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`) so per-MSA email queries stay a single-column filter.
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `county` | `text` | NOT NULL |
+| `state` | `text` | NOT NULL |
 | `msa_id` | `integer` | NOT NULL, FK → `msas.id` (cascade) |
 | `created_at` | `timestamp` | NOT NULL, default now |
 | `updated_at` | `timestamp` | default now |
 
-**PK:** `(user_id, msa_id)`
+**PK:** `(user_id, county, state)`
+
+---
+
+### `email_subscription_list_counties`
+County-grained whitelist subscriptions (issue #131) — structural mirror of `user_county_subscriptions` keyed by whitelist entry instead of user; the subscription unit since the parent's `msa` column was dropped (#136). `msa_id` is denormalized (derivable from `county` via `COUNTY_TO_MSA`).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `subscription_list_id` | `bigint` | NOT NULL, FK → `email_subscription_list.id` (cascade) |
+| `county` | `text` | NOT NULL |
+| `state` | `text` | NOT NULL |
+| `msa_id` | `integer` | NOT NULL, FK → `msas.id` (cascade) |
+| `created_at` | `timestamp` | NOT NULL, default now |
+| `updated_at` | `timestamp` | default now |
+
+**PK:** `(subscription_list_id, county, state)`
 
 ---
 

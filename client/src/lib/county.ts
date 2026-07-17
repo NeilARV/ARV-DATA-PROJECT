@@ -10,7 +10,17 @@ import {
     SEATTLE_MSA_ZIP_CODES,
     TAMPA_MSA_ZIP_CODES,
 } from '@/constants/filters.constants';
+import { MSA_REGIONS } from '@/constants/mapRegions.constants';
+import type { MsaCountySelection } from '@/types/filters';
 export { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
+
+/**
+ * Returns the primary city name from a full MSA string
+ * (e.g. "San Diego-Chula Vista-Carlsbad, CA" → "San Diego").
+ */
+export function msaShortName(msa: string): string {
+    return msa.split('-')[0].split(',')[0].trim();
+}
 
 /** Default map center when county is not found (San Diego coordinates). */
 const DEFAULT_MAP_CENTER: [number, number] = [32.7157, -117.1611];
@@ -44,6 +54,28 @@ export function countyNameToKey(countyName: string): string {
  */
 export function getDefaultMapCenter(): [number, number] {
     return getCountyCenter('San Diego') ?? DEFAULT_MAP_CENTER;
+}
+
+/** Map center for a selection: first selected county's center, else the MSA's metro center, else the default. */
+export function getSelectionMapCenter(selection: MsaCountySelection): [number, number] {
+    const firstCounty = selection.counties[0];
+    const countyCenter = firstCounty ? getCountyCenter(firstCounty) : undefined;
+    if (countyCenter) return countyCenter;
+    return MSA_REGIONS.find((r) => r.msa === selection.msa)?.center ?? getDefaultMapCenter();
+}
+
+/** Zip codes across several counties, deduped by zip (order follows the county list). */
+export function getZipCodesForCounties(counties: string[]): { zip: string; city: string }[] {
+    const seen = new Set<string>();
+    const result: { zip: string; city: string }[] = [];
+    for (const county of counties) {
+        for (const entry of getZipCodesForCounty(county)) {
+            if (seen.has(entry.zip)) continue;
+            seen.add(entry.zip);
+            result.push(entry);
+        }
+    }
+    return result;
 }
 
 /**

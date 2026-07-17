@@ -18,7 +18,9 @@ const finiteNumber = z.coerce.number().finite();
  */
 export const mapQuerySchema = z
     .object({
-        county: z.string().optional(),
+        county: stringOrArray.optional(),
+        // Restricts county matching to this MSA's tracked counties (one MSA at a time).
+        msa: z.string().optional(),
         status: stringOrArray.optional(),
         dateRange: z.string().optional(),
         companyId: z.string().optional(),

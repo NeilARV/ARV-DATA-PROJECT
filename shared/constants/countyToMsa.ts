@@ -59,3 +59,53 @@ export const COUNTY_TO_MSA: Record<string, string> = {
 export function getMsaNameFromCounty(county: string): string | undefined {
     return COUNTY_TO_MSA[county];
 }
+
+/** Returns the MSA name for a county, or null if the county is not tracked. */
+export function getMsaForCounty(county: string): string | null {
+    return COUNTY_TO_MSA[county] ?? null;
+}
+
+/** Returns the county names belonging to an MSA, in map order (empty if the MSA is not tracked). */
+export function getCountiesForMsa(msaName: string): string[] {
+    return Object.entries(COUNTY_TO_MSA)
+        .filter(([, msa]) => msa === msaName)
+        .map(([county]) => county);
+}
+
+/** Two-letter state code parsed from an MSA name's trailing ", XX"; null if absent. */
+export function getStateFromMsaName(msaName: string): string | null {
+    return msaName.match(/,\s*([A-Z]{2})$/)?.[1] ?? null;
+}
+
+/**
+ * The full tracked `(county, state)` universe, derived from `COUNTY_TO_MSA` alone.
+ * State is taken from the MSA name's trailing code, so there is no second source of truth.
+ */
+export function getTrackedCounties(): { county: string; state: string; msaName: string }[] {
+    return Object.entries(COUNTY_TO_MSA).map(([county, msaName]) => ({
+        county,
+        state: getStateFromMsaName(msaName) ?? '',
+        msaName,
+    }));
+}
+
+/** The tracked MSAs with their two-letter states, each once, in map-encounter order. */
+export function getTrackedMsas(): { msaName: string; state: string }[] {
+    const seen = new Set<string>();
+    const msas: { msaName: string; state: string }[] = [];
+    for (const msaName of Object.values(COUNTY_TO_MSA)) {
+        if (seen.has(msaName)) continue;
+        seen.add(msaName);
+        msas.push({ msaName, state: getStateFromMsaName(msaName) ?? '' });
+    }
+    return msas;
+}
+
+/**
+ * The subset of `counties` that belong to the MSA, matched case-insensitively.
+ * @returns canonical-cased county names, deduped, in `COUNTY_TO_MSA` map order
+ */
+export function filterCountiesToMsa(msaName: string, counties: string[]): string[] {
+    const requested = new Set(counties.map((county) => county.trim().toLowerCase()));
+    return getCountiesForMsa(msaName).filter((county) => requested.has(county.toLowerCase()));
+}

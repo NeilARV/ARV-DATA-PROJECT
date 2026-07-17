@@ -14,7 +14,7 @@ import { useGeoMap } from '@/hooks/useMap';
 import { useProperty } from '@/hooks/useProperty';
 import { useView } from '@/hooks/useView';
 
-import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
+import { getSelectionMapCenter } from '@/lib/county';
 import { MAP_ZOOM_COUNTY } from '@/constants/map.constants';
 import {
     BUYERS_FEED_STATUS_FILTERS,
@@ -62,8 +62,7 @@ export function ViewSwitcher() {
 
     const handleMapClick = () => {
         setView('map');
-        const county = filters.county ?? 'San Diego';
-        setMapCenter(getCountyCenter(county) ?? getDefaultMapCenter());
+        setMapCenter(getSelectionMapCenter({ msa: filters.msa, counties: filters.counties }));
         setMapZoom(MAP_ZOOM_COUNTY);
     };
 

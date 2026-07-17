@@ -45,32 +45,17 @@ export default function DealsPageContent() {
 
     const { toast } = useToast();
     const { user, isAdmin, isOwner, isRelationshipManager } = useAuth();
-    const {
-        tab,
-        typeFilter,
-        locationFilter,
-        dealId,
-        setTab,
-        setTypeFilter,
-        setLocationFilter,
-        setDealId,
-    } = useDealsNav();
+    const { tab, selection, typeFilter, dealId, setTab, setSelection, setTypeFilter, setDealId } =
+        useDealsNav();
 
-    // Scope/location params shared with the feed; type/page/limit are appended per request.
+    // Scope params shared with the feed; type/page/limit are appended per request.
+    // County set scoped to one MSA — the server intersects the counties with the MSA's
+    // tracked list, so msa with no county params means "none selected" (no deals).
     const filterParams = (() => {
         const params = new URLSearchParams();
         if (tab === 'mine' && user?.id) params.set('userId', user.id);
-        if (locationFilter?.type === 'county') {
-            params.set('county', locationFilter.value);
-            params.set('state', locationFilter.state);
-        } else if (locationFilter?.type === 'msa') {
-            params.set('msaName', locationFilter.value);
-        } else if (locationFilter?.type === 'city') {
-            params.set('city', locationFilter.value);
-            params.set('state', locationFilter.state);
-        } else if (locationFilter?.type === 'zip') {
-            params.set('zipCode', locationFilter.value);
-        }
+        params.set('msa', selection.msa);
+        selection.counties.forEach((county) => params.append('county', county));
         return params.toString();
     })();
 
@@ -163,9 +148,9 @@ export default function DealsPageContent() {
         <div className="flex h-full flex-col overflow-hidden">
             <DealsToolbar
                 typeFilter={typeFilter}
-                locationFilter={locationFilter}
+                selection={selection}
                 onTypeFilterChange={setTypeFilter}
-                onLocationFilterChange={setLocationFilter}
+                onSelectionChange={setSelection}
                 onAddDeal={() => setShowAddDeal(true)}
             />
 
@@ -198,17 +183,15 @@ export default function DealsPageContent() {
                     }}
                     onViewOffers={setViewOffersDeal}
                     onTopBuyers={setBestBuyersDeal}
-                    emptyTitle={
-                        tab === 'mine' ? 'You haven’t posted any deals' : 'No deals match'
-                    }
+                    emptyTitle={tab === 'mine' ? 'You haven’t posted any deals' : 'No deals match'}
                     emptyMessage={
-                        locationFilter || typeFilter !== 'all'
-                            ? 'Try widening your filters to see more of the marketplace.'
-                            : 'New deals from the community will show up here.'
+                        selection.counties.length === 0
+                            ? 'No counties are selected. Choose counties to see deals.'
+                            : typeFilter !== 'all'
+                              ? 'Try widening your filters to see more of the marketplace.'
+                              : 'New deals from the community will show up here.'
                     }
-                    emptyAction={
-                        <Button onClick={() => setShowAddDeal(true)}>Post a deal</Button>
-                    }
+                    emptyAction={<Button onClick={() => setShowAddDeal(true)}>Post a deal</Button>}
                 />
             </div>
 

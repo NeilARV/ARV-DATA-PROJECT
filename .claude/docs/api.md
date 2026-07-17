@@ -90,7 +90,9 @@ Return the currently authenticated user with enriched data. Returns `{ user: nul
     "emailVerifiedAt": "2024-01-01T00:00:00Z",
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z",
-    "msaSubscriptions": ["San Diego"],
+    "countySubscriptions": [
+      { "county": "San Diego", "state": "CA", "msaId": 3, "msaName": "San Diego-Chula Vista-Carlsbad, CA" }
+    ],
     "relationshipManager": {
       "id": "uuid",
       "firstName": "John",
@@ -135,7 +137,7 @@ Create a new user account.
 
 **Errors** `400` validation failed · `409` email already registered
 
-**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, the corresponding MSA subscription is auto-created. A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
+**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, the entry's county rows are copied into the user's county subscriptions, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, a home-county subscription is seeded (the county only, never the whole MSA) — for a whitelisted signup the result is the union of the entry's counties and the home county, deduplicated by the subscription primary key. A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
 
 ---
 
@@ -181,9 +183,12 @@ Update the authenticated user's profile fields.
   "email": "jane@example.com",
   "phone": "(555) 123-4567",
   "county": "Denver",
-  "state": "CO"
+  "state": "CO",
+  "countySubscriptions": [{ "county": "Denver", "state": "CO" }]
 }
 ```
+
+`countySubscriptions` is a replace-list: the user's subscription rows are replaced to match it exactly (empty array clears all).
 
 **Response `200`**
 ```json
@@ -326,18 +331,21 @@ List all entries on the email subscription whitelist.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
 
-**Response `200`** Array of whitelist entries:
+**Response `200`** Entries with their subscribed counties (each carrying its parent MSA name):
 ```json
-[
-  {
-    "id": 1,
-    "email": "user@example.com",
-    "msa": 3,
-    "relationshipManagerId": "uuid-or-null",
-    "createdAt": "2024-01-01T00:00:00Z",
-    "updatedAt": "2024-01-01T00:00:00Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": 1,
+      "email": "user@example.com",
+      "relationshipManagerId": "uuid-or-null",
+      "counties": [
+        { "county": "San Diego", "state": "CA", "msaName": "San Diego-Chula Vista-Carlsbad, CA" }
+      ]
+    }
+  ],
+  "count": 1
+}
 ```
 
 ---
@@ -351,21 +359,24 @@ Add an email to the subscription whitelist.
 ```json
 {
   "email": "user@example.com",
-  "msaName": "San Diego",
+  "counties": [{ "county": "San Diego", "state": "CA" }],
   "relationshipManagerId": "uuid-or-null"
 }
 ```
 
-`msaName` and `relationshipManagerId` are optional.
+`counties` is a non-empty `(county, state)` replace-list; the server derives each county's MSA from
+`COUNTY_TO_MSA` and silently drops untracked counties (same resolution contract as the user
+subscription replace-list). A list that resolves to nothing (only untracked counties) is rejected —
+an entry with zero counties would receive no email. `relationshipManagerId` is optional.
 
 **Response `201`** `{ "message": "Email added to whitelist successfully" }`
 
-**Errors** `400` invalid data or invalid MSA · `409` email already on whitelist
+**Errors** `400` invalid data, empty counties list, or no tracked counties · `409` email already on whitelist
 
 ---
 
 ### `PATCH /api/admin/whitelist/:id`
-Update an existing whitelist entry's MSA or relationship manager.
+Update an existing whitelist entry's counties and/or relationship manager.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
 
@@ -374,17 +385,21 @@ Update an existing whitelist entry's MSA or relationship manager.
 **Body** (at least one required)
 ```json
 {
-  "msaName": "Denver",
+  "counties": [{ "county": "Denver", "state": "CO" }],
   "relationshipManagerId": "uuid-or-null"
 }
 ```
+
+`counties` replaces the entry's county set under the same resolution contract as create (non-empty,
+untracked counties dropped server-side, a list resolving to no tracked counties rejected); omit it
+to leave counties unchanged.
 
 **Response `200`**
 ```json
 { "message": "Whitelist entry updated", "id": 1, "email": "user@example.com", "relationshipManagerId": "uuid-or-null" }
 ```
 
-**Errors** `400` invalid id or invalid MSA · `404` entry not found
+**Errors** `400` invalid id or invalid body (empty counties list) · `404` entry not found
 
 ---
 
@@ -1178,11 +1193,8 @@ List one page of the unified deals feed, newest first.
 | `page` | number | 1-based page (default `1`) |
 | `limit` | number | Page size (default `10`, max `50`) |
 | `userId` | string | Filter by deal owner |
-| `msaName` | string | Filter by MSA name |
-| `county` | string | Filter by county |
-| `city` | string | Filter by city |
-| `state` | string | Filter by state |
-| `zipCode` | string | Filter by zip code |
+| `county` | string, repeatable | County set for `county IN (...)` |
+| `msa` | string | Restricts the county set to that MSA's tracked counties — with `msa`, an empty or foreign county set matches no deals (one-MSA-at-a-time contract, as on `GET /api/properties`) |
 
 **Response `200`** `{ deals, total, hasMore, page, limit }`. `deals` is one page of deal objects (each with `links` and a relative `streetViewUrl`; deals the caller owns also carry a `bidCount` of offers received, omitted otherwise since offers are poster-private). `total` is the count of all matching deals; `hasMore` indicates further pages. Top buyers are **not** included — fetch them lazily via `GET /api/deals/:id/top-buyers`.
 

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AdminServices } from 'server/services/admin';
 import { insertEmailSubscriptionListSchema } from '@database/inserts/users.insert';
+import { updateEmailSubscriptionListSchema } from '@database/updates/users.update';
 
 function parseEntryId(raw: string): number | null {
     const n = parseInt(raw, 10);
@@ -56,25 +57,23 @@ export async function patchWhitelistEntry(req: Request, res: Response) {
             return res.status(400).json({ message: 'Invalid whitelist entry id' });
         }
 
-        const body = req.body as { msaName?: string; relationshipManagerId?: string | null };
-        const { msaName, relationshipManagerId } = body;
-        if (msaName === undefined && relationshipManagerId === undefined) {
-            return res.status(400).json({
-                message: 'Provide at least one of msaName or relationshipManagerId to update',
-            });
+        const validation = updateEmailSubscriptionListSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res
+                .status(400)
+                .json({ message: 'Invalid whitelist update', errors: validation.error.errors });
         }
 
+        const { counties, relationshipManagerId } = validation.data;
         const updated = await AdminServices.updateWhitelistEntry({
             id: numId,
-            msaName,
+            counties,
             relationshipManagerId,
         });
+        if (updated === 'no-tracked-counties') {
+            return res.status(400).json({ message: 'No tracked counties selected' });
+        }
         if (!updated) {
-            // updateWhitelistEntry returns null for both invalid MSA and not-found entry;
-            // treat as bad request for invalid MSA (msaName provided) otherwise not found.
-            if (msaName !== undefined) {
-                return res.status(400).json({ message: 'Invalid MSA selected' });
-            }
             return res.status(404).json({ message: 'Whitelist entry not found' });
         }
 
@@ -99,15 +98,15 @@ export async function createWhitelistEntry(req: Request, res: Response) {
                 .json({ message: 'Invalid email data', errors: validation.error.errors });
         }
 
-        const { email, msaName, relationshipManagerId } = validation.data;
+        const { email, counties, relationshipManagerId } = validation.data;
         const result = await AdminServices.addWhitelistEntry({
             email,
-            msaName,
+            counties,
             relationshipManagerId,
         });
 
-        if (result === 'invalid-msa') {
-            return res.status(400).json({ message: 'Invalid MSA selected' });
+        if (result === 'no-tracked-counties') {
+            return res.status(400).json({ message: 'No tracked counties selected' });
         }
         if (result === 'duplicate') {
             return res.status(409).json({ message: 'Email already exists in whitelist' });

@@ -76,7 +76,7 @@ CREATE TABLE user_roles (
 INSERT INTO roles (name)
 VALUES ('owner'), ('admin'), ('relationship-manager')
 
--- User MSA subscriptions table
+-- User relationship managers table
 CREATE TABLE user_relationship_managers (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     relationship_manager_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -85,13 +85,15 @@ CREATE TABLE user_relationship_managers (
     PRIMARY KEY (user_id, relationship_manager_id)
 )
 
--- User MSA subscriptions table
-CREATE TABLE user_msa_subscriptions (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    msa_id INTEGER REFERENCES msas(id) ON DELETE CASCADE,
+-- User county subscriptions table (replaced user_msa_subscriptions, issue #118)
+CREATE TABLE user_county_subscriptions (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    county TEXT NOT NULL,
+    state TEXT NOT NULL,
+    msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE CASCADE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now(),
-    PRIMARY KEY (user_id, msa_id)
+    PRIMARY KEY (user_id, county, state)
 )
 
 -- Companies table (corporate property flippers)

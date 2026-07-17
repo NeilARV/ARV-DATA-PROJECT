@@ -4,12 +4,12 @@
 
 Users have granular control over which email feeds they receive and for which markets. The system is built on two independent axes:
 
-- **MSA subscriptions** ("where") — which Metropolitan Statistical Areas the user wants to hear about. MSA is the subscription unit.
+- **County subscriptions** ("where") — which counties (grouped under their MSA) the user wants to hear about. County is the subscription unit since issues #113–#117 (`user_county_subscriptions`); MSA remains the delivery/grouping unit — the daily property email still resolves its candidate pool per MSA, then filters it per user to their subscribed counties.
 - **App subscriptions** ("what type") — which of the four email feeds the user is subscribed to.
 
 The intersection of both determines what a user receives. A user subscribed to **San Diego** and **Deals** gets deal notifications for San Diego. Subscribe them to **Vendors** too and they get vendor notifications for San Diego. Unsubscribe from San Diego and neither fires for that market, even if both app toggles remain on.
 
-> **Preferred market vs MSA subscriptions**: These are two different things. The "preferred market" (county + state) selected at signup and on the Profile page is a *browsing preference* — it controls what data the app shows by default. MSA subscriptions control what emails fire. At signup, the county selection is automatically mapped to the corresponding MSA to seed the user's first subscription. Users manage their MSA subscriptions directly from the Profile page.
+> **Preferred market vs county subscriptions**: These are two different things. The "preferred market" (county + state) selected at signup and on the Profile page is a *browsing preference* — it controls what data the app shows by default. County subscriptions control what emails fire. At signup, the home county seeds the user's first subscription (that county only, never the whole MSA — #114); a whitelisted signup additionally inherits its entry's counties, so the seeded set is the union of both (#135). Users manage their county subscriptions directly from the Profile page.
 
 ---
 
@@ -49,7 +49,7 @@ userNotificationPreferences = {
 
 All four conditions must be true for an email to be sent:
 
-1. **MSA subscription present** — `user_msa_subscriptions` has a row for this user + MSA
+1. **Subscription present** — for deal emails, `user_county_subscriptions` matches the deal's county (whole-MSA fallback when the county is null/untracked; companion cities fan out across primary ∪ companion MSAs — see `resolveDealRecipients`). The daily property email reaches every subscriber of any of the MSA's counties (`resolveDataAppRecipients`) and filters each user's properties to their subscribed counties.
 2. **Master toggle on** — `users.notifications = true`
 3. **App toggle on** — e.g. `dataAppEnabled = true`
 4. **Content passes filter** — if a filter is configured and non-empty, the content type must be in the filter
@@ -63,25 +63,25 @@ Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per
 ### 1. Data App — Daily Property Updates
 
 - **Trigger**: Scheduled cron job (once per MSA per day at a fixed server time — see `server/jobs/index.ts`)
-- **Content**: Up to 3 most recent properties with Street View images for the MSA
-- **Recipients**: All users subscribed to that MSA with `dataAppEnabled = true` and master notifications on
+- **Content**: Up to 3 most recent properties with Street View images, per user filtered to their subscribed counties within the MSA
+- **Recipients**: Resolved by `resolveDataAppRecipients` (`server/services/email/recipientResolver.ts`): every subscriber of any of the MSA's counties with `dataAppEnabled = true` and master notifications on; a user with 0 properties in their subscribed counties that day is skipped
 - **Status filter** (`dataAppStatusFilter: text[]`):
   - Values: `'in-renovation' | 'on-market' | 'wholesale' | 'sold'`
   - Empty array = all statuses (default)
   - If filter is non-empty and 0 properties match → skip user that day (no fallback)
-- **Whitelist recipients**: `email_subscription_list` entries for the MSA also receive the unfiltered default set
+- **Whitelist recipients**: `email_subscription_list` entries receive email under the same county contract (issue #133): `resolveWhitelistDataAppRecipients` returns each entry with its subscribed counties (`email_subscription_list_counties`) within the MSA, the job filters the entry's property set to those counties (no status filter — entries have no preferences row), and an entry with zero matching properties that day receives nothing
 
 ### 2. Deals — Deal Notifications
 
-- **Trigger**: Event-driven — fires when a deal is posted to an MSA the user is subscribed to
+- **Trigger**: Event-driven — fires when a deal is posted in a county the user is subscribed to
 - **Content**: Single deal card (address, price, specs, type)
-- **Recipients**: All users subscribed to that MSA with `dealNotificationsEnabled = true` and master notifications on; the poster is excluded
+- **Recipients**: Resolved by `resolveDealRecipients` (`server/services/email/recipientResolver.ts`): subscribers of the deal's county, falling back to the deal's whole MSA when the county is null/untracked, with companion-city deals fanning out across primary ∪ companion MSAs; requires `dealNotificationsEnabled = true` and master notifications on; the poster is excluded (except neil@arvfinance.com)
 - **Deal type filter** (`dealTypeFilter: text[]`):
   - Values: `'wholesale' | 'agent' | 'sold' | 'reo'`
   - Empty array = receive all deal types (default)
   - `sold` is a first-class filter value — users opt in to sold notifications explicitly
   - If filter is non-empty and deal type is NOT in filter → skip user
-- **Whitelist recipients**: `email_subscription_list` entries for the MSA also receive all deal notifications
+- **Whitelist recipients**: resolved by `resolveWhitelistDealRecipients` under the same scoping contract as users (issue #133): exact-county match on `email_subscription_list_counties`, MSA safety net for null/untracked counties, companion fan-out over primary ∪ companion MSAs; no deal-type filter (entries have no preferences row)
 
 ### 3. Vendors / Posts — Vendor & Community Notifications
 
@@ -107,18 +107,19 @@ This allows email jobs to use `INNER JOIN` instead of `LEFT JOIN + OR(isNull(...
 
 ### Data App Per-User Filtering
 
-`emailUpdates.ts` fetches an expanded candidate pool (up to 30 properties), pre-caches Street View availability for all candidates in a single pass, then for each user:
+`emailUpdates.ts` fetches an expanded per-MSA candidate pool (up to 30 properties), pre-caches Street View availability for all candidates in a single pass, resolves recipients via `resolveDataAppRecipients`, then for each user:
 
-1. Filters the candidate pool to their `dataAppStatusFilter` (or all statuses if empty)
-2. Picks the first 3 with cached Street View images
-3. If 0 match their filter — skips user, no email sent
-4. Builds and sends their personalized email
+1. Filters the candidate pool to their subscribed counties within the MSA (`lower(trim())` county match; a null-county property matches no one)
+2. Filters that to their `dataAppStatusFilter` (or all statuses if empty)
+3. Picks the first 3 with cached Street View images
+4. If 0 match their filters — skips user, no email sent
+5. Builds and sends their personalized email
 
 All evaluated property IDs are marked in `sent_property_ids` regardless of outcome. `sent_property_ids` is currently global per MSA (V1 limitation — see Open Questions).
 
 ### Deal Type Filtering
 
-In `sendDealNotification` (`deals.services.ts`):
+In `resolveDealRecipients` (`server/services/email/recipientResolver.ts`), consumed by `sendDealNotification`:
 
 1. Master toggle + `dealNotificationsEnabled` checked at the DB query level
 2. After deduplication (poster excluded), `dealTypeFilter` applied per user in memory
@@ -151,11 +152,11 @@ All fields are optional. Validated by `updateNotificationPreferencesSchema` in `
 
 ### `PATCH /api/auth/me`
 
-Handles master toggle + MSA subscriptions (among other profile fields).
+Handles master toggle + county subscriptions (among other profile fields).
 
 **Relevant fields:**
 - `notifications: boolean` — master kill-switch
-- `msaSubscriptions: string[]` — replaces the user's full MSA subscription list by name
+- `countySubscriptions: { county, state }[]` — replaces the user's full county subscription list (the retired whole-MSA `msaSubscriptions` form is rejected since issue #118)
 
 ---
 
@@ -208,8 +209,10 @@ The panel makes two parallel API calls on save:
 | `server/controllers/auth/session.controllers.ts` | `updateNotifications` handler (`PATCH /api/auth/me/notifications`) |
 | `server/controllers/auth/registration.controllers.ts` | Auto-creates prefs row on signup |
 | `server/routes/auth.routes.ts` | Route: `PATCH /me/notifications` |
-| `server/jobs/email/processes/emailUpdates.ts` | Data App per-user status filtering |
-| `server/services/deals/deals.services.ts` | Deal notification `dealNotificationsEnabled` + `dealTypeFilter` |
+| `server/jobs/email/processes/emailUpdates.ts` | Data App per-user county + status filtering |
+| `server/services/email/recipientResolver.ts` | County-aware recipient resolution for deal + daily property emails (the single "who receives this" seam) |
+| `server/constants/companionCities.constants.ts` | Companion-city pairs shared by create-time MSA resolution + notification fan-out |
+| `server/services/deals/deals.services.ts` | `sendDealNotification` — builds + sends the deal email to the resolved recipients |
 | `client/src/hooks/use-auth.ts` | `AuthUser`, `NotificationPreferences`, `DataAppStatus`, `DealTypeFilter` types |
 | `client/src/components/profile/NotificationPreferencesPanel.tsx` | Profile page preferences UI |
 | `client/src/pages/Profile.tsx` | Renders `NotificationPreferencesPanel` |
@@ -218,7 +221,7 @@ The panel makes two parallel API calls on save:
 
 ## Open Questions
 
-1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Current behavior: whitelist recipients receive all emails they're listed for, unchanged. App toggles do not apply to whitelist entries.
+1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Since issue #133 their counties (`email_subscription_list_counties`) govern "where" exactly like users' subscriptions — managed by admins/RMs through the Email List tab's county picker (issue #134); nothing governs "what" — app toggles and status/deal-type filters do not apply to whitelist entries.
 
 2. **Per-user sent property tracking (V2)**: `sent_property_ids` is global per MSA. A wholesale property sent to a wholesale-only user gets marked sent globally — a sold-only user subscribed later won't see it. Acceptable for V1.
 
@@ -228,30 +231,60 @@ The panel makes two parallel API calls on save:
 
 ---
 
-## Planned: RecipientResolver Pattern (Phase 2)
+## RecipientResolver Pattern
 
-Build a shared `resolveRecipients` module at `server/services/email/recipientResolver.ts`. Each email app gets its own resolver function that returns eligible recipients + their filter context for a given MSA. Email jobs call the resolver and focus only on content building and sending.
+The shared resolver module lives at `server/services/email/recipientResolver.ts`. Email jobs call the resolver and focus only on content building and sending.
 
-**Why**: `emailUpdates.ts`, `deals.services.ts`, future `analyticsJob.ts`, and future `vendorJob.ts` all need the same subscriber resolution logic: master toggle check, app toggle check, MSA subscription presence. Duplicating this JOIN across each job creates drift.
-
-**Planned shape:**
+**Implemented — deal email (issue #116):**
 ```ts
-interface RecipientContext {
-    userId: string;
-    email: string;
-    firstName: string;
-    rmEmail?: string;
-    dataAppStatusFilter: string[];
-    dealTypeFilter: string[];
+interface DealRecipientQuery {
+    msaId: number;
+    dealType: DealType;
+    county: string | null;
+    city: string | null;
+    state: string | null;
+    posterUserId: string;
 }
 
-async function resolveDataAppRecipients(msaId: number): Promise<RecipientContext[]>
-async function resolveDealRecipients(msaId: number): Promise<RecipientContext[]>
-async function resolveVendorRecipients(msaId: number): Promise<RecipientContext[]>
-async function resolveAnalyticsRecipients(msaId: number): Promise<RecipientContext[]>
+// recipients are unique by user; msaIds = every MSA in play (primary first, companion after),
+// which the caller passes on to resolveWhitelistDealRecipients.
+async function resolveDealRecipients(
+    query: DealRecipientQuery,
+): Promise<{ recipients: { userId: string; email: string }[]; msaIds: number[] }>
 ```
 
-**Status**: Phase 2. Will be implemented when a second email app type is ready to ship, to avoid building the abstraction before there's a second real consumer.
+- Exact-county match against `user_county_subscriptions`; **MSA safety net** — a null/untracked deal county falls back to every subscriber of the deal's whole MSA so a data gap never drops a deal; **companion cities** (Temecula/Murrieta) fan out to all subscribers of any county in primary ∪ companion MSAs, preserving the pre-county Temecula → San Diego behavior.
+- Companion pairs live in `COMPANION_CITY_MSA` (`server/constants/companionCities.constants.ts`) — the same source `resolveMsaId`'s create-time tier-0 override reads.
+- Applies the master kill-switch, `dealNotificationsEnabled`, the per-user `dealTypeFilter`, and poster exclusion inside the resolver; integration-tested at `tests/server/services/email/recipientResolver.integration.test.ts`.
+
+**Implemented — daily property email (issue #117):**
+```ts
+// One entry per user subscribed to at least one of the MSA's counties, master kill-switch and
+// dataAppEnabled applied; counties (scoped to the queried MSA) and dataAppStatusFilter are
+// returned so the job can filter each user's property set in memory.
+async function resolveDataAppRecipients(msaId: number): Promise<DataAppRecipient[]>
+// DataAppRecipient = { userId; email; firstName; dataAppStatusFilter: string[]; counties: string[] }
+```
+
+**Implemented — whitelist resolvers (issue #133):** the two whitelist resolvers live beside the user resolvers and apply the same scoping contracts to `email_subscription_list_counties`:
+
+```ts
+// Same deal scoping as resolveDealRecipients (exact county / MSA safety net / companion
+// fan-out over msaIds, as returned by resolveDealRecipients); entries are unique by email.
+async function resolveWhitelistDealRecipients(
+    query: { msaIds: number[]; county: string | null; city: string | null; state: string | null },
+): Promise<{ email: string; rmEmail?: string }[]>
+
+// Same per-MSA shape as resolveDataAppRecipients: one entry per email with its subscribed
+// counties within the queried MSA.
+async function resolveWhitelistDataAppRecipients(
+    msaId: number,
+): Promise<{ email: string; rmEmail?: string; counties: string[] }[]>
+```
+
+Both exclude addresses already registered in `users` (double-send prevention) and pre-resolve the relationship manager's From address (`rmEmail`). Whitelist entries have no preferences row, so no toggle/status/deal-type filtering applies.
+
+**Future**: `resolveVendorRecipients` and `resolveAnalyticsRecipients` remain to be built when those feeds ship.
 
 ---
 
@@ -267,12 +300,48 @@ async function resolveAnalyticsRecipients(msaId: number): Promise<RecipientConte
 
 ### Patch 2 — MSA Subscription Model Decision
 *Resolved design question: MSA vs county vs hybrid for email subscriptions.*
+*Superseded by the county-granularity epic (#111): counties are now the subscription unit and `user_msa_subscriptions` was dropped (#118).*
 
 - Decision: **MSA is the subscription unit**. Users subscribe to entire MSAs (Denver, Miami, San Diego, LA, SF, Port St. Lucie, Seattle, Tampa). No county-level filtering within an MSA in V1.
 - Rationale: cron jobs already run per-MSA; county-within-MSA adds significant query complexity for unclear user benefit given the small active MSA set; users never need to know what an MSA is — they pick their county at signup and the registration controller maps it to the MSA automatically
 - "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
 - `user_msa_subscriptions` table stays unchanged — no county column needed
 - County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 8 — Whitelist Signup Transfer (issue #135)
+*A whitelisted signup inherits its entry's counties instead of silently dropping them.*
+
+- **`seedWhitelistCountySubscriptions`** (`server/services/subscriptions/countySubscriptions.services.ts`) — copies the entry's `email_subscription_list_counties` rows verbatim into `user_county_subscriptions` (`onConflictDoNothing`); the registration controller calls it before deleting the entry (the rows cascade with it), then home-county seeding runs as before — the result is the union of both, deduplicated by the subscription PK
+- Tier grant, RM link, and entry deletion are unchanged; non-whitelisted signups keep home-county-only seeding
+
+### Patch 7 — Admin County Picker for Whitelist Entries (issue #134)
+*Admins and RMs manage whitelist entries by counties, not a single MSA.*
+
+- **`POST`/`PATCH /api/admin/whitelist`** — accept a `counties` `(county, state)` replace-list resolved server-side via `resolveCountySelections` (same contract as the user replace-list: untracked counties silently dropped, MSA id derived from `COUNTY_TO_MSA`); an empty list — or one resolving to no tracked counties — is rejected with 400 on both create and update, so no entry can end up with zero counties; the parent `msa` column is no longer written (dropped in #136)
+- **`GET /api/admin/whitelist`** — each entry carries `counties` (`{ county, state, msaName }[]`) so the client groups without re-encoding the mapping
+- **Email List tab** — add + per-row edit open the shared `CountySubscriptionAccordion` in a dialog (San Diego pre-selected on add; edit seeded with current counties behind the existing confirmation step); the table shows a compact per-MSA summary (`"San Diego (all)"`, `"Los Angeles: Orange"`)
+
+### Patch 6 — County-Aware Whitelist Targeting (issue #133)
+*Whitelist subscribers receive email under the exact contract registered users get.*
+
+- **`resolveWhitelistDealRecipients` + `resolveWhitelistDataAppRecipients`** (`server/services/email/recipientResolver.ts`) — replace the MSA-level `getWhitelistRecipientsForMsa` helper (deleted from `email.services.ts` along with its RM lookup); both query `email_subscription_list_counties`, exclude already-registered addresses, and pre-resolve `rmEmail`
+- **`sendDealNotification`** — whitelist entries get exact-county targeting with the MSA safety net and companion fan-out, matching users
+- **`sendEmailUpdatesForMsa`** — each whitelist entry's property set is built from the MSA candidate pool filtered to the entry's counties (no status filter); zero matches → no email; the unfiltered "default properties" set is gone
+
+### Patch 5 — Daily Property Email County Filtering (issue #117)
+*The daily digest reaches county subscribers with only their counties' properties.*
+
+- **`resolveDataAppRecipients`** (`server/services/email/recipientResolver.ts`) — daily-digest membership for one MSA: every subscriber of any of its counties, master kill-switch + `dataAppEnabled` applied in the query; one entry per user carrying their subscribed counties and `dataAppStatusFilter`
+- **`sendEmailUpdatesForMsa`** — inline `user_msa_subscriptions` join deleted; recipients route through the resolver, and each user's candidate pool is filtered to their subscribed counties (`lower(trim())` match) before the existing status filter; 0 matches → user skipped that day
+- The whitelist path is unchanged: MSA-level, unfiltered default set
+- Job-level integration test at `tests/server/jobs/emailUpdates.integration.test.ts` (Postmark + Street View mocked at the edge)
+
+### Patch 4 — County-Aware Deal Recipient Resolution (issue #116)
+*Deal emails target the deal's county instead of flooding the whole MSA.*
+
+- **`resolveDealRecipients`** (`server/services/email/recipientResolver.ts`) — the single "who receives this deal" seam: exact-county match on `user_county_subscriptions`, whole-MSA safety net for null/untracked counties, companion-city fan-out across primary ∪ companion MSAs; master toggle, deal toggle, `dealTypeFilter`, and poster exclusion applied inside
+- **`sendDealNotification`** — inline subscriber resolution deleted; now routes through the resolver and only builds/sends the email. The whitelist stays MSA-level (fetched for every MSA in play) and now sends even when zero county subscribers match
+- **Companion-city pairs consolidated** into `COMPANION_CITY_MSA` (`server/constants/companionCities.constants.ts`), consumed by both `resolveMsaId` (create-time tier-0 override) and the resolver — the duplicate maps in `resolveMsa.ts` and `deals.services.ts` are gone
 
 ### Patch 3 — Phase 1 Full Implementation
 *All foundation components built and wired together.*

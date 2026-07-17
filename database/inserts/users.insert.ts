@@ -1,31 +1,22 @@
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { users, emailSubscriptionList } from '../schemas';
-
-const MSA_NAMES = [
-    'San Diego-Chula Vista-Carlsbad, CA',
-    'Los Angeles-Long Beach-Anaheim, CA',
-    'Riverside-San Bernardino-Ontario, CA',
-    'Denver-Aurora-Centennial, CO',
-    'San Francisco-Oakland-Fremont, CA',
-    'Miami-Fort Lauderdale-West Palm Beach, FL',
-    'Port St. Lucie, FL',
-    'Seattle-Tacoma-Bellevue, WA',
-    'Tampa-St. Petersburg-Clearwater, FL',
-] as const;
+import { countySubscriptionSelectionSchema } from '../validation/countySubscriptions.validation';
 
 export const insertEmailSubscriptionListSchema = createInsertSchema(emailSubscriptionList)
     .omit({
         id: true,
         createdAt: true,
         updatedAt: true,
-        msa: true,
     })
     .extend({
         email: z.string().email('Invalid email address'),
-        msaName: z.enum(MSA_NAMES, { message: 'Please select an MSA' }),
+        // The counties replace-list (issue #134) — same resolution contract as the user
+        // subscription replace-list; an entry with no counties would receive nothing, so reject.
+        counties: z.array(countySubscriptionSelectionSchema).min(1, 'Select at least one county'),
         relationshipManagerId: z.string().uuid().optional().nullable(),
-    });
+    })
+    .strict();
 
 export const insertUserSchema = createInsertSchema(users)
     .omit({

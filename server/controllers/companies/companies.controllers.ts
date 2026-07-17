@@ -6,6 +6,12 @@ import {
 } from '@database/updates/companies.update';
 import { insertCompanyContactSchema } from '@database/inserts/companyContacts.insert';
 
+/** The county query param as sent — single string or repeated params as string[]. */
+function countyParam(value: Request['query'][string]): string | string[] | undefined {
+    if (!value) return undefined;
+    return Array.isArray(value) ? value.map((v) => v.toString()) : value.toString();
+}
+
 export async function getCompanySuggestionsHandler(req: Request, res: Response) {
     try {
         const { search, county } = req.query;
@@ -14,7 +20,7 @@ export async function getCompanySuggestionsHandler(req: Request, res: Response) 
         }
         const results = await CompaniesServices.getCompanySuggestions(
             search.toString(),
-            county?.toString(),
+            countyParam(county),
         );
         return res.status(200).json(results);
     } catch (error) {
@@ -27,7 +33,7 @@ export async function getContactsHandler(req: Request, res: Response) {
     try {
         const { county, page, limit, sort, search } = req.query;
         const result = await CompaniesServices.getContacts({
-            county: county?.toString(),
+            county: countyParam(county),
             page: page?.toString(),
             limit: limit?.toString(),
             sort: sort?.toString(),
@@ -42,8 +48,9 @@ export async function getContactsHandler(req: Request, res: Response) {
 
 export async function getWholesaleLeaderboardHandler(req: Request, res: Response) {
     try {
-        const county = req.query.county?.toString()?.trim();
-        const result = await CompaniesServices.getWholesaleLeaderboard(county);
+        const result = await CompaniesServices.getWholesaleLeaderboard(
+            countyParam(req.query.county),
+        );
         return res.json(result);
     } catch (error) {
         console.error('Error fetching wholesale leaderboard:', error);
@@ -53,7 +60,7 @@ export async function getWholesaleLeaderboardHandler(req: Request, res: Response
 
 export async function getLeaderboardHandler(req: Request, res: Response) {
     try {
-        const county = req.query.county?.toString() || 'San Diego';
+        const county = countyParam(req.query.county) ?? 'San Diego';
         const result = await CompaniesServices.getLeaderboard(county);
         return res.json(result);
     } catch (error) {
@@ -65,8 +72,7 @@ export async function getLeaderboardHandler(req: Request, res: Response) {
 export async function getCompanyByIdHandler(req: Request, res: Response) {
     try {
         const { id } = req.params;
-        const county = req.query.county?.toString()?.trim();
-        const company = await CompaniesServices.getCompanyById(id, county);
+        const company = await CompaniesServices.getCompanyById(id, countyParam(req.query.county));
         if (!company) {
             return res.status(404).json({ message: 'Company contact not found' });
         }

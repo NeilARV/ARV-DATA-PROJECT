@@ -68,19 +68,21 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     const companySelectionInProgressRef = useRef(false);
     const companyFiltersExpandedRef = useRef<string | null>(null);
     const loadCompaniesAbortRef = useRef<AbortController | null>(null);
-    /** Only reload when county/sort/search actually change; skip when just re-opening directory with same params */
-    const lastLoadedParamsRef = useRef<{ county: string; sort: string; search: string } | null>(
-        null,
-    );
+    /** Only reload when counties/sort/search actually change; skip when just re-opening directory with same params */
+    const lastLoadedParamsRef = useRef<{
+        countiesKey: string;
+        sort: string;
+        search: string;
+    } | null>(null);
 
     const loadCompanies = useCallback(
         async (overrides?: { sort?: DirectorySortOption; search?: string; force?: boolean }) => {
             const sort = overrides?.sort ?? directorySort;
             const search = overrides?.search ?? directorySearch;
             const force = overrides?.force ?? false;
-            // Always filter by county so directory shows only companies in the selected county (default San Diego)
-            const county =
-                filters.county && filters.county.trim() ? filters.county.trim() : 'San Diego';
+            // Always filter by the selected counties so the directory matches the property view.
+            const counties = filters.counties;
+            const countiesKey = counties.join(',');
             // Never run a "load all" (no overrides) when user has active search – prevents search results being overwritten by a stale effect
             if (!force && !overrides && directorySearch.trim() !== '') {
                 return;
@@ -90,7 +92,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
                 !force &&
                 !overrides &&
                 lastLoadedParamsRef.current &&
-                lastLoadedParamsRef.current.county === county &&
+                lastLoadedParamsRef.current.countiesKey === countiesKey &&
                 lastLoadedParamsRef.current.sort === sort &&
                 lastLoadedParamsRef.current.search === search
             ) {
@@ -110,8 +112,15 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
             setPage(1);
             setIsLoadingCompanies(true);
             try {
+                // No counties selected shows no companies (mirrors the empty property view).
+                if (counties.length === 0) {
+                    setCompaniesState([]);
+                    setTotal(0);
+                    lastLoadedParamsRef.current = { countiesKey, sort, search };
+                    return;
+                }
                 const data = await fetchCompanyContactsPage({
-                    county: county || undefined,
+                    counties,
                     page: 1,
                     limit: DEFAULT_PAGE_SIZE,
                     sort,
@@ -122,7 +131,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
                 if (data) {
                     setCompaniesState(data.companies);
                     setTotal(data.total);
-                    lastLoadedParamsRef.current = { county, sort, search };
+                    lastLoadedParamsRef.current = { countiesKey, sort, search };
                 }
             } catch (err) {
                 if ((err as Error).name === 'AbortError') return;
@@ -133,18 +142,17 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
                 }
             }
         },
-        [filters.county, directorySort, directorySearch, setCompany],
+        [filters.counties, directorySort, directorySearch, setCompany],
     );
 
     const loadMoreCompanies = useCallback(async () => {
-        const county =
-            filters.county && filters.county.trim() ? filters.county.trim() : 'San Diego';
+        if (filters.counties.length === 0) return;
         const nextPage = page + 1;
         if (total > 0 && (nextPage - 1) * DEFAULT_PAGE_SIZE >= total) return;
         setIsLoadingMoreCompanies(true);
         try {
             const data = await fetchCompanyContactsPage({
-                county: county || undefined,
+                counties: filters.counties,
                 page: nextPage,
                 limit: DEFAULT_PAGE_SIZE,
                 sort: directorySort,
@@ -157,7 +165,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         } finally {
             setIsLoadingMoreCompanies(false);
         }
-    }, [filters.county, directorySort, directorySearch, page, total]);
+    }, [filters.counties, directorySort, directorySearch, page, total]);
 
     const setDirectorySort = useCallback((sort: DirectorySortOption) => {
         setDirectorySortState(sort);
@@ -201,7 +209,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
                     setSidebarView('directory');
                     try {
                         const detail = await fetchCompanyById(companyId, {
-                            county: filters.county ?? undefined,
+                            counties: filters.counties,
                         });
                         if (detail) {
                             const withCounts: CompanyContactWithCounts = {

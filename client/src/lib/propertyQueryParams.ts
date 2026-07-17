@@ -118,9 +118,11 @@ export function buildPropertyQueryParams(
         return toQueryString(params);
     }
 
-    // County filter
-    if (filters.county) {
-        params.append('county', filters.county);
+    // County set scoped to one MSA — the server intersects the counties with the MSA's
+    // tracked list, so msa with no county params means "none selected" (no properties).
+    if (filters.msa) {
+        params.append('msa', filters.msa);
+        filters.counties.forEach((county) => params.append('county', county));
     }
 
     effectiveStatuses.forEach((status) => params.append('status', status));

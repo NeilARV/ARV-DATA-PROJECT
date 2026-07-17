@@ -21,20 +21,16 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, Plus, Trash2 } from 'lucide-react';
-import { MSA } from '@/constants/filters.constants';
+import { CountySubscriptionAccordion } from '@/components/CountySubscriptionAccordion';
+import { Loader2, Mail, Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { summarizeCountiesByMsa } from '@/lib/countySummary';
+import { getMsaNameFromCounty } from '@/lib/county';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
-import type { RelationshipManager } from '@shared/types/users';
-
-type WhitelistEntry = {
-    id: number;
-    email: string;
-    msaName: string | null;
-    relationshipManagerId: string | null;
-};
+import type { RelationshipManager, WhitelistEntry } from '@shared/types/users';
+import type { CountySubscriptionSelection } from '@database/validation/countySubscriptions.validation';
 
 type EmailListTabProps = {
     isAdmin: boolean;
@@ -45,6 +41,16 @@ type WhitelistResponse = {
     data: WhitelistEntry[];
     count: number;
 };
+
+// San Diego County pre-selected so the common quick-add stays one click (issue #134).
+const DEFAULT_ADD_COUNTIES: CountySubscriptionSelection[] = [{ county: 'San Diego', state: 'CA' }];
+
+/** Per-MSA summary lines for a `(county, state)` selection, deriving each parent MSA client-side. */
+function summarizeSelections(selections: CountySubscriptionSelection[]): string[] {
+    return summarizeCountiesByMsa(
+        selections.map(({ county }) => ({ county, msaName: getMsaNameFromCounty(county) ?? '' })),
+    );
+}
 
 function parseApiError(error: unknown): string {
     let message = 'Something went wrong';
@@ -67,27 +73,37 @@ function parseApiError(error: unknown): string {
 export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailListTabProps) {
     const { toast } = useToast();
     const [whitelistEmail, setWhitelistEmail] = useState('');
-    const [whitelistMsa, setWhitelistMsa] = useState<string>(MSA[0]);
+    const [addCounties, setAddCounties] =
+        useState<CountySubscriptionSelection[]>(DEFAULT_ADD_COUNTIES);
     const [whitelistRelationshipManagerId, setWhitelistRelationshipManagerId] =
         useState<string>('none');
     const [emailError, setEmailError] = useState<string | null>(null);
+    // The county dialog serves both flows: 'add' edits the add form's selection; 'edit' edits an
+    // entry's counties (confirmed via editConfirm before the mutation fires).
+    const [countyDialog, setCountyDialog] = useState<
+        | { mode: 'add'; selections: CountySubscriptionSelection[] }
+        | {
+              mode: 'edit';
+              entryId: number;
+              email: string;
+              selections: CountySubscriptionSelection[];
+          }
+        | null
+    >(null);
     const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; email: string } | null>(null);
     const [editConfirm, setEditConfirm] = useState<{
         id: number;
         email: string;
-        msaName: string;
-        relationshipManagerId: string | null;
+        counties: CountySubscriptionSelection[];
     } | null>(null);
     const [removeRmConfirm, setRemoveRmConfirm] = useState<{
         id: number;
         email: string;
-        msaName: string;
         managerName: string;
     } | null>(null);
     const [addRmConfirm, setAddRmConfirm] = useState<{
         id: number;
         email: string;
-        msaName: string;
         relationshipManagerId: string;
         managerName: string;
     } | null>(null);
@@ -108,7 +124,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
     const addWhitelistMutation = useMutation({
         mutationFn: async (payload: {
             email: string;
-            msaName: string;
+            counties: CountySubscriptionSelection[];
             relationshipManagerId?: string | null;
         }) => {
             const response = await apiRequest('POST', '/api/admin/whitelist', payload);
@@ -122,7 +138,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                 description: 'Email added to whitelist',
             });
             setWhitelistEmail('');
-            setWhitelistMsa(MSA[0]);
+            setAddCounties(DEFAULT_ADD_COUNTIES);
             setWhitelistRelationshipManagerId('none');
             setEmailError(null);
         },
@@ -160,16 +176,16 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
     const updateWhitelistMutation = useMutation({
         mutationFn: async ({
             id,
-            msaName,
+            counties,
             relationshipManagerId,
         }: {
             id: number;
-            msaName: string;
-            relationshipManagerId: string | null;
+            counties?: CountySubscriptionSelection[];
+            relationshipManagerId?: string | null;
         }) => {
             const res = await apiRequest('PATCH', `/api/admin/whitelist/${id}`, {
-                msaName,
-                relationshipManagerId,
+                ...(counties !== undefined && { counties }),
+                ...(relationshipManagerId !== undefined && { relationshipManagerId }),
             });
             return res.json();
         },
@@ -177,7 +193,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
             queryClient.invalidateQueries({ queryKey: ['/api/admin/whitelist'] });
             toast({
                 title: 'Whitelist entry updated',
-                description: 'MSA and relationship manager have been updated.',
+                description: 'The whitelist entry has been updated.',
             });
             setEditConfirm(null);
             setRemoveRmConfirm(null);
@@ -202,20 +218,20 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                 : undefined;
         const result = insertEmailSubscriptionListSchema.safeParse({
             email: trimmed,
-            msaName: whitelistMsa,
+            counties: addCounties,
             relationshipManagerId: relationshipManagerId ?? null,
         });
         if (!result.success) {
             const msg =
                 result.error.flatten().fieldErrors.email?.[0] ??
-                result.error.flatten().fieldErrors.msaName?.[0] ??
-                'Please enter a valid email and select an MSA';
+                result.error.flatten().fieldErrors.counties?.[0] ??
+                'Please enter a valid email and select at least one county';
             setEmailError(msg);
             return;
         }
         addWhitelistMutation.mutate({
             email: result.data.email,
-            msaName: result.data.msaName,
+            counties: result.data.counties,
             ...(result.data.relationshipManagerId && {
                 relationshipManagerId: result.data.relationshipManagerId,
             }),
@@ -231,8 +247,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
         if (!editConfirm) return;
         updateWhitelistMutation.mutate({
             id: editConfirm.id,
-            msaName: editConfirm.msaName,
-            relationshipManagerId: editConfirm.relationshipManagerId,
+            counties: editConfirm.counties,
         });
     };
 
@@ -240,7 +255,6 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
         if (!removeRmConfirm) return;
         updateWhitelistMutation.mutate({
             id: removeRmConfirm.id,
-            msaName: removeRmConfirm.msaName,
             relationshipManagerId: null,
         });
     };
@@ -249,21 +263,25 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
         if (!addRmConfirm) return;
         updateWhitelistMutation.mutate({
             id: addRmConfirm.id,
-            msaName: addRmConfirm.msaName,
             relationshipManagerId: addRmConfirm.relationshipManagerId,
         });
     };
 
-    const handleMsaChange = (entry: WhitelistEntry, newMsaName: string) => {
-        const currentMsa = entry.msaName ?? MSA[0];
-        if (newMsaName === currentMsa) return;
-        setEditConfirm({
-            id: entry.id,
-            email: entry.email,
-            msaName: newMsaName,
-            relationshipManagerId: entry.relationshipManagerId ?? null,
-        });
+    const handleCountyDialogSave = () => {
+        if (!countyDialog) return;
+        if (countyDialog.mode === 'add') {
+            setAddCounties(countyDialog.selections);
+        } else {
+            setEditConfirm({
+                id: countyDialog.entryId,
+                email: countyDialog.email,
+                counties: countyDialog.selections,
+            });
+        }
+        setCountyDialog(null);
     };
+
+    const addCountiesSummary = summarizeSelections(addCounties).join('; ');
 
     return (
         <Card>
@@ -314,29 +332,24 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                             />
                         </div>
                         <div className="flex flex-col gap-1.5 flex-[1] min-w-[280px]">
-                            <Label htmlFor="whitelist-msa" className="ml-1 text-left">
-                                MSA Subscription
+                            <Label htmlFor="whitelist-counties" className="ml-1 text-left">
+                                County Subscriptions
                             </Label>
-                            <Select
-                                value={whitelistMsa}
-                                onValueChange={setWhitelistMsa}
+                            <Button
+                                id="whitelist-counties"
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-start font-normal"
                                 disabled={addWhitelistMutation.isPending}
+                                onClick={() =>
+                                    setCountyDialog({ mode: 'add', selections: addCounties })
+                                }
+                                data-testid="button-whitelist-counties"
                             >
-                                <SelectTrigger
-                                    id="whitelist-msa"
-                                    className="w-full"
-                                    data-testid="select-whitelist-msa"
-                                >
-                                    <SelectValue placeholder="Initial MSA subscription" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {MSA.map((msaName) => (
-                                        <SelectItem key={msaName} value={msaName}>
-                                            {msaName}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                <span className="truncate">
+                                    {addCountiesSummary || 'Select counties'}
+                                </span>
+                            </Button>
                         </div>
                         <div className="flex flex-col gap-1.5 flex-[1] min-w-[240px]">
                             <Label
@@ -430,7 +443,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                     <TableHeader className="sticky top-0 bg-background">
                                         <TableRow>
                                             <TableHead>Email</TableHead>
-                                            <TableHead>MSA Subscription</TableHead>
+                                            <TableHead>County Subscriptions</TableHead>
                                             <TableHead>Relationship Manager</TableHead>
                                             {canEditEntries && (
                                                 <TableHead className="w-[100px] text-right">
@@ -440,170 +453,231 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {whitelist.map((entry) => (
-                                            <TableRow
-                                                key={entry.id}
-                                                data-testid={`row-whitelist-${entry.id}`}
-                                            >
-                                                <TableCell className="font-medium">
-                                                    {entry.email}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {canEditEntries ? (
-                                                        <Select
-                                                            value={entry.msaName ?? MSA[0]}
-                                                            onValueChange={(value) =>
-                                                                handleMsaChange(entry, value)
-                                                            }
-                                                            disabled={
-                                                                updateWhitelistMutation.isPending
-                                                            }
-                                                        >
-                                                            <SelectTrigger
-                                                                className="h-8 w-full max-w-[200px]"
-                                                                data-testid={`select-whitelist-msa-${entry.id}`}
-                                                            >
-                                                                <SelectValue placeholder="MSA" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {MSA.map((msaName) => (
-                                                                    <SelectItem
-                                                                        key={msaName}
-                                                                        value={msaName}
-                                                                    >
-                                                                        {msaName}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        <span className="text-sm">
-                                                            {entry.msaName ?? MSA[0]}
-                                                        </span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="align-top">
-                                                    <div className="flex flex-wrap items-center gap-1.5">
-                                                        {entry.relationshipManagerId ? (
-                                                            (() => {
-                                                                const rm =
-                                                                    relationshipManagers.find(
-                                                                        (r) =>
-                                                                            r.id ===
-                                                                            entry.relationshipManagerId,
-                                                                    );
-                                                                return rm ? (
-                                                                    <Badge
-                                                                        variant="secondary"
-                                                                        className="font-normal"
-                                                                        data-testid={`button-remove-rm-${entry.id}`}
-                                                                        removeLabel={`Remove ${rm.firstName} ${rm.lastName}`}
-                                                                        onRemove={
-                                                                            canEditEntries &&
-                                                                            !updateWhitelistMutation.isPending
-                                                                                ? () =>
-                                                                                      setRemoveRmConfirm(
-                                                                                          {
-                                                                                              id: entry.id,
-                                                                                              email: entry.email,
-                                                                                              msaName:
-                                                                                                  entry.msaName ??
-                                                                                                  MSA[0],
-                                                                                              managerName: `${rm.firstName} ${rm.lastName}`,
-                                                                                          },
-                                                                                      )
-                                                                                : undefined
-                                                                        }
-                                                                    >
-                                                                        {rm.firstName}{' '}
-                                                                        {rm.lastName}
-                                                                    </Badge>
+                                        {whitelist.map((entry) => {
+                                            const summary = summarizeCountiesByMsa(entry.counties);
+                                            return (
+                                                <TableRow
+                                                    key={entry.id}
+                                                    data-testid={`row-whitelist-${entry.id}`}
+                                                >
+                                                    <TableCell className="font-medium">
+                                                        {entry.email}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-start gap-1.5">
+                                                            <div className="text-sm">
+                                                                {summary.length ? (
+                                                                    summary.map((line) => (
+                                                                        <p key={line}>{line}</p>
+                                                                    ))
                                                                 ) : (
-                                                                    <span className="rm-label">
+                                                                    <span className="text-muted-foreground">
                                                                         —
                                                                     </span>
-                                                                );
-                                                            })()
-                                                        ) : canEditEntries &&
-                                                          relationshipManagers.length > 0 ? (
-                                                            <Select
-                                                                value=""
-                                                                onValueChange={(value) => {
-                                                                    if (!value) return;
+                                                                )}
+                                                            </div>
+                                                            {canEditEntries && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 shrink-0 text-muted-foreground"
+                                                                    aria-label={`Edit counties for ${entry.email}`}
+                                                                    disabled={
+                                                                        updateWhitelistMutation.isPending
+                                                                    }
+                                                                    onClick={() =>
+                                                                        setCountyDialog({
+                                                                            mode: 'edit',
+                                                                            entryId: entry.id,
+                                                                            email: entry.email,
+                                                                            selections:
+                                                                                entry.counties.map(
+                                                                                    ({
+                                                                                        county,
+                                                                                        state,
+                                                                                    }) => ({
+                                                                                        county,
+                                                                                        state,
+                                                                                    }),
+                                                                                ),
+                                                                        })
+                                                                    }
+                                                                    data-testid={`button-edit-counties-${entry.id}`}
+                                                                >
+                                                                    <Pencil className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="align-top">
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            {entry.relationshipManagerId ? (
+                                                                (() => {
                                                                     const rm =
                                                                         relationshipManagers.find(
-                                                                            (r) => r.id === value,
+                                                                            (r) =>
+                                                                                r.id ===
+                                                                                entry.relationshipManagerId,
                                                                         );
-                                                                    if (!rm) return;
-                                                                    setAddRmConfirm({
+                                                                    return rm ? (
+                                                                        <Badge
+                                                                            variant="secondary"
+                                                                            className="font-normal"
+                                                                            data-testid={`button-remove-rm-${entry.id}`}
+                                                                            removeLabel={`Remove ${rm.firstName} ${rm.lastName}`}
+                                                                            onRemove={
+                                                                                canEditEntries &&
+                                                                                !updateWhitelistMutation.isPending
+                                                                                    ? () =>
+                                                                                          setRemoveRmConfirm(
+                                                                                              {
+                                                                                                  id: entry.id,
+                                                                                                  email: entry.email,
+                                                                                                  managerName: `${rm.firstName} ${rm.lastName}`,
+                                                                                              },
+                                                                                          )
+                                                                                    : undefined
+                                                                            }
+                                                                        >
+                                                                            {rm.firstName}{' '}
+                                                                            {rm.lastName}
+                                                                        </Badge>
+                                                                    ) : (
+                                                                        <span className="rm-label">
+                                                                            —
+                                                                        </span>
+                                                                    );
+                                                                })()
+                                                            ) : canEditEntries &&
+                                                              relationshipManagers.length > 0 ? (
+                                                                <Select
+                                                                    value=""
+                                                                    onValueChange={(value) => {
+                                                                        if (!value) return;
+                                                                        const rm =
+                                                                            relationshipManagers.find(
+                                                                                (r) =>
+                                                                                    r.id === value,
+                                                                            );
+                                                                        if (!rm) return;
+                                                                        setAddRmConfirm({
+                                                                            id: entry.id,
+                                                                            email: entry.email,
+                                                                            relationshipManagerId:
+                                                                                value,
+                                                                            managerName: `${rm.firstName} ${rm.lastName}`,
+                                                                        });
+                                                                    }}
+                                                                    disabled={
+                                                                        updateWhitelistMutation.isPending
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger
+                                                                        className="h-7 w-[140px] border-dashed"
+                                                                        data-testid={`select-add-manager-${entry.id}`}
+                                                                    >
+                                                                        <SelectValue placeholder="Add Manager" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {relationshipManagers.map(
+                                                                            (rm) => (
+                                                                                <SelectItem
+                                                                                    key={rm.id}
+                                                                                    value={rm.id}
+                                                                                    hideIndicator
+                                                                                    data-testid={`option-manager-${entry.id}-${rm.id}`}
+                                                                                >
+                                                                                    {rm.firstName}{' '}
+                                                                                    {rm.lastName}
+                                                                                </SelectItem>
+                                                                            ),
+                                                                        )}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            ) : (
+                                                                <span className="rm-label">—</span>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    {canEditEntries && (
+                                                        <TableCell className="text-right">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                aria-label={`Remove ${entry.email} from whitelist`}
+                                                                disabled={deleteMutation.isPending}
+                                                                onClick={() =>
+                                                                    setDeleteConfirm({
                                                                         id: entry.id,
                                                                         email: entry.email,
-                                                                        msaName:
-                                                                            entry.msaName ?? MSA[0],
-                                                                        relationshipManagerId:
-                                                                            value,
-                                                                        managerName: `${rm.firstName} ${rm.lastName}`,
-                                                                    });
-                                                                }}
-                                                                disabled={
-                                                                    updateWhitelistMutation.isPending
+                                                                    })
                                                                 }
                                                             >
-                                                                <SelectTrigger
-                                                                    className="h-7 w-[140px] border-dashed"
-                                                                    data-testid={`select-add-manager-${entry.id}`}
-                                                                >
-                                                                    <SelectValue placeholder="Add Manager" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {relationshipManagers.map(
-                                                                        (rm) => (
-                                                                            <SelectItem
-                                                                                key={rm.id}
-                                                                                value={rm.id}
-                                                                                hideIndicator
-                                                                                data-testid={`option-manager-${entry.id}-${rm.id}`}
-                                                                            >
-                                                                                {rm.firstName}{' '}
-                                                                                {rm.lastName}
-                                                                            </SelectItem>
-                                                                        ),
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        ) : (
-                                                            <span className="rm-label">—</span>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                                {canEditEntries && (
-                                                    <TableCell className="text-right">
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                            aria-label={`Remove ${entry.email} from whitelist`}
-                                                            disabled={deleteMutation.isPending}
-                                                            onClick={() =>
-                                                                setDeleteConfirm({
-                                                                    id: entry.id,
-                                                                    email: entry.email,
-                                                                })
-                                                            }
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </TableCell>
-                                                )}
-                                            </TableRow>
-                                        ))}
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    )}
+                                                </TableRow>
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             </div>
                         </div>
                     </div>
                 )}
+
+                <AppDialog
+                    open={!!countyDialog}
+                    onClose={() => setCountyDialog(null)}
+                    className="max-w-xl"
+                >
+                    {countyDialog && (
+                        <div className="space-y-4">
+                            <div>
+                                <h2 className="text-lg font-semibold">County Subscriptions</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    {countyDialog.mode === 'add'
+                                        ? 'Select the counties the new whitelist entry will receive email for — an MSA’s header checkbox selects its whole metro.'
+                                        : `Select the counties "${countyDialog.email}" will receive email for — an MSA’s header checkbox selects its whole metro.`}
+                                </p>
+                            </div>
+                            <div className="max-h-[50vh] overflow-y-auto pr-2">
+                                <CountySubscriptionAccordion
+                                    selections={countyDialog.selections}
+                                    onSelectionsChange={(selections) =>
+                                        setCountyDialog({ ...countyDialog, selections })
+                                    }
+                                />
+                            </div>
+                            {countyDialog.selections.length === 0 && (
+                                <p className="text-sm text-destructive" role="alert">
+                                    Select at least one county.
+                                </p>
+                            )}
+                            <div className="flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setCountyDialog(null)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleCountyDialogSave}
+                                    disabled={countyDialog.selections.length === 0}
+                                    data-testid="button-save-counties"
+                                >
+                                    Save
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </AppDialog>
 
                 <AppDialog
                     open={!!deleteConfirm}
@@ -679,17 +753,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                         title="Update whitelist entry"
                         description={
                             editConfirm
-                                ? (() => {
-                                      const rmId = editConfirm.relationshipManagerId;
-                                      const rm =
-                                          rmId === null
-                                              ? null
-                                              : relationshipManagers.find((r) => r.id === rmId);
-                                      const rmLabel = rm
-                                          ? `${rm.firstName} ${rm.lastName}`
-                                          : 'None';
-                                      return `Update "${editConfirm.email}"? MSA subscription will be set to "${editConfirm.msaName}" and relationship manager to "${rmLabel}".`;
-                                  })()
+                                ? `Update "${editConfirm.email}"? County subscriptions will be set to "${summarizeSelections(editConfirm.counties).join('; ')}".`
                                 : ''
                         }
                         confirmText="Update"

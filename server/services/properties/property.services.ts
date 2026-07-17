@@ -33,6 +33,7 @@ import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { isUniqueViolation } from 'server/utils/dbErrors';
 import { insertPropertyRelatedData, SfrPropertyData } from 'server/utils/propertyDataHelpers';
 import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
+import { countyScopeCondition } from 'server/utils/countyFilter';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { markTransactionAssignments, reprocessProperty } from './propertyTransactions.services';
@@ -42,7 +43,8 @@ import { formatContactName } from '@shared/utils/formatContactName';
 
 export async function getPropertySuggestions(
     search: string,
-    county?: string,
+    county?: string | string[],
+    msa?: string,
 ): Promise<PropertySuggestion[]> {
     const searchTerm = `%${search.trim().toLowerCase()}%`;
     const conditions: SQL[] = [];
@@ -55,14 +57,8 @@ export async function getPropertySuggestions(
     );
     if (searchClause) conditions.push(searchClause);
 
-    if (county) {
-        const normalizedCounty = county.trim().toLowerCase();
-        const countyClause = or(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-        );
-        if (countyClause) conditions.push(countyClause);
-    }
+    const countyClause = countyScopeCondition({ county, msa });
+    if (countyClause) conditions.push(countyClause);
 
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 

@@ -15,7 +15,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { msaShortName } from '@/components/deals/DealsLocationSearch';
+import { msaShortName } from '@/lib/county';
 
 import type { DealFormValues } from '@database/inserts/deals.insert';
 
@@ -462,7 +462,9 @@ export default function DealFormFields({
                                         inputMode="numeric"
                                         placeholder="MM/DD/YYYY"
                                         value={field.value ?? ''}
-                                        onChange={(e) => field.onChange(maskDateInput(e.target.value))}
+                                        onChange={(e) =>
+                                            field.onChange(maskDateInput(e.target.value))
+                                        }
                                     />
                                 </FormControl>
                                 <FormMessage />

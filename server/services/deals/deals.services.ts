@@ -8,18 +8,17 @@ import type {
 } from '@shared/types/deals';
 import { isDealType } from '@shared/types/deals';
 import { deals, dealLinks, dealBids } from '@database/schemas/deals.schema';
-import {
-    users,
-    userRoles,
-    roles,
-    userNotificationPreferences,
-} from '@database/schemas/users.schema';
-import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
+import { users, userRoles, roles } from '@database/schemas/users.schema';
+import { msas } from '@database/schemas/msas.schema';
 import { resolveCountyFromZip } from 'server/utils/resolveCounty';
 import { resolveMsaId } from 'server/utils/resolveMsa';
 import { getAppBaseUrl } from 'server/utils/appBaseUrl';
 import { normalizePropertyType } from 'server/utils/normalization';
 import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
+import {
+    resolveDealRecipients,
+    resolveWhitelistDealRecipients,
+} from 'server/services/email/recipientResolver';
 import {
     sendEmailWithTemplate,
     getDefaultFromEmail,
@@ -27,10 +26,11 @@ import {
     getRmEmailsByUserIds,
     resolveFromAddress,
     sendTemplateToUsers,
-    getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
 import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
-import { eq, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
+import { eq, desc, and, inArray, gte, isNotNull, sql, SQL } from 'drizzle-orm';
+import { countyScopeCondition } from 'server/utils/countyFilter';
+import { getMsaForCounty } from '@shared/constants/countyToMsa';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -62,6 +62,28 @@ function getDealTypeMeta(type: 'wholesale' | 'agent' | 'sold' | 'reo'): {
         default:
             return { label: 'Agent', color: '#F97316' };
     }
+}
+
+// ── Shared: build the /deals deep link for an email ───────────────────────────
+/**
+ * Absolute /deals URL scoped to the deal's geography: msa+counties anchored on the county's own
+ * MSA — so a companion-city deal opens a view that contains it — falling back to the posting MSA
+ * (whole-MSA view) when the county is null/untracked; dealId pins the deal either way.
+ */
+function buildDealDeepLink(
+    dealId: number,
+    county: string | null,
+    postingMsaName?: string | null,
+): string {
+    const params = new URLSearchParams({ dealId: String(dealId) });
+    const countyMsa = county ? getMsaForCounty(county) : null;
+    if (county && countyMsa) {
+        params.set('msa', countyMsa);
+        params.set('counties', county);
+    } else if (postingMsaName) {
+        params.set('msa', postingMsaName);
+    }
+    return `${getAppBaseUrl()}/deals?${params.toString()}`;
 }
 
 // ── Shared: build a relative streetview URL for a deal ────────────────────────
@@ -177,11 +199,9 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 type GetDealsFilters = {
     id?: number;
     userId?: string;
-    msaName?: string;
-    county?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
+    // County set for `county IN (...)`, scoped to one MSA — semantics owned by countyScopeCondition.
+    county?: string | string[];
+    msa?: string;
     // Narrows to a single deal type (including 'sold'). Omit for all types.
     type?: DealType;
     // 1-based page + page size (offset pagination). Defaults: page 1, limit 10.
@@ -205,11 +225,8 @@ export async function getDeals(filters: GetDealsFilters) {
     const {
         id: filterId,
         userId: filterUserId,
-        msaName: filterMsaName,
         county: filterCounty,
-        city: filterCity,
-        state: filterState,
-        zipCode: filterZipCode,
+        msa: filterMsa,
         type: filterType,
         callerId: filterCallerId,
     } = filters;
@@ -218,31 +235,15 @@ export async function getDeals(filters: GetDealsFilters) {
     const limit = filters.limit && filters.limit > 0 ? filters.limit : DEFAULT_DEALS_LIMIT;
     const offset = (page - 1) * limit;
 
-    let filterMsaId: number | undefined;
-    if (filterMsaName) {
-        const [msaRow] = await db
-            .select({ id: msas.id })
-            .from(msas)
-            .where(eq(msas.name, filterMsaName))
-            .limit(1);
-
-        if (!msaRow) {
-            console.log(
-                `[dealsService.getDeals] MSA not found: "${filterMsaName}" — returning empty`,
-            );
-            return { deals: [], total: 0, hasMore: false, page, limit };
-        }
-        filterMsaId = msaRow.id;
-    }
-
     const conditions: SQL[] = [];
     if (filterId !== undefined) conditions.push(eq(deals.id, filterId));
     if (filterUserId) conditions.push(eq(deals.userId, filterUserId));
-    if (filterMsaId !== undefined) conditions.push(eq(deals.msaId, filterMsaId));
-    if (filterCounty) conditions.push(ilike(deals.county, filterCounty));
-    if (filterCity) conditions.push(ilike(deals.city, filterCity));
-    if (filterState) conditions.push(eq(deals.state, filterState.toUpperCase()));
-    if (filterZipCode) conditions.push(eq(deals.zipCode, filterZipCode));
+    const countyCondition = countyScopeCondition({
+        county: filterCounty,
+        msa: filterMsa,
+        columns: [deals.county],
+    });
+    if (countyCondition) conditions.push(countyCondition);
     if (filterType) conditions.push(eq(deals.type, filterType));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -305,9 +306,8 @@ export async function getDeals(filters: GetDealsFilters) {
         `[dealsService.getDeals] ${pageRows.length}/${total} deals (page ${page})` +
             `${filterType ? ` (type=${filterType})` : ''}` +
             `${filterUserId ? ` (userId=${filterUserId})` : ''}` +
-            `${filterMsaName ? ` (msaName=${filterMsaName})` : ''}` +
-            `${filterCity ? ` (city=${filterCity})` : ''}` +
-            `${filterZipCode ? ` (zipCode=${filterZipCode})` : ''}`,
+            `${filterMsa ? ` (msa=${filterMsa})` : ''}` +
+            `${filterCounty ? ` (county=${[filterCounty].flat().join(',')})` : ''}`,
     );
 
     // Batch-fetch links for the page's deals.
@@ -554,13 +554,6 @@ export async function createDeal(input: CreateDealInput) {
     return { deal, msaId, links: validLinks };
 }
 
-// Cities that cross MSA boundaries but belong to a companion MSA's notification audience.
-// Key: "city|state" (lowercase). Values: additional MSA names to notify.
-const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
-    'temecula|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
-    'murrieta|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
-};
-
 // ── POST deal — background notification (fire and forget) ──────────────────────
 type DealNotificationData = {
     id: number;
@@ -584,6 +577,10 @@ type DealNotificationData = {
     isArvExclusive: boolean;
 };
 
+/**
+ * Emails a deal notification to its resolved recipients (fire-and-forget; never throws).
+ * Side effect: sends Postmark deal templates to county subscribers + county-scoped whitelist entries.
+ */
 export async function sendDealNotification(
     deal: DealNotificationData,
     msaId: number,
@@ -594,79 +591,13 @@ export async function sendDealNotification(
 ): Promise<void> {
     const label = '[dealsService.sendDealNotification]';
     try {
-        const subscribedUsers = await db
-            .select({
-                id: users.id,
-                email: users.email,
-                dealTypeFilter: userNotificationPreferences.dealTypeFilter,
-            })
-            .from(users)
-            .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
-            .innerJoin(
-                userNotificationPreferences,
-                eq(users.id, userNotificationPreferences.userId),
-            )
-            .where(
-                and(
-                    eq(userMsaSubscriptions.msaId, msaId),
-                    eq(users.notifications, true),
-                    eq(userNotificationPreferences.dealNotificationsEnabled, true),
-                ),
-            );
-
-        // ── Companion MSA fan-out ─────────────────────────────────────────────────
-        // Some cities straddle MSA boundaries. Merge subscribers from companion MSAs
-        // so they receive the same notification as the primary MSA subscribers.
-        const allSubscribers = [...subscribedUsers];
-        const companionMsaIds: number[] = [];
-        const companionKey = `${deal.city?.toLowerCase().trim()}|${deal.state?.toLowerCase().trim()}`;
-        for (const companionName of COMPANION_NOTIFICATION_MSAS[companionKey] ?? []) {
-            const [companionMsaRow] = await db
-                .select({ id: msas.id })
-                .from(msas)
-                .where(eq(msas.name, companionName))
-                .limit(1);
-            if (!companionMsaRow) continue;
-            companionMsaIds.push(companionMsaRow.id);
-            const companionSubs = await db
-                .select({
-                    id: users.id,
-                    email: users.email,
-                    dealTypeFilter: userNotificationPreferences.dealTypeFilter,
-                })
-                .from(users)
-                .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
-                .innerJoin(
-                    userNotificationPreferences,
-                    eq(users.id, userNotificationPreferences.userId),
-                )
-                .where(
-                    and(
-                        eq(userMsaSubscriptions.msaId, companionMsaRow.id),
-                        eq(users.notifications, true),
-                        eq(userNotificationPreferences.dealNotificationsEnabled, true),
-                    ),
-                );
-            allSubscribers.push(...companionSubs);
-        }
-        // ─────────────────────────────────────────────────────────────────────────
-
-        if (allSubscribers.length === 0) {
-            console.log(`${label} No MSA subscribers to notify`);
-            return;
-        }
-
-        // neil@arvfinance.com receives notifications for his own postings; all other posters do not
-        const posterInSubscribers = allSubscribers.find((u) => u.id === posterUserId);
-        const posterIsNeil = posterInSubscribers?.email?.toLowerCase() === 'neil@arvfinance.com';
-        const seen = new Set<string>(posterIsNeil ? [] : [posterUserId]);
-        const uniqueUsers = allSubscribers.filter((u) => {
-            if (seen.has(u.id)) return false;
-            seen.add(u.id);
-            // Deal type filter: empty = all types; non-empty = must include this deal's type
-            const typeFilter = (u.dealTypeFilter ?? []) as string[];
-            if (typeFilter.length > 0 && !typeFilter.includes(deal.type)) return false;
-            return true;
+        const { recipients, msaIds } = await resolveDealRecipients({
+            msaId,
+            dealType: deal.type,
+            county: deal.county,
+            city: deal.city,
+            state: deal.state,
+            posterUserId,
         });
 
         const template =
@@ -689,6 +620,20 @@ export async function sendDealNotification(
             const county = msaRow?.name
                 ? msaRow.name.split('-')[0].split(',')[0].trim()
                 : (deal.county ?? 'your area');
+
+            // Whitelist recipients get the same county scoping as users (issue #133).
+            const whitelistRecipients = await resolveWhitelistDealRecipients({
+                msaIds,
+                county: deal.county,
+                city: deal.city,
+                state: deal.state,
+            });
+
+            // Bail before the street-view fetch when nobody would receive the email.
+            if (recipients.length + whitelistRecipients.length === 0) {
+                console.log(`${label} No recipients to notify`);
+                return;
+            }
 
             const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
 
@@ -737,37 +682,11 @@ export async function sendDealNotification(
                 }
             }
 
-            // ── Whitelist recipients (primary + companion MSAs, deduplicated by email) ──
-            const primaryWhitelist = await getWhitelistRecipientsForMsa(msaId);
-            const companionWhitelists = await Promise.all(
-                companionMsaIds.map((id) => getWhitelistRecipientsForMsa(id)),
-            );
-            const seenWhitelistEmails = new Set<string>();
-            const whitelistRecipients = [...primaryWhitelist, ...companionWhitelists.flat()].filter(
-                (r) => {
-                    const key = r.email.toLowerCase();
-                    if (seenWhitelistEmails.has(key)) return false;
-                    seenWhitelistEmails.add(key);
-                    return true;
-                },
-            );
-            // ─────────────────────────────────────────────────────────────────────
-
-            const APP_BASE_URL_DEALS = getAppBaseUrl();
-            const dealUrlParams = new URLSearchParams({ dealId: String(deal.id) });
-            if (deal.county && deal.state) {
-                dealUrlParams.set('filterType', 'county');
-                dealUrlParams.set('filterValue', deal.county);
-                dealUrlParams.set('filterState', deal.state);
-            } else if (msaRow?.name) {
-                dealUrlParams.set('filterType', 'msa');
-                dealUrlParams.set('filterValue', msaRow.name);
-            }
-            const dealUrl = `${APP_BASE_URL_DEALS}/deals?${dealUrlParams.toString()}`;
+            const dealUrl = buildDealDeepLink(deal.id, deal.county, msaRow?.name);
 
             const { sent, failed } = await sendTemplateToUsers({
                 recipients: [
-                    ...uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+                    ...recipients.map((u) => ({ email: u.email, userId: u.userId })),
                     ...whitelistRecipients,
                 ],
                 templateAlias: template,
@@ -806,7 +725,7 @@ export async function sendDealNotification(
                     notes: deal.notes ?? null,
                     county: county,
                     deal_url: dealUrl,
-                    cta_url: `${APP_BASE_URL_DEALS}/deals`,
+                    cta_url: `${getAppBaseUrl()}/deals`,
                     year: new Date().getFullYear(),
                     company_name: 'ARV Finance',
                 }),
@@ -814,7 +733,7 @@ export async function sendDealNotification(
             });
 
             console.log(
-                `${label} New-deal emails sent: ${sent}/${uniqueUsers.length + whitelistRecipients.length}` +
+                `${label} New-deal emails sent: ${sent}/${recipients.length + whitelistRecipients.length}` +
                     `${failed.length > 0 ? ` (failed: ${failed.join(', ')})` : ''}`,
             );
         }
@@ -1122,14 +1041,7 @@ export async function requestDealInfo(
 
     const requesterName = [displayFirstName, displayLastName].filter(Boolean).join(' ');
 
-    const APP_BASE_URL = getAppBaseUrl();
-    const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
-    if (dealRow.county && dealRow.state) {
-        dealUrlParams.set('filterType', 'county');
-        dealUrlParams.set('filterValue', dealRow.county);
-        dealUrlParams.set('filterState', dealRow.state);
-    }
-    const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
+    const dealUrl = buildDealDeepLink(dealRow.id, dealRow.county);
 
     const ccCandidates = [ccAddress, displayEmail].filter(
         (addr): addr is string => Boolean(addr) && addr !== toAddress,
@@ -1400,14 +1312,7 @@ export async function sendDealOfferNotification(
     const ccList = Array.from(new Set(ccCandidates));
     const cc = ccList.length > 0 ? ccList.join(', ') : undefined;
 
-    const APP_BASE_URL = getAppBaseUrl();
-    const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
-    if (dealRow.county && dealRow.state) {
-        dealUrlParams.set('filterType', 'county');
-        dealUrlParams.set('filterValue', dealRow.county);
-        dealUrlParams.set('filterState', dealRow.state);
-    }
-    const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
+    const dealUrl = buildDealDeepLink(dealRow.id, dealRow.county);
 
     const bidderName = [bid.firstName, bid.lastName].filter(Boolean).join(' ');
 

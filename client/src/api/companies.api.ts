@@ -10,20 +10,20 @@ export type CompaniesPageResponse = {
 };
 
 export async function fetchCompanyContactsPage(params: {
-    county?: string;
+    counties?: string[];
     page?: number;
     limit?: number;
     sort?: DirectorySortOption;
     search?: string;
     signal?: AbortSignal;
 }): Promise<CompaniesPageResponse | null> {
-    const { county, page = 1, limit = 50, sort = 'most-properties', search = '' } = params;
+    const { counties = [], page = 1, limit = 50, sort = 'most-properties', search = '' } = params;
     const searchParams = new URLSearchParams();
     searchParams.set('page', String(page));
     searchParams.set('limit', String(limit));
     searchParams.set('sort', sort);
 
-    if (county) searchParams.set('county', county);
+    counties.forEach((county) => searchParams.append('county', county));
     if (search.trim()) searchParams.set('search', search.trim());
 
     const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
@@ -38,10 +38,10 @@ export async function fetchCompanyContactsPage(params: {
 
 export async function fetchCompanyById(
     companyId: string,
-    options?: { signal?: AbortSignal; county?: string },
+    options?: { signal?: AbortSignal; counties?: string[] },
 ): Promise<CompanyContactWithCounts | null> {
     const params = new URLSearchParams();
-    if (options?.county?.trim()) params.set('county', options.county.trim());
+    options?.counties?.forEach((county) => params.append('county', county));
     const query = params.toString() ? `?${params.toString()}` : '';
 
     try {

@@ -16,6 +16,11 @@ import { LeaderboardDialog } from '@/components/data/LeaderboardDialog';
 import { AppAccessGate } from '@/components/auth/AppAccessGate';
 import { useAuth } from '@/hooks/use-auth';
 import { useFilters } from '@/hooks/useFilters';
+import {
+    defaultSelectionForUser,
+    isSameSelection,
+    parseMsaCountyParams,
+} from '@/lib/msaCountySelection';
 import { useView } from '@/hooks/useView';
 import { useDataNav } from '@/hooks/useNav';
 import { useCompanies } from '@/hooks/useCompanies';
@@ -36,16 +41,26 @@ function DataContent() {
 
     const initializedRef = useRef(false);
 
-    // On mount: sync URL county → filters, and load property/company from URL params
+    // Applies the URL's MSA/county selection to filters when they differ.
+    const syncSelectionToFilters = () => {
+        const selection = nav.selection;
+        if (!isSameSelection(selection, { msa: filters.msa, counties: filters.counties })) {
+            setFilters((f) => ({
+                ...f,
+                msa: selection.msa,
+                counties: selection.counties,
+                zipCode: '',
+                city: undefined,
+            }));
+        }
+    };
+
+    // On mount: sync URL selection → filters, and load property/company from URL params
     useEffect(() => {
         if (initializedRef.current) return;
         initializedRef.current = true;
 
-        // Sync URL county to filters if different from default
-        const urlCounty = nav.county;
-        if (urlCounty && urlCounty !== filters.county) {
-            setFilters((f) => ({ ...f, county: urlCounty, zipCode: '', city: undefined }));
-        }
+        syncSelectionToFilters();
 
         // Load property from URL param
         if (nav.propertyId) {
@@ -59,13 +74,12 @@ function DataContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Keep URL county in sync when nav.county changes (e.g. user default applied by useDataNav)
+    // Keep filters in sync when the URL selection changes (e.g. user default applied by useDataNav)
+    const navSelectionKey = `${nav.selection.msa}|${nav.selection.counties.join(',')}`;
     useEffect(() => {
-        const urlCounty = nav.county;
-        if (urlCounty && urlCounty !== filters.county) {
-            setFilters((f) => ({ ...f, county: urlCounty, zipCode: '', city: undefined }));
-        }
-    }, [nav.county]);
+        syncSelectionToFilters();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navSelectionKey]);
 
     // Sync selected property → URL param
     useEffect(() => {
@@ -87,13 +101,14 @@ function DataContent() {
         }
     }, [property, view]);
 
-    // Load companies on mount and when county filter changes. Skip when user just clicked a company
-    // (e.g. wholesaler in grid, or company in property panel/modal) so that company can be shown via ensuredCompany.
+    // Load companies on mount and when the county selection changes. Skip when user just clicked a
+    // company (e.g. wholesaler in grid, or company in property panel/modal) so that company can be
+    // shown via ensuredCompany.
     useEffect(() => {
         if (!companySelectionInProgressRef.current) {
             loadCompanies();
         }
-    }, [filters.county, loadCompanies, companySelectionInProgressRef]);
+    }, [filters.counties, loadCompanies, companySelectionInProgressRef]);
 
     return (
         <div className="h-screen flex flex-col">
@@ -174,20 +189,26 @@ function DataContent() {
 export default function Data() {
     const search = useSearch();
     const { user, isLoading: authLoading } = useAuth();
-    const urlCounty = new URLSearchParams(search).get('county') ?? undefined;
+    const urlSelection = parseMsaCountyParams(new URLSearchParams(search));
 
-    // When the URL has no county yet (fresh visit), hold rendering until auth
+    // When the URL has no selection yet (fresh visit), hold rendering until auth
     // resolves so FiltersProvider initializes with the user's actual county.
     // This eliminates the double-fetch that occurs when useDataNav later pushes
-    // ?county=UserCounty and triggers a setFilters → re-fetch cycle.
-    if (authLoading && !urlCounty) {
+    // the user default and triggers a setFilters → re-fetch cycle.
+    if (authLoading && !urlSelection) {
         return <PageLoader className="h-screen" />;
     }
 
-    const defaultCounty = urlCounty ?? user?.county ?? 'San Diego';
+    const defaultSelection =
+        urlSelection ?? defaultSelectionForUser(user?.county, user?.countySubscriptions);
 
     return (
-        <DataProviders filtersDefaultOverrides={{ county: defaultCounty }}>
+        <DataProviders
+            filtersDefaultOverrides={{
+                msa: defaultSelection.msa,
+                counties: defaultSelection.counties,
+            }}
+        >
             <DataContent />
         </DataProviders>
     );

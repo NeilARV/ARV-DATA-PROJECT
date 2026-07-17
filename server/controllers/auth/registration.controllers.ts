@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { insertUserSchema } from '@database/inserts';
 import { UserServices, EmailVerificationServices } from 'server/services/auth';
-import { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
+import {
+    seedHomeCountySubscription,
+    seedWhitelistCountySubscriptions,
+} from 'server/services/subscriptions/countySubscriptions.services';
 import { normalizeEmail } from 'server/utils/normalizeEmail';
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -69,6 +72,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         }
 
         if (subscriptionListEntry) {
+            await seedWhitelistCountySubscriptions(newUser.id, subscriptionListEntry.id);
             await UserServices.removeEmailFromSubscriptionList(subscriptionListEntry.id);
             console.log('[signup] removed from subscription list:', subscriptionListEntry.id);
         }
@@ -78,14 +82,10 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             dealTypeFilter: ['wholesale', 'agent', 'sold', 'reo'],
         });
 
+        // Seed the home county only — never the whole (multi-county) MSA (#114); for a whitelisted
+        // signup it unions with the entry counties copied above (#135).
         if (normalizedCounty) {
-            const msaName = getMsaNameFromCounty(normalizedCounty);
-            if (msaName) {
-                const msaId = await UserServices.getMsaIdByName(msaName);
-                if (msaId != null) {
-                    await UserServices.addUserMsaSubscription(newUser.id, msaId);
-                }
-            }
+            await seedHomeCountySubscription(newUser.id, normalizedCounty);
         }
 
         req.session.userId = newUser.id;

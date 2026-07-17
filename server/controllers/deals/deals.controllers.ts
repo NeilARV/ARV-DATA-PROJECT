@@ -49,11 +49,13 @@ const MAX_DEALS_LIMIT = 50;
 export async function getDealsController(req: Request, res: Response): Promise<void> {
     try {
         const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
-        const msaName = typeof req.query.msaName === 'string' ? req.query.msaName : undefined;
-        const county = typeof req.query.county === 'string' ? req.query.county : undefined;
-        const city = typeof req.query.city === 'string' ? req.query.city : undefined;
-        const state = typeof req.query.state === 'string' ? req.query.state : undefined;
-        const zipCode = typeof req.query.zipCode === 'string' ? req.query.zipCode : undefined;
+        const msa = typeof req.query.msa === 'string' ? req.query.msa : undefined;
+        const rawCounty = req.query.county;
+        const county = Array.isArray(rawCounty)
+            ? rawCounty.map((c) => c.toString())
+            : typeof rawCounty === 'string'
+              ? rawCounty
+              : undefined;
         const type = isDealType(req.query.type) ? req.query.type : undefined;
 
         const parsedPage = parseInt(String(req.query.page), 10);
@@ -66,11 +68,8 @@ export async function getDealsController(req: Request, res: Response): Promise<v
 
         const results = await getDeals({
             userId,
-            msaName,
+            msa,
             county,
-            city,
-            state,
-            zipCode,
             type,
             page,
             limit,

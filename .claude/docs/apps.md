@@ -36,8 +36,9 @@ filtered, paginated, and synchronized through URL state so deep links work.
 
 ## Page Entry Point
 `client/src/pages/Data.tsx` wraps `DataContent` (behind `AppAccessGate`). Before rendering, it
-waits for auth to resolve when there's no `?county=` in the URL — preventing a double-fetch caused
-by `useDataNav` pushing the user's default county after the initial render.
+waits for auth to resolve when the URL has no geo selection — preventing a double-fetch caused by
+`useDataNav` pushing the user's default (home MSA + subscribed counties, falling back to the home
+county alone) after the initial render.
 
 ## Layout
 CSS Grid `grid-cols-[375px_1fr] grid-rows-[auto_1fr]`:
@@ -271,7 +272,8 @@ gate — `DealsPageContent` has no in-page checks.
 
 ## Component Tree
 - **DealsToolbar** — deal-type dropdown (All Types / Wholesale / REO / Agent / Sold),
-  `DealsLocationSearch` (county/MSA/city/zip autocomplete), Add Deal button.
+  `MsaCountyPicker` (the same State → MSA → multi-select county hierarchy as the Data app;
+  shared component at `client/src/components/`), Add Deal button.
 - **DealsBrowser** — master–detail over the unified newest-first feed: a `DealListRow` list
   (infinite scroll via `useInfiniteScroll`, 12/page) beside a `DealDetail` pane at ≥1024px;
   below that a single pane swaps between list and detail. Scope tabs "All Deals" / "My Deals"
@@ -300,11 +302,13 @@ Mastermind/notifications section.
 
 ## State Management
 **`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `typeFilter` (`?type=`,
-invalid values fall back to `all`), `locationFilter` (`?filterType` + `?filterValue` +
-`?filterState`), `dealId` (`?dealId=`); actions `setTab`, `setTypeFilter`, `setLocationFilter`,
-`setDealId(id, { replace? })`. On first load with no filter, defaults to the user's MSA
-(resolved from their county). `buildDealsUrl` rebuilds the query string from scratch, so every
-param must be threaded through every setter or a sibling setter silently drops it from the URL.
+invalid values fall back to `all`), `selection` (`?msa=` + `?counties=` — the same
+`MsaCountySelection` contract as the Data nav, via `lib/msaCountySelection`; legacy
+`?filterType=county|msa` deep links from old deal emails still resolve, city/zip ones fall
+through to the default), `dealId` (`?dealId=`); actions `setTab`, `setTypeFilter`,
+`setSelection`, `setDealId(id, { replace? })`. On first load with no geo params, defaults once
+to the home county's MSA with the user's subscribed counties in it pre-selected (the home
+county alone when none are subscribed there).
 
 **`DealsPageContent` local state:** `showAddDeal`, `deleteConfirm`, `editDeal` (links
 normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `offerDeal`,
@@ -312,19 +316,18 @@ normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `offe
 
 **Data fetching (React Query):** one `useInfiniteQuery` (`useDealsFeed`) against
 `GET /api/deals?type&page&limit` (12/page, infinite scroll via `useInfiniteScroll`), plus the
-shared location/scope filters `userId&county&state&city&zipCode&msaName`. A deep-linked
-`?dealId` outside the loaded pages is fetched via `GET /api/deals/:id` (`usePinnedDeal`) and
-pinned to the top of the feed; a 404 marks it gone and the page strips the dead `dealId` with a
-replacing navigation. `DealsLocationSearch` pulls its city/zip suggestions from
-`GET /api/deals/locations` (independent of the loaded pages); top buyers load on demand from
-`GET /api/deals/:id/top-buyers` when the poster opens the dialog.
+shared scope filters `userId&msa&county` (county repeated — the selection's county set, scoped
+to one MSA; none selected returns no deals). A deep-linked `?dealId` outside the loaded pages
+is fetched via `GET /api/deals/:id` (`usePinnedDeal`) and pinned to the top of the feed; a 404
+marks it gone and the page strips the dead `dealId` with a replacing navigation. Top buyers
+load on demand from `GET /api/deals/:id/top-buyers` when the poster opens the dialog.
 
 ## API Surface (`server/routes/deals.routes.ts`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/api/deals` | requireSub (basic/pro/premium) | One page of the unified feed; `type` (wholesale/agent/reo/sold), `page`, `limit`, `userId`, `county`, `city`, `state`, `zipCode`, `msaName` → `{ deals, total, hasMore, page, limit }` |
+| GET | `/api/deals` | requireSub (basic/pro/premium) | One page of the unified feed; `type` (wholesale/agent/reo/sold), `page`, `limit`, `userId`, `county` (repeatable), `msa` (scopes the county set to one MSA) → `{ deals, total, hasMore, page, limit }` |
 | GET | `/api/deals/msas` | requireSub (basic/pro/premium) | MSA list for the deal form dropdown |
-| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete |
+| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete (legacy — no live client consumer since the county picker replaced the location search) |
 | GET | `/api/deals/:id` | requireSub (basic/pro/premium) | Single deal |
 | GET | `/api/deals/:id/top-buyers` | requireSub + ownership in service | Top buyers for the deal's zip (owner/privileged) |
 | POST | `/api/deals` | requireSub (basic/pro/premium) | Create deal |
@@ -366,10 +369,13 @@ price change on PATCH → fires notification email; validates POST `userId` matc
 - **`requestDealInfo(...)`** — on-behalf-of mode → email to client (onBehalfOfEmail), CC
   poster's RM; normal mode → email to poster, CC requester's RM or default contact. Includes
   deal details, requester contact, message, deep link.
-- **`sendDealNotification(...)`** — fetches MSA subscribers with deal notifications enabled,
-  extends with companion-MSA subscribers, filters by deal-type preference, excludes the poster
-  (except neil@arvfinance.com), adds whitelist recipients (primary + companion MSAs, dedup by
-  email), sends Postmark templates `new-deal` / `deal-sold` / `price-update`.
+- **`sendDealNotification(...)`** — resolves its audience through `resolveDealRecipients`
+  (`server/services/email/recipientResolver.ts`): county-subscription match on the deal's
+  county, MSA-wide fallback when the county is null/untracked, companion-city fan-out, with
+  the master/deal toggles, per-user deal-type filter, and poster exclusion (except
+  neil@arvfinance.com) applied inside the resolver. Whitelist recipients get the same county
+  scoping via `resolveWhitelistDealRecipients` (issue #133; unique by email, already-registered
+  addresses excluded), sends Postmark templates `new-deal` / `deal-sold` / `price-update`.
 
 ## Deal Creation & Editing — Form Behavior
 - **Property details always required:** beds, baths, sqft, property type — no external auto-fill.
@@ -385,20 +391,20 @@ price change on PATCH → fires notification email; validates POST `userId` matc
 
 ## Companion MSA Notifications
 Some cities near MSA boundaries interest a neighboring market. The static map
-`COMPANION_NOTIFICATION_MSAS` in `deals.services.ts` defines overrides:
+`COMPANION_CITY_MSA` in `server/constants/companionCities.constants.ts` defines the pairs:
 ```ts
-const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
-    'temecula|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
-    'murrieta|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+export const COMPANION_CITY_MSA: Record<string, string> = {
+    'temecula|ca': 'San Diego-Chula Vista-Carlsbad, CA',
+    'murrieta|ca': 'San Diego-Chula Vista-Carlsbad, CA',
 };
 ```
-- The deal's `msaId` is **never changed** (Temecula stays in the Riverside MSA for data
-  integrity). At notification time, a `city|state` key is checked against the map.
-- For each companion MSA, it looks up the MSA ID and runs the same subscriber query
-  (`userMsaSubscriptions` + `userNotificationPreferences`). All lists merge before dedup (the
-  `seen` Set by user ID handles cross-MSA duplicates). Whitelist recipients fetched for primary
-  + companion MSAs, deduped by email. The "no subscribers" early-return checks the **merged**
-  list, so an empty primary MSA doesn't block companion subscribers.
+- The same map drives **both** consumers: create-time MSA resolution (`resolveMsaId` tier 0 —
+  a Temecula deal is posted under the San Diego MSA) and notification fan-out
+  (`resolveDealRecipients` — a companion-city deal reaches every county subscriber across
+  primary ∪ companion MSAs, bypassing the exact-county match).
+- Whitelist recipients fan out the same way (`resolveWhitelistDealRecipients` scopes over every
+  MSA in play, deduped by email) and receive the notification even when no county subscriber
+  matches.
 - **Adding a companion city:** add one `"city|state"` (lowercase) entry — no migration needed.
 
 ## Database Schema (`database/schemas/deals.schema.ts`)
@@ -437,8 +443,8 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
 
 ## Deal Lifecycle
 - **Create** → subscription check → MSA + county resolved → beds/baths/sqft/propertyType
-  validated → insert deals + dealLinks → fire-and-forget emails (primary MSA subscribers,
-  companion MSA subscribers, whitelist recipients deduped).
+  validated → insert deals + dealLinks → fire-and-forget emails (county subscribers across
+  primary + companion MSAs, county-scoped whitelist recipients deduped).
 - **Request info** → `RequestDealInfoForm` (firstName/lastName/email) → with onBehalfOfEmail:
   email to client, CC poster's RM; without: email to poster, CC requester's RM.
 - **Submit offer** → `SendOfferForm` (amount + name/email/phone) → insert `deal_bids` row (full

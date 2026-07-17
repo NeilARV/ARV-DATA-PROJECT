@@ -1,35 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm *)",
-      "Bash(npx tsc *)",
-      "Bash(npx tsx *)",
-      "Bash(npx vitest *)",
-      "Bash(npx drizzle-kit *)",
-      "Bash(node_modules/.bin/prettier *)",
-      "Bash(git *)",
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Bash(npm *)", 
+      "Bash(npx *)", 
+      "Bash(node *)",
+      "Bash(git *)", 
       "Bash(gh *)",
-      "WebSearch",
-      "Skill(audit:*)",
-      "Skill(tests:*)",
-      "Skill(worktree:*)",
-      "Skill(update-config:*)",
-      "Skill(artifact-design:*)",
-      "Bash(npm run *)",
-      "Bash(git add *)",
-      "Bash(git commit -q -m ' *)",
-      "Bash(git --no-pager log --oneline -1)"
+      "Bash(mkdir *)", 
+      "Bash(mv *)", 
+      "Bash(cp *)", 
+      "Bash(touch *)",
+      "Bash(bash .claude/skills/**)"
     ],
     "deny": [
-      "Bash(git push --force *)",
-      "Bash(git push -f *)",
-      "Bash(git reset --hard *)",
-      "Bash(git clean *)",
+      "Read(**/.env*)",
+      "Read(**/secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/.aws/**)",
+      "Read(**/.ssh/**)",
+      "Bash(git push *)", 
       "Bash(rm -rf *)",
-      "Bash(gh repo delete *)",
-      "Bash(npm publish *)",
-      "Read(.env)",
-      "Read(**/.env.*)"
+      "Read(.env)", 
+      "Read(.env.*)"
     ]
   },
   "hooks": {
