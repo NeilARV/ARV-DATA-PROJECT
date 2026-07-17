@@ -4,7 +4,7 @@ import { Database } from 'lucide-react';
 import { MarketingHeader } from '@/components/MarketingHeader';
 import { PageLoader } from '@/components/PageLoader';
 import FilterHeader from '@/components/data/FilterHeader';
-import CompanyDirectory from '@/components/data/CompanyDirectory';
+import DirectoryPanel from '@/components/data/DirectoryPanel';
 import PropertyMap from '@/components/data/property/PropertyMap';
 import GridView from '@/components/data/views/GridView';
 import TableView from '@/components/data/views/TableView';
@@ -130,9 +130,9 @@ function DataContent() {
                         {/* [row 1, col 2] FilterHeader */}
                         <FilterHeader />
 
-                        {/* [row 2, col 1] Company Directory */}
+                        {/* [row 2, col 1] Directory (Companies / Groups tabs) */}
                         <div className="border-r border-border overflow-hidden flex flex-col">
-                            <CompanyDirectory />
+                            <DirectoryPanel />
                         </div>
 
                         {/* [row 2, col 2] Content views */}
