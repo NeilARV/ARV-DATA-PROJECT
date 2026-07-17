@@ -86,6 +86,27 @@ export async function getGroupDirectoryRowHandler(req: Request, res: Response) {
     }
 }
 
+export async function getGroupProfileHandler(req: Request, res: Response) {
+    try {
+        // A malformed uuid is just an invalid link — the same 404 as a disbanded group, not a 500
+        // from the DB uuid cast.
+        if (!z.string().uuid().safeParse(req.params.id).success) {
+            return res.status(404).json({ message: 'Group not found' });
+        }
+        const profile = await GroupDirectoryServices.getGroupProfile(
+            req.params.id,
+            countyParam(req.query.county),
+        );
+        if (!profile) {
+            return res.status(404).json({ message: 'Group not found' });
+        }
+        return res.json({ profile });
+    } catch (error) {
+        console.error('Error fetching group profile:', error);
+        return res.status(500).json({ message: 'Error fetching group profile' });
+    }
+}
+
 export async function getWholesaleLeaderboardHandler(req: Request, res: Response) {
     try {
         const result = await CompaniesServices.getWholesaleLeaderboard(

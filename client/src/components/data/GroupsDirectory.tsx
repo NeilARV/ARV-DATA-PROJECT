@@ -8,6 +8,7 @@ import { useAccessGate } from '@/hooks/useAccessGate';
 import { useDataNav } from '@/hooks/useNav';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { GroupCard } from './GroupCard';
+import { GroupProfile } from './GroupProfile';
 import {
     BUYERS_FEED_STATUS_FILTERS,
     COMPANY_DIRECTORY_SORT_FILTERS,
@@ -127,18 +128,26 @@ export function GroupsDirectory() {
                         {directorySearch ? 'No groups found' : 'No groups in directory'}
                     </div>
                 ) : (
-                    displayList.map((listGroup, index) => (
-                        <GroupCard
-                            key={listGroup.id}
-                            group={listGroup}
-                            rank={
-                                isEnsuredPrepended ? (index === 0 ? undefined : index) : index + 1
-                            }
-                            sortBy={directorySort}
-                            isSelected={group?.id === listGroup.id}
-                            onSelect={() => handleGroupClick(listGroup)}
-                        />
-                    ))
+                    displayList.map((listGroup, index) => {
+                        const rank = isEnsuredPrepended
+                            ? index === 0
+                                ? undefined
+                                : index
+                            : index + 1;
+                        const isSelected = group?.id === listGroup.id;
+                        return (
+                            <div key={listGroup.id}>
+                                <GroupCard
+                                    group={listGroup}
+                                    rank={rank}
+                                    sortBy={directorySort}
+                                    isSelected={isSelected}
+                                    onSelect={() => handleGroupClick(listGroup)}
+                                />
+                                {isSelected && <GroupProfile group={listGroup} rank={rank} />}
+                            </div>
+                        );
+                    })
                 )}
                 {hasMore && (
                     <div ref={scrollSentinelRef} className="h-4 flex-shrink-0" aria-hidden />

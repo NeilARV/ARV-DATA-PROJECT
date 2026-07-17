@@ -57,7 +57,7 @@ export function GroupCard({ group, rank, sortBy, isSelected = false, onSelect }:
                     <SortCountBadge sortBy={sortBy} counts={group} />
                 </div>
 
-                {/* Col 4: Chevron (expanded profile arrives in a later slice) */}
+                {/* Col 4: Chevron */}
                 <div className="flex-shrink-0 flex items-center">
                     {isSelected ? (
                         <ChevronUp className="w-4 h-4 text-muted-foreground" />
