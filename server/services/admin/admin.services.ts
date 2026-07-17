@@ -11,7 +11,10 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 import { normalizeEmail } from 'server/utils/normalizeEmail';
 import { resolveCountySelections } from 'server/services/subscriptions/countySubscriptions.services';
-import type { CountySubscriptionSelection } from '@database/types/countySubscriptions';
+import type {
+    CountySubscriptionInput,
+    CountySubscriptionSelection,
+} from '@database/types/countySubscriptions';
 import type { WhitelistCounty, WhitelistEntry } from '@shared/types/users';
 
 interface AdminStatusResult {
@@ -46,24 +49,25 @@ export async function getAdminStatus(userId: string): Promise<AdminStatusResult>
 
 /** Returns all whitelist entries with their subscribed counties (each carrying its MSA name). */
 export async function getWhitelist(): Promise<WhitelistEntry[]> {
-    const entries = await db
-        .select({
-            id: emailSubscriptionList.id,
-            email: emailSubscriptionList.email,
-            relationshipManagerId: emailSubscriptionList.relationshipManagerId,
-        })
-        .from(emailSubscriptionList)
-        .orderBy(emailSubscriptionList.createdAt);
-
-    const countyRows = await db
-        .select({
-            subscriptionListId: emailSubscriptionListCounties.subscriptionListId,
-            county: emailSubscriptionListCounties.county,
-            state: emailSubscriptionListCounties.state,
-            msaName: msas.name,
-        })
-        .from(emailSubscriptionListCounties)
-        .innerJoin(msas, eq(emailSubscriptionListCounties.msaId, msas.id));
+    const [entries, countyRows] = await Promise.all([
+        db
+            .select({
+                id: emailSubscriptionList.id,
+                email: emailSubscriptionList.email,
+                relationshipManagerId: emailSubscriptionList.relationshipManagerId,
+            })
+            .from(emailSubscriptionList)
+            .orderBy(emailSubscriptionList.createdAt),
+        db
+            .select({
+                subscriptionListId: emailSubscriptionListCounties.subscriptionListId,
+                county: emailSubscriptionListCounties.county,
+                state: emailSubscriptionListCounties.state,
+                msaName: msas.name,
+            })
+            .from(emailSubscriptionListCounties)
+            .innerJoin(msas, eq(emailSubscriptionListCounties.msaId, msas.id)),
+    ]);
 
     const countiesByEntry = new Map<number, WhitelistCounty[]>();
     for (const { subscriptionListId, ...county } of countyRows) {
@@ -86,20 +90,18 @@ export async function deleteWhitelistEntry(id: number): Promise<number | null> {
 
 // Same replace-list semantics as replaceUserCountySubscriptions, keyed by whitelist entry:
 // delete-then-insert without a transaction (matches the neon-http driver used app-wide).
+// Takes already-resolved rows — callers resolve first so an unresolvable list can be rejected
+// before any row is touched.
 async function replaceWhitelistCounties(
     subscriptionListId: number,
-    selections: CountySubscriptionSelection[],
+    resolved: CountySubscriptionInput[],
 ): Promise<void> {
-    const resolved = await resolveCountySelections(selections);
-
     await db
         .delete(emailSubscriptionListCounties)
         .where(eq(emailSubscriptionListCounties.subscriptionListId, subscriptionListId));
-    if (resolved.length > 0) {
-        await db
-            .insert(emailSubscriptionListCounties)
-            .values(resolved.map((r) => ({ subscriptionListId, ...r })));
-    }
+    await db
+        .insert(emailSubscriptionListCounties)
+        .values(resolved.map((r) => ({ subscriptionListId, ...r })));
 }
 
 interface UpdateWhitelistParams {
@@ -117,14 +119,19 @@ interface UpdateWhitelistResult {
 /**
  * Updates an entry's relationship manager and/or replaces its subscribed counties (untracked
  * counties are dropped by resolution); null when no entry matches.
+ * @returns "no-tracked-counties" — a counties list that resolved to nothing; nothing is written,
+ * since an entry with zero counties would receive no email.
  */
 export async function updateWhitelistEntry(
     params: UpdateWhitelistParams,
-): Promise<UpdateWhitelistResult | null> {
+): Promise<UpdateWhitelistResult | 'no-tracked-counties' | null> {
     const { id, counties, relationshipManagerId } = params;
     const updates: { relationshipManagerId?: string | null; updatedAt: Date } = {
         updatedAt: new Date(),
     };
+
+    const resolved = counties !== undefined ? await resolveCountySelections(counties) : undefined;
+    if (resolved !== undefined && resolved.length === 0) return 'no-tracked-counties';
 
     if (relationshipManagerId !== undefined) {
         updates.relationshipManagerId = relationshipManagerId;
@@ -142,8 +149,8 @@ export async function updateWhitelistEntry(
 
     if (updated.length === 0) return null;
 
-    if (counties !== undefined) {
-        await replaceWhitelistCounties(id, counties);
+    if (resolved !== undefined) {
+        await replaceWhitelistCounties(id, resolved);
     }
 
     return {
@@ -161,11 +168,17 @@ interface AddWhitelistParams {
 
 /**
  * Creates a whitelist entry with its subscribed counties (untracked counties are dropped by
- * resolution); "duplicate" if the email already exists, otherwise "ok".
+ * resolution); "duplicate" if the email already exists, "no-tracked-counties" if the list
+ * resolved to nothing (no entry is created), otherwise "ok".
  */
-export async function addWhitelistEntry(params: AddWhitelistParams): Promise<'ok' | 'duplicate'> {
+export async function addWhitelistEntry(
+    params: AddWhitelistParams,
+): Promise<'ok' | 'duplicate' | 'no-tracked-counties'> {
     const { email, counties, relationshipManagerId } = params;
     const normalizedEmail = normalizeEmail(email);
+
+    const resolved = await resolveCountySelections(counties);
+    if (resolved.length === 0) return 'no-tracked-counties';
 
     const existing = await db
         .select({ id: emailSubscriptionList.id })
@@ -183,7 +196,7 @@ export async function addWhitelistEntry(params: AddWhitelistParams): Promise<'ok
         })
         .returning({ id: emailSubscriptionList.id });
 
-    await replaceWhitelistCounties(created.id, counties);
+    await replaceWhitelistCounties(created.id, resolved);
 
     return 'ok';
 }

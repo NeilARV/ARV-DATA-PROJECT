@@ -311,7 +311,7 @@ Both exclude addresses already registered in `users` (double-send prevention) an
 ### Patch 7 — Admin County Picker for Whitelist Entries (issue #134)
 *Admins and RMs manage whitelist entries by counties, not a single MSA.*
 
-- **`POST`/`PATCH /api/admin/whitelist`** — accept a `counties` `(county, state)` replace-list resolved server-side via `resolveCountySelections` (same contract as the user replace-list: untracked counties silently dropped, MSA id derived from `COUNTY_TO_MSA`); an empty list is rejected with 400 on both create and update; the parent `msa` column is no longer written (dropped in #136)
+- **`POST`/`PATCH /api/admin/whitelist`** — accept a `counties` `(county, state)` replace-list resolved server-side via `resolveCountySelections` (same contract as the user replace-list: untracked counties silently dropped, MSA id derived from `COUNTY_TO_MSA`); an empty list — or one resolving to no tracked counties — is rejected with 400 on both create and update, so no entry can end up with zero counties; the parent `msa` column is no longer written (dropped in #136)
 - **`GET /api/admin/whitelist`** — each entry carries `counties` (`{ county, state, msaName }[]`) so the client groups without re-encoding the mapping
 - **Email List tab** — add + per-row edit open the shared `CountySubscriptionAccordion` in a dialog (San Diego pre-selected on add; edit seeded with current counties behind the existing confirmation step); the table shows a compact per-MSA summary (`"San Diego (all)"`, `"Los Angeles: Orange"`)
 

@@ -24,7 +24,7 @@ const db = getTestDb();
 async function ensureMsa(name: string): Promise<number> {
     // MSAs are shared reference data — never deleted in teardown; ensure-then-read repeats safely.
     await db.insert(msas).values({ name }).onConflictDoNothing();
-    const [row] = await db.select({ id: msas.id }).from(msas).where(eq(msas.name, name));
+    const [row] = await db.select({ id: msas.id }).from(msas).where(eq(msas.name, name)).limit(1);
     return row.id;
 }
 
@@ -32,8 +32,16 @@ async function entryIdFor(email: string): Promise<number | null> {
     const [row] = await db
         .select({ id: emailSubscriptionList.id })
         .from(emailSubscriptionList)
-        .where(eq(emailSubscriptionList.email, email));
+        .where(eq(emailSubscriptionList.email, email))
+        .limit(1);
     return row?.id ?? null;
+}
+
+/** entryIdFor for tests that require the entry to exist — throws instead of returning null. */
+async function requireEntryIdFor(email: string): Promise<number> {
+    const id = await entryIdFor(email);
+    if (id === null) throw new Error(`No whitelist entry for ${email}`);
+    return id;
 }
 
 async function countyRowsFor(entryId: number) {
@@ -143,9 +151,8 @@ describe('Admin whitelist county contract (integration)', () => {
                 });
             expect(res.status).toBe(201);
 
-            const entryId = await entryIdFor(CREATED_EMAIL);
-            expect(entryId).not.toBeNull();
-            const rows = await countyRowsFor(entryId as number);
+            const entryId = await requireEntryIdFor(CREATED_EMAIL);
+            const rows = await countyRowsFor(entryId);
             expect(rows).toHaveLength(3);
             expect(new Set(rows.map((r) => `${r.county}|${r.state}|${r.msaId}`))).toEqual(
                 new Set([
@@ -169,9 +176,21 @@ describe('Admin whitelist county contract (integration)', () => {
                 });
             expect(res.status).toBe(201);
 
-            const entryId = await entryIdFor(CREATED_EMAIL);
-            const rows = await countyRowsFor(entryId as number);
+            const entryId = await requireEntryIdFor(CREATED_EMAIL);
+            const rows = await countyRowsFor(entryId);
             expect(rows).toEqual([{ county: 'San Diego', state: 'CA', msaId: sdMsaId }]);
+        });
+
+        it('rejects a list of only untracked counties with 400 — no zero-county entry is created', async () => {
+            const res = await request(app)
+                .post('/api/admin/whitelist')
+                .set('x-test-user-id', ADMIN_USER)
+                .send({
+                    email: CREATED_EMAIL,
+                    counties: [{ county: 'Nowhere', state: 'ZZ' }],
+                });
+            expect(res.status).toBe(400);
+            expect(await entryIdFor(CREATED_EMAIL)).toBeNull();
         });
 
         it('rejects an empty counties list with 400', async () => {
@@ -227,6 +246,19 @@ describe('Admin whitelist county contract (integration)', () => {
                 .patch(`/api/admin/whitelist/${entryId}`)
                 .set('x-test-user-id', ADMIN_USER)
                 .send({ counties: [] });
+            expect(res.status).toBe(400);
+
+            const rows = await countyRowsFor(entryId);
+            expect(rows).toEqual([{ county: 'San Diego', state: 'CA', msaId: sdMsaId }]);
+        });
+
+        it('rejects a list of only untracked counties with 400 and leaves the rows untouched', async () => {
+            const entryId = await seedEntry([{ county: 'San Diego', state: 'CA', msaId: sdMsaId }]);
+
+            const res = await request(app)
+                .patch(`/api/admin/whitelist/${entryId}`)
+                .set('x-test-user-id', ADMIN_USER)
+                .send({ counties: [{ county: 'Nowhere', state: 'ZZ' }] });
             expect(res.status).toBe(400);
 
             const rows = await countyRowsFor(entryId);

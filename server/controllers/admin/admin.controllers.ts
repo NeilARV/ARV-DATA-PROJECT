@@ -70,6 +70,9 @@ export async function patchWhitelistEntry(req: Request, res: Response) {
             counties,
             relationshipManagerId,
         });
+        if (updated === 'no-tracked-counties') {
+            return res.status(400).json({ message: 'No tracked counties selected' });
+        }
         if (!updated) {
             return res.status(404).json({ message: 'Whitelist entry not found' });
         }
@@ -102,6 +105,9 @@ export async function createWhitelistEntry(req: Request, res: Response) {
             relationshipManagerId,
         });
 
+        if (result === 'no-tracked-counties') {
+            return res.status(400).json({ message: 'No tracked counties selected' });
+        }
         if (result === 'duplicate') {
             return res.status(409).json({ message: 'Email already exists in whitelist' });
         }

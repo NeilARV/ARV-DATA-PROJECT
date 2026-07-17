@@ -366,11 +366,12 @@ Add an email to the subscription whitelist.
 
 `counties` is a non-empty `(county, state)` replace-list; the server derives each county's MSA from
 `COUNTY_TO_MSA` and silently drops untracked counties (same resolution contract as the user
-subscription replace-list). `relationshipManagerId` is optional.
+subscription replace-list). A list that resolves to nothing (only untracked counties) is rejected —
+an entry with zero counties would receive no email. `relationshipManagerId` is optional.
 
 **Response `201`** `{ "message": "Email added to whitelist successfully" }`
 
-**Errors** `400` invalid data or empty counties list · `409` email already on whitelist
+**Errors** `400` invalid data, empty counties list, or no tracked counties · `409` email already on whitelist
 
 ---
 
@@ -390,7 +391,8 @@ Update an existing whitelist entry's counties and/or relationship manager.
 ```
 
 `counties` replaces the entry's county set under the same resolution contract as create (non-empty,
-untracked counties dropped server-side); omit it to leave counties unchanged.
+untracked counties dropped server-side, a list resolving to no tracked counties rejected); omit it
+to leave counties unchanged.
 
 **Response `200`**
 ```json

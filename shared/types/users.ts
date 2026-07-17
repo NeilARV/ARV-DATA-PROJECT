@@ -13,13 +13,9 @@ export type CountySubscription = {
     msaName: string;
 };
 
-/** A county a whitelist entry subscribes to; `msaName` is the county's parent MSA (derived from
- *  COUNTY_TO_MSA) so clients can group counties by MSA without re-encoding the mapping. */
-export type WhitelistCounty = {
-    county: string;
-    state: string;
-    msaName: string;
-};
+/** A county a whitelist entry subscribes to — `CountySubscription` without the denormalized
+ *  `msaId`, which the admin client has no use for. */
+export type WhitelistCounty = Omit<CountySubscription, 'msaId'>;
 
 /** An email_subscription_list entry as returned by GET /api/admin/whitelist. */
 export type WhitelistEntry = {

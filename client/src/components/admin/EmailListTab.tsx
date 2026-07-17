@@ -78,13 +78,18 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
     const [whitelistRelationshipManagerId, setWhitelistRelationshipManagerId] =
         useState<string>('none');
     const [emailError, setEmailError] = useState<string | null>(null);
-    // The county dialog serves both flows: entryId null edits the add form's selection; an id
-    // edits that entry's counties (confirmed via editConfirm before the mutation fires).
-    const [countyDialog, setCountyDialog] = useState<{
-        entryId: number | null;
-        email: string | null;
-        selections: CountySubscriptionSelection[];
-    } | null>(null);
+    // The county dialog serves both flows: 'add' edits the add form's selection; 'edit' edits an
+    // entry's counties (confirmed via editConfirm before the mutation fires).
+    const [countyDialog, setCountyDialog] = useState<
+        | { mode: 'add'; selections: CountySubscriptionSelection[] }
+        | {
+              mode: 'edit';
+              entryId: number;
+              email: string;
+              selections: CountySubscriptionSelection[];
+          }
+        | null
+    >(null);
     const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; email: string } | null>(null);
     const [editConfirm, setEditConfirm] = useState<{
         id: number;
@@ -264,12 +269,12 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
 
     const handleCountyDialogSave = () => {
         if (!countyDialog) return;
-        if (countyDialog.entryId === null) {
+        if (countyDialog.mode === 'add') {
             setAddCounties(countyDialog.selections);
         } else {
             setEditConfirm({
                 id: countyDialog.entryId,
-                email: countyDialog.email ?? '',
+                email: countyDialog.email,
                 counties: countyDialog.selections,
             });
         }
@@ -337,11 +342,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                 className="w-full justify-start font-normal"
                                 disabled={addWhitelistMutation.isPending}
                                 onClick={() =>
-                                    setCountyDialog({
-                                        entryId: null,
-                                        email: null,
-                                        selections: addCounties,
-                                    })
+                                    setCountyDialog({ mode: 'add', selections: addCounties })
                                 }
                                 data-testid="button-whitelist-counties"
                             >
@@ -487,6 +488,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                                                     }
                                                                     onClick={() =>
                                                                         setCountyDialog({
+                                                                            mode: 'edit',
                                                                             entryId: entry.id,
                                                                             email: entry.email,
                                                                             selections:
@@ -638,7 +640,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                             <div>
                                 <h2 className="text-lg font-semibold">County Subscriptions</h2>
                                 <p className="text-sm text-muted-foreground">
-                                    {countyDialog.entryId === null
+                                    {countyDialog.mode === 'add'
                                         ? 'Select the counties the new whitelist entry will receive email for — an MSA’s header checkbox selects its whole metro.'
                                         : `Select the counties "${countyDialog.email}" will receive email for — an MSA’s header checkbox selects its whole metro.`}
                                 </p>
