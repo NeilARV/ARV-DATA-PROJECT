@@ -25,6 +25,8 @@ import { useAuth } from '@/hooks/use-auth';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import { UpdateCompanyDialog } from '../admin/UpdateCompanyDialog';
+import { RankMedal } from './RankMedal';
+import { SortCountBadge } from './SortCountBadge';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card } from '@/components/ui/card';
 import {
@@ -476,28 +478,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                     <div className="flex items-center gap-2">
                                         {/* Col 1: Rank (fixed small width) */}
                                         <div className="flex-shrink-0 w-5 flex items-center justify-center">
-                                            {ranking != null &&
-                                                (ranking <= 3 ? (
-                                                    <span
-                                                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                                                            ranking === 1
-                                                                ? 'bg-amber-400 text-white'
-                                                                : ranking === 2
-                                                                  ? 'bg-muted-foreground text-background'
-                                                                  : 'bg-amber-700 text-amber-100'
-                                                        }`}
-                                                        data-testid={`text-rank-${ranking}`}
-                                                    >
-                                                        {ranking}
-                                                    </span>
-                                                ) : (
-                                                    <span
-                                                        className="text-primary font-bold text-sm leading-tight"
-                                                        data-testid={`text-rank-${ranking}`}
-                                                    >
-                                                        {ranking}.
-                                                    </span>
-                                                ))}
+                                            <RankMedal rank={ranking} />
                                         </div>
 
                                         {/* Col 2: Company name + contact (flex-1, truncates) */}
@@ -523,81 +504,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
 
                                         {/* Col 3: Count + ARV Partner badges */}
                                         <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                                            {sortBy !== 'most-sold-properties' &&
-                                                sortBy !== 'most-sold-properties-all-time' &&
-                                                sortBy !== 'most-bought-properties' &&
-                                                sortBy !== 'most-bought-properties-all-time' &&
-                                                sortBy !== 'buys-wholesale' &&
-                                                sortBy !== 'wholesalers' &&
-                                                listCompany.propertyCount > 0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-property-count"
-                                                    >
-                                                        {listCompany.propertyCount}{' '}
-                                                        {listCompany.propertyCount === 1
-                                                            ? 'property'
-                                                            : 'properties'}
-                                                    </div>
-                                                )}
-                                            {sortBy === 'most-sold-properties' &&
-                                                (listCompany.propertiesSoldCount ?? 0) > 0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-sold-count"
-                                                    >
-                                                        {listCompany.propertiesSoldCount} sold
-                                                    </div>
-                                                )}
-                                            {sortBy === 'most-sold-properties-all-time' &&
-                                                (listCompany.propertiesSoldCountAllTime ?? 0) >
-                                                    0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-sold-count-all-time"
-                                                    >
-                                                        {listCompany.propertiesSoldCountAllTime}{' '}
-                                                        sold
-                                                    </div>
-                                                )}
-                                            {sortBy === 'most-bought-properties' &&
-                                                (listCompany.propertiesBoughtCount ?? 0) > 0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-green-600 bg-green-500/15 dark:text-green-400 dark:bg-green-500/20 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-bought-count"
-                                                    >
-                                                        {listCompany.propertiesBoughtCount} bought
-                                                    </div>
-                                                )}
-                                            {sortBy === 'most-bought-properties-all-time' &&
-                                                (listCompany.propertiesBoughtCountAllTime ?? 0) >
-                                                    0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-green-600 bg-green-500/15 dark:text-green-400 dark:bg-green-500/20 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-bought-count-all-time"
-                                                    >
-                                                        {listCompany.propertiesBoughtCountAllTime}{' '}
-                                                        bought
-                                                    </div>
-                                                )}
-                                            {sortBy === 'buys-wholesale' &&
-                                                (listCompany.wholesaleBuyCount ?? 0) > 0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-wholesale-buy-count"
-                                                    >
-                                                        {listCompany.wholesaleBuyCount} wholesale
-                                                    </div>
-                                                )}
-                                            {sortBy === 'wholesalers' &&
-                                                (listCompany.wholesalerCount ?? 0) > 0 && (
-                                                    <div
-                                                        className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap"
-                                                        data-testid="text-wholesaler-count"
-                                                    >
-                                                        {listCompany.wholesalerCount} wholesales
-                                                    </div>
-                                                )}
+                                            <SortCountBadge sortBy={sortBy} counts={listCompany} />
                                             {listCompany.isFinancedByARV && (
                                                 <div className="text-xs font-medium text-black bg-white px-2 py-0.5 rounded-full whitespace-nowrap">
                                                     ARV Partner
