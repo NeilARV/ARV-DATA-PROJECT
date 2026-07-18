@@ -104,6 +104,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     const {
         company,
         setCompany,
+        ensureGroup,
         companies,
         total,
         hasMore,
@@ -284,6 +285,19 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         }
     };
 
+    // Jump from a company card up to its operator group: select the group (which clears the company
+    // and, via the URL group param, switches the sidebar to the Groups tab). ensureGroup validates
+    // the id against the county-scoped directory and expands the filters — the same path a ?group=
+    // deep link takes. Gated like the card click for access parity.
+    const handleGroupChipClick = (groupId: string) => {
+        requireAuth(() => {
+            requireSubscription(() => {
+                setProperty(null);
+                void ensureGroup(groupId);
+            });
+        });
+    };
+
     const handleEnrichCompany = async (companyId: string) => {
         if (enrichingCompanyId) return;
         setEnrichingCompanyId(companyId);
@@ -359,7 +373,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                             <RankMedal rank={ranking} />
                                         </div>
 
-                                        {/* Col 2: Company name + contact (flex-1, truncates) */}
+                                        {/* Col 2: Company name + group chip + contact (flex-1, truncates) */}
                                         <div className="flex-1 min-w-0 flex flex-col">
                                             <div
                                                 className="font-medium text-sm leading-tight break-words"
@@ -367,6 +381,27 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                             >
                                                 {formatCompanyName(listCompany.companyName)}
                                             </div>
+                                            {/* Group chip — only for multi-company-group members; jumps to the Groups tab */}
+                                            {listCompany.group && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleGroupChipClick(listCompany.group!.id);
+                                                    }}
+                                                    className="inline-flex items-center gap-1 mt-1 w-fit max-w-full rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-primary hover:bg-accent-border transition-colors"
+                                                    data-testid={`company-group-chip-${listCompany.id}`}
+                                                    title={
+                                                        formatCompanyName(listCompany.group.name) ??
+                                                        undefined
+                                                    }
+                                                >
+                                                    <Building2 className="w-3 h-3 flex-shrink-0" />
+                                                    <span className="truncate">
+                                                        {formatCompanyName(listCompany.group.name)}
+                                                    </span>
+                                                </button>
+                                            )}
                                             {listCompany.contactName && (
                                                 <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
                                                     <User className="w-3 h-3 flex-shrink-0" />
