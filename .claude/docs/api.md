@@ -834,6 +834,11 @@ List companies (buyer/seller directory) with filtering and pagination.
 
 **Response `200`** `{ companies: [...], total: number, page: number }`
 
+Each company carries a `group` field — `{ id, name }` when the company belongs to a **multi-company
+operator group** (2+ members, evaluated globally), `null` for singleton or ungrouped companies. The
+group `name` is RAW (formatted at the render edge — ARV.RAW-COMPANY-NAME). Backs the company-card
+group chip that jumps to the Groups tab.
+
 ---
 
 ### `GET /api/companies/contacts/suggestions`
