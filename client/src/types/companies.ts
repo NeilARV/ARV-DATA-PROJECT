@@ -27,6 +27,9 @@ export type CompanyContactWithCounts = Company & {
     contactName?: string | null;
     contactEmail?: string | null;
     phoneNumber?: string | null;
+    // The operator group this company belongs to; null unless it's a multi-company group. RAW name
+    // (format with formatCompanyName at the render edge — ARV.RAW-COMPANY-NAME). Feeds the card chip.
+    group: { id: string; name: string } | null;
 };
 
 export type CompanyContactDetail = Company & {

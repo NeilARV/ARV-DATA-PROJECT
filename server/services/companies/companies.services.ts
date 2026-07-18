@@ -4,6 +4,7 @@ import {
     companyContacts,
     companyDetails,
     companyAddresses,
+    companyGroups,
 } from '@database/schemas/companies.schema';
 import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
 import {
@@ -83,6 +84,27 @@ async function fetchPrimaryContacts(
             map.set(row.companyId, row);
         }
     }
+    return map;
+}
+
+/**
+ * The operator group (id + RAW name) for each company id that belongs to a MULTI-company group
+ * (2+ members, evaluated globally — auto-created singletons are excluded by the >= 2 gate). Companies
+ * that are ungrouped or in a singleton group are absent from the map. Feeds the company-card chip.
+ */
+async function fetchMultiCompanyGroups(
+    groupIds: string[],
+): Promise<Map<string, { id: string; name: string }>> {
+    const map = new Map<string, { id: string; name: string }>();
+    if (groupIds.length === 0) return map;
+    const rows = await db
+        .select({ id: companyGroups.id, name: companyGroups.name })
+        .from(companyGroups)
+        .innerJoin(companies, eq(companies.groupId, companyGroups.id))
+        .where(inArray(companyGroups.id, groupIds))
+        .groupBy(companyGroups.id, companyGroups.name)
+        .having(sql`count(${companies.id}) >= 2`);
+    rows.forEach((r) => map.set(r.id, { id: r.id, name: r.name }));
     return map;
 }
 
@@ -352,13 +374,25 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         companiesPage = contactsWithCounts.slice(offset, offset + limitNum);
     }
 
+    // Attach the company's operator group (id + RAW name) for the card chip — populated only for
+    // multi-company groups; ungrouped/singleton members get null. Resolved for the returned page only
+    // so the payload stays lean.
+    const pageGroupIds = Array.from(
+        new Set(companiesPage.map((c) => c.groupId).filter((id): id is string => !!id)),
+    );
+    const groupsById = await fetchMultiCompanyGroups(pageGroupIds);
+    const companiesWithGroup = companiesPage.map((c) => ({
+        ...c,
+        group: c.groupId ? (groupsById.get(c.groupId) ?? null) : null,
+    }));
+
     console.log(
         `Companies (county: ${county || 'all'}, page: ${pageNum}, sort: ${sortOption}):`,
-        companiesPage.length,
+        companiesWithGroup.length,
         '/',
         total,
     );
-    return { companies: companiesPage, total, page: pageNum, limit: limitNum };
+    return { companies: companiesWithGroup, total, page: pageNum, limit: limitNum };
 }
 
 // ─── Wholesale leaderboard ────────────────────────────────────────────────────
