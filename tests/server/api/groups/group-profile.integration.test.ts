@@ -10,7 +10,7 @@ import { getTestDb } from '../../../helpers/db';
 // Integration coverage for the PUBLIC group profile (GET /api/companies/groups/:id/profile): the
 // aggregate stats summed across member companies (owned de-duplicated across members, YTD sold with
 // intra-group transfers, assigned de-duplicated on property, the 90-day acquisition chart), the
-// two-or-more gate, county scoping, and 404s for stale/malformed ids.
+// all-groups visibility (no member-count gate), county scoping, and 404s for stale/malformed ids.
 //
 // The test branch holds real synced data, so every fixture is namespaced to counties/names unique to
 // this file and asserted by seeded id — never by raw totals across the whole response.
@@ -46,7 +46,7 @@ let splitGroupId: string; // 2 members split across counties
 let splitS1Id: string; // split member in COUNTY
 let splitS2Id: string; // split member in OTHER_COUNTY
 let otherGroupId: string; // 2 members, all in OTHER_COUNTY
-let singleGroupId: string; // 1 member (singleton — 404)
+let singleGroupId: string; // 1 member (served — no member-count gate)
 
 // ── Seed helpers ─────────────────────────────────────────────────────────────
 
@@ -210,7 +210,7 @@ beforeAll(async () => {
     const pO = await seedProperty(OTHER_COUNTY);
     await seedTx({ propertyId: pO, buyerId: o1, sellerId: ext, recordingDate: D5 });
 
-    // ── SINGLE: one company with activity (singleton — must 404) ──
+    // ── SINGLE: one company with activity (served — no member-count gate) ──
     const c1 = await seedCompany('C1', [[COUNTY, STATE]]);
     singleGroupId = await seedGroup('SINGLE', [c1]);
     const pC = await seedProperty(COUNTY);
@@ -329,7 +329,7 @@ describe('GET /api/companies/groups/:id/profile — county scoping (integration)
     it('stats are county-scoped: only the in-county member’s activity is counted', async () => {
         const res = await getProfile(splitGroupId, { county: COUNTY });
         expect(res.status).toBe(200);
-        expect(res.body.profile.companyCount).toBe(2); // the two-or-more gate is global
+        expect(res.body.profile.companyCount).toBe(2); // member count is global, not county-scoped
         expect(res.body.profile.propertyCount).toBe(1);
     });
 
@@ -347,10 +347,11 @@ describe('GET /api/companies/groups/:id/profile — county scoping (integration)
 // ── Visibility & 404s ─────────────────────────────────────────────────────────
 
 describe('GET /api/companies/groups/:id/profile — visibility (integration)', () => {
-    it('404s for a singleton (one-company) group even with activity', async () => {
+    it('serves a one-company group with its stats', async () => {
         const res = await getProfile(singleGroupId);
-        expect(res.status).toBe(404);
-        expect(res.body).toEqual({ message: 'Group not found' });
+        expect(res.status).toBe(200);
+        expect(res.body.profile.companyCount).toBe(1);
+        expect(res.body.profile.propertyCount).toBe(1);
     });
 
     it('404s for an unknown uuid', async () => {

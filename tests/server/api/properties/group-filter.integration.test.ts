@@ -43,7 +43,7 @@ let nameCounter = 0;
 
 let groupId: string; // 2 members: buyerMember + sellerMember
 let emptyGroupId: string; // 0 members — stale (disbanded-equivalent)
-let singletonGroupId: string; // 1 member — invisible in the directory
+let singletonGroupId: string; // 1 member, no activity — zero-count filtered
 let buyerMemberId: string; // member: buys boughtPropId, assignor on assignedPropId
 let sellerMemberId: string; // member: sells soldPropId
 let outsiderId: string; // ungrouped company: buys outsiderPropId
@@ -258,7 +258,7 @@ describe('GET /api/companies/groups/:id (integration)', () => {
         expect(res.body.group.companyCount).toBe(2);
     });
 
-    it('404 for a singleton group (invisible in the directory)', async () => {
+    it('404 for a singleton group with no activity (zero-count filtered)', async () => {
         const res = await request(app)
             .get(`/api/companies/groups/${singletonGroupId}`)
             .query({ county: COUNTY });
