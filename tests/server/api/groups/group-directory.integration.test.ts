@@ -9,8 +9,8 @@ import type { GroupDirectoryRow } from '@shared/types/groups';
 import { createTestApp } from '../../../helpers/setup';
 import { getTestDb } from '../../../helpers/db';
 
-// Integration coverage for the PUBLIC groups directory (GET /api/companies/groups): the two-or-more
-// gate, county scoping (visibility + county-scoped stats, gate evaluated globally), per-sort
+// Integration coverage for the PUBLIC groups directory (GET /api/companies/groups): all-groups
+// visibility (no member-count gate), county scoping (visibility + county-scoped stats), per-sort
 // aggregation grouped by group id (DISTINCT de-dup on distinct-property sorts, intra-group transfers
 // included), zero-count filtering, and unauthenticated reachability.
 //
@@ -34,9 +34,9 @@ let nameCounter = 0;
 
 // Seeded group ids, assigned in beforeAll.
 let multiId: string; // 2 members, active on every sort
-let splitId: string; // 2 members split across counties (global gate; county-scoped stats)
+let splitId: string; // 2 members split across counties (county-scoped stats)
 let otherId: string; // 2 members, all in OTHER_COUNTY (absent from COUNTY)
-let singleId: string; // 1 member (singleton — never appears)
+let singleId: string; // 1 member (appears — no member-count gate)
 let zeroId: string; // 2 members, no activity (zero-count filtered)
 
 // ── Seed helpers ─────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ beforeAll(async () => {
     await seedTx({ propertyId: p6, buyerId: a2, sellerId: a1, recordingDate: YTD });
     await markWholesale(p6);
 
-    // ── SPLIT: b1 in COUNTY, b2 in OTHER_COUNTY (two-or-more gate is global) ──
+    // ── SPLIT: b1 in COUNTY, b2 in OTHER_COUNTY (county-scoped stats) ──
     const b1 = await seedCompany('B1', [[COUNTY, STATE]]);
     const b2 = await seedCompany('B2', [[OTHER_COUNTY, STATE]]);
     splitId = await seedGroup('SPLIT', [b1, b2]);
@@ -183,7 +183,7 @@ beforeAll(async () => {
     const pD1 = await seedProperty(OTHER_COUNTY);
     await seedTx({ propertyId: pD1, buyerId: d1, sellerId: xExt, recordingDate: YTD });
 
-    // ── SINGLE: one company (singleton — must never appear) ──
+    // ── SINGLE: one company (appears — no member-count gate) ──
     const c1 = await seedCompany('C1', [[COUNTY, STATE]]);
     singleId = await seedGroup('SINGLE', [c1]);
     const pC = await seedProperty(COUNTY);
@@ -238,13 +238,16 @@ describe('GET /api/companies/groups — per-sort aggregation (integration)', () 
     });
 });
 
-// ── Two-or-more gate ──────────────────────────────────────────────────────────
+// ── All-groups visibility (no member-count gate) ──────────────────────────────
 
-describe('GET /api/companies/groups — two-or-more gate (integration)', () => {
-    it('singleton (one-company) groups never appear', async () => {
+describe('GET /api/companies/groups — all-groups visibility (integration)', () => {
+    it('one-company groups appear with companyCount 1', async () => {
         const res = await getGroups({ county: COUNTY, sort: 'most-properties' });
         expect(res.status).toBe(200);
-        expect(findGroup(res.body, singleId)).toBeUndefined();
+        const single = findGroup(res.body, singleId);
+        expect(single).toBeDefined();
+        expect(single!.companyCount).toBe(1);
+        expect(single!.propertyCount).toBe(1);
     });
 
     it('multi-company groups appear', async () => {

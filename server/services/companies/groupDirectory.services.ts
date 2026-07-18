@@ -43,8 +43,8 @@ interface GetGroupDirectoryResult {
 
 /**
  * EXISTS clause matching a company_groups row with at least one member company tagged
- * (company_counties) with any of the counties; null when no county filter applies. The two-or-more
- * gate is global, so this only narrows visibility — it never changes a group's companyCount.
+ * (company_counties) with any of the counties; null when no county filter applies. This only
+ * narrows visibility — it never changes a group's companyCount.
  */
 function groupCountyExists(county: string | string[] | undefined): SQL | null {
     const counties = (Array.isArray(county) ? county : county ? [county] : [])
@@ -66,9 +66,9 @@ function groupCountyExists(county: string | string[] | undefined): SQL | null {
 type CandidateGroup = { id: string; name: string; companyCount: number };
 
 /**
- * Multi-company groups (2+ members, evaluated globally) optionally narrowed to a county and a
- * search matching the group name or any member company name. Auto-created singleton groups (one
- * company) are excluded by the >= 2 HAVING gate.
+ * Groups with at least one member company, optionally narrowed to a county and a search matching
+ * the group name or any member company name. Every group qualifies regardless of member count —
+ * including auto-created singletons — so the directory reflects all curated groups.
  */
 async function fetchCandidateGroups(
     county: string | string[] | undefined,
@@ -83,7 +83,7 @@ async function fetchCandidateGroups(
         const pattern = `%${searchTerm.toLowerCase()}%`;
         // Users know operators by either the group name or a member LLC, so match both. The EXISTS
         // is aliased (mc) so it scans all members rather than filtering the joined member rows,
-        // which would skew companyCount and the two-or-more gate.
+        // which would skew companyCount.
         conditions.push(sql`(
             LOWER(TRIM(${companyGroups.name})) LIKE ${pattern}
             OR EXISTS (
@@ -105,8 +105,7 @@ async function fetchCandidateGroups(
         .from(companyGroups)
         .innerJoin(companies, eq(companies.groupId, companyGroups.id))
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .groupBy(companyGroups.id, companyGroups.name)
-        .having(sql`count(${companies.id}) >= 2`);
+        .groupBy(companyGroups.id, companyGroups.name);
     return rows as CandidateGroup[];
 }
 
@@ -213,9 +212,9 @@ async function buildGroupRoster(
 }
 
 /**
- * One page of the public Groups directory: multi-company operator groups ranked by the active sort,
- * scoped to the selected county, with zero-count groups hidden. Mirrors the company directory's
- * sort/search/county/pagination contract; group names are returned RAW.
+ * One page of the public Groups directory: operator groups (any member count) ranked by the active
+ * sort, scoped to the selected county, with zero-count groups hidden. Mirrors the company
+ * directory's sort/search/county/pagination contract; group names are returned RAW.
  */
 export async function getGroupDirectory(
     params: GetGroupDirectoryParams,
@@ -274,10 +273,9 @@ export async function getGroupDirectory(
 }
 
 /**
- * One group's directory row under the same visibility rules as the directory (2+ members,
- * county-scoped, non-zero count for the sort), or null when the group is stale for this view —
- * disbanded, below two members, or without activity in the selected county. Backs ?group=
- * deep-link validation.
+ * One group's directory row under the same visibility rules as the directory (county-scoped,
+ * non-zero count for the sort), or null when the group is stale for this view — disbanded,
+ * memberless, or without activity in the selected county. Backs ?group= deep-link validation.
  */
 export async function getGroupDirectoryRowById(
     id: string,
@@ -317,7 +315,7 @@ export async function getGroupDirectoryRowById(
  * including intra-group transfers, assigned de-duplicated on property, and the 90-day acquisition
  * chart. The stats are sort-independent; passing `sort` additionally attaches the on-demand See
  * Companies roster (member companies with per-member counts for that sort). Null under the directory
- * row's visibility rules: disbanded, under two members, or no member in the selected counties.
+ * row's visibility rules: disbanded, memberless, or no member in the selected counties.
  */
 export async function getGroupProfile(
     id: string,

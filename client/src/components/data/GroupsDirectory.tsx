@@ -19,7 +19,7 @@ import { DEFAULT_DATE_RANGE } from '@/lib/propertyFilters';
 import type { GroupDirectoryRow } from '@shared/types/groups';
 
 /**
- * The Groups tab list: operator groups (2+ member companies) ranked by the shared sort, with
+ * The Groups tab list: operator groups ranked by the shared sort, with
  * infinite-scroll pagination and empty-state copy mirroring the company directory. The shared search
  * and Sort-by controls live in the parent DirectoryPanel; this panel renders the list + footer and
  * owns group selection (click toggles; the grid/map filter to all member companies).

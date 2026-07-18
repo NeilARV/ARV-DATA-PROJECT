@@ -875,8 +875,8 @@ Top zip codes and buyers within an MSA.
 ---
 
 ### `GET /api/companies/groups`
-Public groups directory (Data-app Groups tab): multi-company operator groups ranked by the active
-sort, scoped to the selected county. Mirrors the company directory's sort/search/county/pagination
+Public groups directory (Data-app Groups tab): operator groups (any member count) ranked by the
+active sort, scoped to the selected county. Mirrors the company directory's sort/search/county/pagination
 contract. Distinct from the admin `/api/groups` router (which owns group mutation and is role-gated).
 
 **Auth**: Public
@@ -890,10 +890,10 @@ contract. Distinct from the admin `/api/groups` router (which owns group mutatio
 | `page` | number | Page number |
 | `limit` | number | Results per page (max 100) |
 
-**Behavior**: Only groups with **two or more** member companies appear (the gate is evaluated
-globally; auto-created singletons never appear). Aggregate counts are computed by grouping the
-per-sort count queries by `group_id` — de-duplicated on the distinct-property sorts, intra-group
-transfers included. Stats are county-scoped; a group with a zero count for the active sort is hidden.
+**Behavior**: Every group with at least one member company appears regardless of member count
+(auto-created singletons included). Aggregate counts are computed by grouping the per-sort count
+queries by `group_id` — de-duplicated on the distinct-property sorts, intra-group transfers
+included. Stats are county-scoped; a group with a zero count for the active sort is hidden.
 Group names are RAW (format with `formatCompanyName` at the render edge).
 
 **Response `200`** `{ groups: GroupDirectoryRow[], total: number, page: number, limit: number }` where
@@ -902,21 +902,21 @@ each row is `{ id, name, companyCount, propertyCount, propertiesSoldCount, prope
 ---
 
 ### `GET /api/companies/groups/:id`
-One group's directory row under the same visibility rules as the directory (2+ members, county
-scoping, non-zero count for the sort). Backs `?group=` deep-link validation in the Data app.
+One group's directory row under the same visibility rules as the directory (county scoping,
+non-zero count for the sort). Backs `?group=` deep-link validation in the Data app.
 
 **Auth**: Public
 
 **Query params**: `county` (repeatable), `sort` (same set as the directory; invalid → `most-properties`)
 
-**Response `200`** `{ group: GroupDirectoryRow }` · **`404`** when the group is stale for this view — disbanded, under two members, no activity in the selected counties, or a malformed/unknown id.
+**Response `200`** `{ group: GroupDirectoryRow }` · **`404`** when the group is stale for this view — disbanded, memberless, no activity in the selected counties, or a malformed/unknown id.
 
 ---
 
 ### `GET /api/companies/groups/:id/profile`
 Aggregate profile for one operator group (the expanded group card in the Data-app Groups tab):
 the company-profile stats summed across the group's member companies. Same visibility rules as
-the directory row (2+ members, county-scoped member visibility). The stats are sort-independent, so
+the directory row (county-scoped member visibility). The stats are sort-independent, so
 there is no zero-count gate; passing `sort` additionally attaches the on-demand See Companies
 `roster` (member companies with per-member counts for that sort). Group name is RAW (format with
 `formatCompanyName` at the render edge). Contact rows and Purchase-to-ARV are company-level
