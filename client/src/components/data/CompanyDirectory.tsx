@@ -356,6 +356,8 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         const profile = companyProfiles[listCompany.companyName];
                         const ranking = getRank(index, listCompany);
                         const medalBorder = rankMedalBorderClass(ranking);
+                        // Present only for multi-company-group members (null for singleton/ungrouped).
+                        const group = listCompany.group;
 
                         return (
                             <div
@@ -382,23 +384,22 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                 {formatCompanyName(listCompany.companyName)}
                                             </div>
                                             {/* Group chip — only for multi-company-group members; jumps to the Groups tab */}
-                                            {listCompany.group && (
+                                            {group && (
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleGroupChipClick(listCompany.group!.id);
+                                                        handleGroupChipClick(group.id);
                                                     }}
                                                     className="inline-flex items-center gap-1 mt-1 w-fit max-w-full rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-primary hover:bg-accent-border transition-colors"
                                                     data-testid={`company-group-chip-${listCompany.id}`}
                                                     title={
-                                                        formatCompanyName(listCompany.group.name) ??
-                                                        undefined
+                                                        formatCompanyName(group.name) ?? undefined
                                                     }
                                                 >
                                                     <Building2 className="w-3 h-3 flex-shrink-0" />
                                                     <span className="truncate">
-                                                        {formatCompanyName(listCompany.group.name)}
+                                                        {formatCompanyName(group.name)}
                                                     </span>
                                                 </button>
                                             )}

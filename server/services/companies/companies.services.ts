@@ -97,21 +97,13 @@ async function fetchMultiCompanyGroups(
 ): Promise<Map<string, { id: string; name: string }>> {
     const map = new Map<string, { id: string; name: string }>();
     if (groupIds.length === 0) return map;
-    const rows = (await db
-        .select({
-            id: companyGroups.id,
-            name: companyGroups.name,
-            companyCount: sql<number>`count(${companies.id})::int`,
-        })
+    const rows = await db
+        .select({ id: companyGroups.id, name: companyGroups.name })
         .from(companyGroups)
         .innerJoin(companies, eq(companies.groupId, companyGroups.id))
         .where(inArray(companyGroups.id, groupIds))
         .groupBy(companyGroups.id, companyGroups.name)
-        .having(sql`count(${companies.id}) >= 2`)) as {
-        id: string;
-        name: string;
-        companyCount: number;
-    }[];
+        .having(sql`count(${companies.id}) >= 2`);
     rows.forEach((r) => map.set(r.id, { id: r.id, name: r.name }));
     return map;
 }
