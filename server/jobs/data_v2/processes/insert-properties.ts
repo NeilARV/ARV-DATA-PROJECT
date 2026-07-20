@@ -99,7 +99,9 @@ function mapAddressRow(
         unitType: getString(addr, 'unit_type') ?? null,
         unitNumber: getString(addr, 'unit_number') ?? null,
         city: getString(addr, 'city') ?? null,
-        county: getString(addr, 'county') ?? null,
+        // SFR returns county on the property, not in the address object — fall back so
+        // addresses.county is populated (addresses-only readers, e.g. email updates, rely on it).
+        county: getString(addr, 'county') ?? getString(p, 'county') ?? null,
         state: getString(addr, 'state') ?? null,
         zipCode: getString(addr, 'zip_code') ?? null,
         zipPlusFourCode: getString(addr, 'zip_plus_four_code') ?? null,
